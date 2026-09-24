@@ -8,6 +8,7 @@ const adapter: HarnessAdapter = {
   start: async () => {},
   send: async () => {},
   cancel: async () => {},
+  respondApproval: async () => {},
   stop: async () => {},
   onEvent: () => () => {},
 };

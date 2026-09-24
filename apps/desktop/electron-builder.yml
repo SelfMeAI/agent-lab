@@ -5,6 +5,11 @@ directories:
 files:
   - out/**/*
   - package.json
+extraResources:
+  - from: ../../runtimes/dsh/node_modules
+    to: dsh/node_modules
+    filter:
+      - "**/*"
 asar: true
 mac:
   category: public.app-category.developer-tools

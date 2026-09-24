@@ -1,0 +1,9 @@
+{
+  "name": "selfme-lab-dsh-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned, project-local DeepSeek Harness runtime bundled with SelfMe Lab",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.2-alpha.5"
+  }
+}

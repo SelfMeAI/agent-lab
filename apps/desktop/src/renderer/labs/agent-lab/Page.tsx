@@ -1,39 +1,49 @@
-import { useState, type JSX } from "react";
+import { useEffect, useState, type CSSProperties, type JSX } from "react";
+import type { RuntimeStatus } from "../../../../../../packages/contracts/src/index";
 import { goToLab } from "../../app/navigation";
+import { LabIcon } from "../../shell/LabIcon";
 import { PendingLabPage } from "../shared/PendingLabPage";
 import type { LabPageProps } from "../types";
+import { DshWorkspace } from "./DshWorkspace";
 import "./agent-lab.css";
 
-export function AgentLabPage({ lab, viewId }: LabPageProps): JSX.Element {
-  const [workspace, setWorkspace] = useState<string | null>(null);
+const accents: Record<string, string> = {
+  dsh: "#d3fb52", codex: "#40dbe7", pi: "#b9ddf0", "kimi-code": "#f38f8e",
+  "qwen-code": "#91c4b9", "claude-code": "#bd8df7",
+};
 
-  async function selectWorkspace(): Promise<void> {
-    if (!window.selfmeLab) return;
-    const selected = await window.selfmeLab.chooseWorkspace();
-    if (selected) setWorkspace(selected);
-  }
+export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: LabPageProps): JSX.Element {
+  const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([]);
+  useEffect(() => {
+    if (window.selfmeLab) void window.selfmeLab.listRuntimes().then(setRuntimeStatuses).catch(() => setRuntimeStatuses([]));
+  }, []);
 
   if (!viewId) {
     return (
       <section className="agent-index">
-        <div className="section-title"><h2>LOCAL HARNESSES</h2><span>独立实验入口</span></div>
+        <h1>AGENT LAB</h1>
+        <div className="agent-index__group"><h2>HARNESS RUNTIMES</h2><span /></div>
         <div className="agent-grid">
-          {lab.views.map((item) => (
-            <button className="agent-tile" key={item.id} onClick={() => goToLab(lab.id, item.id)} type="button">
-              <span>{item.label}</span><span aria-hidden="true">↗</span>
-            </button>
-          ))}
+          {lab.views.map((item) => {
+            const status = runtimeStatuses.find((entry) => entry.id === item.id);
+            const label = status?.availability === "ready" ? "READY" : item.id === "claude-code" ? "EXTERNAL" : "PLANNED";
+            return <button className="agent-tile" key={item.id} onClick={() => goToLab(lab.id, item.id)} style={{ "--tile-accent": accents[item.id] } as CSSProperties} type="button">
+              <LabIcon runtimeId={item.id} className="agent-tile__icon" />
+              <span className="agent-tile__text"><strong>{item.label.toUpperCase()}</strong><small>{label}</small></span>
+              <svg className="agent-tile__arrow" viewBox="0 0 48 32" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M2 16h42m-13-13 13 13-13 13" /></svg>
+            </button>;
+          })}
         </div>
       </section>
     );
   }
 
+  if (viewId === "dsh") return <DshWorkspace onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
+
   return (
-    <PendingLabPage lab={lab} viewId={viewId}>
-      <div className="workspace-control">
-        <button onClick={() => void selectWorkspace()} type="button">选择工作目录 ↗</button>
-        <span title={workspace ?? undefined}>{workspace ?? "尚未选择工作目录"}</span>
-      </div>
-    </PendingLabPage>
+    <div className="agent-pending">
+      <div className="agent-pending__heading"><LabIcon runtimeId={viewId} /><h1>{lab.views.find((item) => item.id === viewId)?.label.toUpperCase()} LAB</h1></div>
+      <PendingLabPage lab={lab} viewId={viewId} />
+    </div>
   );
 }

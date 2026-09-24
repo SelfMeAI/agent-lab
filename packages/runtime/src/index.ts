@@ -7,6 +7,7 @@ export interface HarnessAdapter {
   start(workspace: string): Promise<void>;
   send(prompt: string): Promise<void>;
   cancel(): Promise<void>;
+  respondApproval(requestId: string | number, optionId: string): Promise<void>;
   stop(): Promise<void>;
   onEvent(listener: (event: RunEvent) => void): () => void;
 }

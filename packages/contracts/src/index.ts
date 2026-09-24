@@ -33,6 +33,26 @@ export interface RuntimeStatus {
   detail?: string;
 }
 
+export type RuntimePhase = "idle" | "starting" | "ready" | "running" | "approval" | "cancelling" | "error";
+
+export interface ProviderStatus {
+  configured: boolean;
+  baseUrl: string;
+}
+
+export interface ApprovalOption {
+  optionId: string;
+  name: string;
+  kind: string;
+}
+
+export interface ApprovalRequest {
+  requestId: string | number;
+  title: string;
+  options: ApprovalOption[];
+  toolCallId?: string;
+}
+
 export type RunEventKind =
   | "message"
   | "thought"
@@ -43,12 +63,18 @@ export type RunEventKind =
   | "error";
 
 export interface RunEvent {
+  runtimeId: string;
   runId: string;
   sequence: number;
   at: string;
   source: string;
   kind: RunEventKind;
   text?: string;
+  title?: string;
+  phase?: RuntimePhase;
+  approval?: ApprovalRequest;
+  toolCallId?: string;
+  toolStatus?: string;
   raw?: unknown;
 }
 
@@ -63,4 +89,12 @@ export interface DesktopBridge {
   getAppInfo(): Promise<AppInfo>;
   chooseWorkspace(): Promise<string | null>;
   listRuntimes(): Promise<RuntimeStatus[]>;
+  getProviderStatus(runtimeId: string): Promise<ProviderStatus>;
+  saveProvider(runtimeId: string, config: { baseUrl: string; apiKey?: string }): Promise<ProviderStatus>;
+  startRuntime(runtimeId: string, workspace: string): Promise<void>;
+  sendPrompt(runtimeId: string, prompt: string): Promise<void>;
+  cancelRun(runtimeId: string): Promise<void>;
+  respondApproval(runtimeId: string, requestId: string | number, optionId: string): Promise<void>;
+  stopRuntime(runtimeId: string): Promise<void>;
+  onRunEvent(listener: (event: RunEvent) => void): () => void;
 }

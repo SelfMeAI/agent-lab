@@ -1,6 +1,7 @@
 import type { CSSProperties, JSX } from "react";
 import { goToLab } from "../app/navigation";
 import { labGroups, labs } from "../labs/registry";
+import { LabIcon } from "./LabIcon";
 
 export function HomePage(): JSX.Element {
   return (
@@ -19,9 +20,9 @@ export function HomePage(): JSX.Element {
                 style={{ "--accent": lab.accent } as CSSProperties}
                 type="button"
               >
-                <span className="lab-card__symbol" aria-hidden="true">{lab.symbol}</span>
+                <LabIcon className="lab-card__symbol" labId={lab.id} />
                 <span className="lab-card__title">{lab.title}</span>
-                <span className="lab-card__arrow" aria-hidden="true">⟶</span>
+                <svg className="lab-card__arrow" viewBox="0 0 48 32" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M2 16h42m-13-13 13 13-13 13" /></svg>
               </button>
             ))}
           </div>

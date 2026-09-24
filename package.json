@@ -7,10 +7,13 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "node scripts/ensure-dsh-runtime.mjs",
+    "predev": "node scripts/ensure-dsh-runtime.mjs",
     "dev": "npm run dev --workspace @selfme-lab/desktop",
     "build": "npm run build --workspace @selfme-lab/desktop",
     "typecheck": "npm run typecheck --workspace @selfme-lab/desktop",
     "test": "npm run test --workspace @selfme-lab/desktop",
+    "prepackage:mac": "node scripts/ensure-dsh-runtime.mjs",
     "package:mac": "npm run package:mac --workspace @selfme-lab/desktop"
   },
   "engines": {

@@ -4,13 +4,15 @@ import { LabPage } from "../labs/LabPage";
 import { HomePage } from "../shell/HomePage";
 import { SettingsPanel } from "../shell/SettingsPanel";
 import { TopBar } from "../shell/TopBar";
-import { parseHash } from "./navigation";
+import { attachDshEvents } from "../labs/agent-lab/dsh-store";
+import { goHome, goToLab, parseHash } from "./navigation";
 import starfield from "../../../../../assets/backgrounds/lab-space.png";
 
 export function App(): JSX.Element {
   const [route, setRoute] = useState(() => parseHash(window.location.hash));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [providerRevision, setProviderRevision] = useState(0);
 
   useEffect(() => {
     const syncRoute = (): void => setRoute(parseHash(window.location.hash));
@@ -18,14 +20,15 @@ export function App(): JSX.Element {
     if (window.selfmeLab) {
       void window.selfmeLab.getAppInfo().then(setInfo).catch(() => setInfo(null));
     }
-    return () => window.removeEventListener("hashchange", syncRoute);
+    const detachDsh = attachDshEvents();
+    return () => { window.removeEventListener("hashchange", syncRoute); detachDsh(); };
   }, []);
 
   return (
     <div className="app-shell" style={{ "--space-art": `url(${starfield})` } as CSSProperties}>
-      <TopBar inLab={Boolean(route.lab)} onOpenSettings={() => setSettingsOpen(true)} />
-      {route.lab ? <LabPage key={route.lab.id} lab={route.lab} viewId={route.viewId} /> : <HomePage />}
-      {settingsOpen && <SettingsPanel info={info} onClose={() => setSettingsOpen(false)} />}
+      <TopBar inLab={Boolean(route.lab)} showSettings={route.lab?.id === "agent-lab" && route.viewId === "dsh"} onBack={() => route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
+      {route.lab ? <LabPage key={route.lab.id} lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
+      {settingsOpen && <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />}
     </div>
   );
 }

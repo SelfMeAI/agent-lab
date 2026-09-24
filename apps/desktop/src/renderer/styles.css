@@ -1,5 +1,5 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Menlo, "SFMono-Regular", monospace;
   color: #f3f7f4;
   background: #05090c;
   font-synthesis: none;
@@ -21,13 +21,13 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 }
 
 .topbar {
-  height: 75px;
+  height: 76px;
   padding: 0 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid rgba(180, 243, 222, .45);
-  background: rgba(3, 7, 9, .88);
+  background: rgba(3, 7, 9, .82);
   -webkit-app-region: drag;
 }
 
@@ -39,36 +39,37 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   color: #f8fbf9;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 18px;
   background: transparent;
   font-family: Menlo, "SFMono-Regular", monospace;
-  font-size: 22px;
+  font-size: 23px;
   letter-spacing: .07em;
 }
 
-.brand img { width: 43px; height: 43px; object-fit: contain; }
+.brand img { width: 47px; height: 51px; object-fit: contain; }
 
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
 
 .icon-button {
-  width: 35px;
-  height: 35px;
+  width: 39px;
+  height: 39px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(226, 246, 239, .28);
-  border-radius: 5px;
+  border: 0;
   color: #ecf5f1;
-  background: rgba(13, 21, 23, .75);
+  background: transparent;
   font-size: 21px;
   line-height: 1;
 }
 
-.icon-button:hover { border-color: #d1ea79; color: #d1ea79; }
+.icon-button svg { width: 30px; height: 30px; }
+
+.icon-button:hover { color: #d1ea79; }
 
 .home-content {
   width: min(100%, 1650px);
   margin: 0 auto;
-  padding: 45px 42px 72px;
+  padding: 50px 42px 72px;
 }
 
 .page-title, .lab-group h2, .lab-card, .eyebrow, .module-kicker, .module-frame__topline, .lab-tabs, .settings-panel h2 {
@@ -77,12 +78,12 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 }
 
 .page-title {
-  margin: 0 0 23px;
+  margin: 0 0 26px;
   font-size: clamp(30px, 3vw, 45px);
   letter-spacing: .055em;
 }
 
-.lab-group { margin: 0 0 37px; }
+.lab-group { margin: 0 0 43px; }
 
 .group-heading {
   display: flex;
@@ -105,7 +106,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 
 .lab-card {
   min-width: 0;
-  min-height: 126px;
+  min-height: 128px;
   padding: 20px 26px;
   display: flex;
   align-items: center;
@@ -114,7 +115,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   border-radius: 2px;
   color: #f4f7f5;
   text-align: left;
-  background: rgba(8, 15, 18, .91);
+  background: rgba(5, 12, 15, .93);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent), 0 12px 35px rgba(0, 0, 0, .17);
   transition: background .18s ease, transform .18s ease, box-shadow .18s ease;
 }
@@ -126,15 +127,12 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 }
 
 .lab-card__symbol {
-  width: 76px;
-  flex: 0 0 76px;
+  width: 69px;
+  height: 69px;
+  flex: 0 0 69px;
   color: var(--accent);
-  text-align: center;
-  font-size: 54px;
-  line-height: 1;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 19%, transparent));
 }
-
-.lab-card[data-lab-id="harness-forge"] .lab-card__symbol { font-size: 31px; font-weight: 700; letter-spacing: -.13em; }
 
 .lab-card__title {
   flex: 1;
@@ -143,13 +141,13 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   letter-spacing: -.035em;
 }
 
-.lab-card__arrow { font-family: sans-serif; font-size: 34px; font-weight: 200; }
+.lab-card__arrow { width: 34px; height: 26px; flex: 0 0 34px; }
 
 .lab-content { width: min(100%, 1500px); margin: 0 auto; padding: 50px 48px 90px; }
 
 .lab-heading { display: flex; align-items: center; gap: 24px; margin-bottom: 38px; }
 
-.lab-heading__symbol { color: var(--accent); font-size: 60px; line-height: 1; }
+.lab-heading__symbol { color: var(--accent); width: 60px; height: 60px; }
 
 .eyebrow { margin: 0 0 7px; color: #a0aba9; letter-spacing: .16em; font-size: 11px; }
 
@@ -218,10 +216,21 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 
 .settings-panel .settings-panel__note { font-size: 12px; line-height: 1.7; }
 
+.settings-panel__form { display: flex; flex-direction: column; gap: 11px; margin-top: 32px; }
+.settings-panel__form label { color: #d6ecaa; font-size: 11px; letter-spacing: .12em; }
+.settings-panel__form input { height: 43px; margin-bottom: 10px; padding: 0 12px; border: 1px solid #60736e; border-radius: 3px; outline: none; color: #f4f7f2; background: #111f22; font: 13px Menlo, "SFMono-Regular", monospace; }
+.settings-panel__form input:focus { border-color: #d3fb52; }
+.settings-panel__form input::placeholder { color: #7d908b; }
+.settings-panel__form .settings-panel__note { margin: 6px 0 8px; }
+.settings-panel__form .settings-panel__error { margin: 0; color: #ff9b9b; font-size: 12px; line-height: 1.6; }
+.settings-panel__save { height: 43px; margin-top: 8px; border: 1px solid #d3fb52; color: #d3fb52; background: #d3fb5214; letter-spacing: .05em; }
+.settings-panel__save:hover:not(:disabled) { background: #d3fb5224; }
+.settings-panel__save:disabled { opacity: .45; }
+
 @media (max-width: 1180px) {
   .lab-grid { gap: 14px; }
   .lab-card { gap: 12px; padding: 18px; }
-  .lab-card__symbol { width: 50px; flex-basis: 50px; font-size: 43px; }
+  .lab-card__symbol { width: 50px; height: 50px; flex-basis: 50px; }
 }
 
 @media (max-width: 960px) {
