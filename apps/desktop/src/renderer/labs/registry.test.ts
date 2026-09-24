@@ -1,15 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { labs } from "./labs";
+import { parseHash } from "../app/navigation";
+import { labs } from "./registry";
 
 interface Catalog {
   screens: Array<{ id: string; file: string }>;
 }
 
-const designRoot = new URL("../../../../design/", import.meta.url);
+const designRoot = new URL("../../../../../design/", import.meta.url);
 const catalog = JSON.parse(readFileSync(new URL("catalog.json", designRoot), "utf8")) as Catalog;
 
-describe("lab navigation and approved designs", () => {
+describe("lab modules and approved designs", () => {
   it("keeps every lab and view identifier unique", () => {
     expect(new Set(labs.map((lab) => lab.id)).size).toBe(labs.length);
     for (const lab of labs) {
@@ -29,5 +30,12 @@ describe("lab navigation and approved designs", () => {
       expect(existsSync(new URL(file!, designRoot)), `Missing mockup for ${designId}`).toBe(true);
       expect(existsSync(new URL(file!.replace(/\.png$/, ".prompt.txt"), designRoot)), `Missing prompt for ${designId}`).toBe(true);
     }
+  });
+
+  it("resolves valid routes and rejects unknown modules", () => {
+    expect(parseHash("#/lab/agent-lab/codex")).toMatchObject({ lab: { id: "agent-lab" }, viewId: "codex" });
+    expect(parseHash("#/lab/rsi-lab/not-a-view")).toMatchObject({ lab: { id: "rsi-lab" }, viewId: undefined });
+    expect(parseHash("#/lab/unknown")).toEqual({});
+    expect(parseHash("#/")).toEqual({});
   });
 });

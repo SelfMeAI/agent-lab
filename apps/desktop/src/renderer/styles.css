@@ -71,7 +71,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   padding: 45px 42px 72px;
 }
 
-.page-title, .lab-group h2, .lab-card, .eyebrow, .section-title h2, .module-kicker, .module-frame__topline, .lab-tabs, .settings-panel h2 {
+.page-title, .lab-group h2, .lab-card, .eyebrow, .module-kicker, .module-frame__topline, .lab-tabs, .settings-panel h2 {
   font-family: Menlo, "SFMono-Regular", monospace;
   font-weight: 400;
 }
@@ -155,33 +155,6 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 
 .lab-heading h1 { margin: 0; font-family: Menlo, "SFMono-Regular", monospace; font-size: clamp(30px, 3vw, 46px); font-weight: 400; letter-spacing: .035em; }
 
-.section-title { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid rgba(211, 244, 233, .44); padding-bottom: 14px; margin-bottom: 18px; }
-
-.section-title h2 { margin: 0; font-size: 22px; letter-spacing: .06em; }
-
-.section-title span { font-size: 13px; color: #a7b2ad; }
-
-.agent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-
-.agent-tile {
-  min-height: 134px;
-  padding: 24px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  border: 1px solid rgba(201, 237, 101, .6);
-  color: #f5f8f3;
-  background: rgba(9, 16, 18, .88);
-  font-family: Menlo, "SFMono-Regular", monospace;
-  font-size: 22px;
-  text-align: left;
-  transition: background .18s ease, border-color .18s ease;
-}
-
-.agent-tile:hover { border-color: #d5ef87; background: rgba(25, 38, 30, .94); }
-
-.agent-tile span:last-child { color: #caed75; font-size: 28px; }
-
 .lab-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 14px; margin-bottom: 6px; }
 
 .lab-tabs button {
@@ -225,14 +198,6 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 
 .module-frame__body .module-note { margin-top: 28px; color: #84948d; font-size: 13px; }
 
-.workspace-control { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; margin-top: 35px; }
-
-.workspace-control button { padding: 11px 15px; border: 1px solid var(--accent); color: var(--accent); background: transparent; }
-
-.workspace-control button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-
-.workspace-control span { max-width: 480px; color: #97a69e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-
 .modal-backdrop { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: flex-end; background: rgba(0, 0, 0, .62); }
 
 .settings-panel { width: min(100%, 430px); height: 100%; padding: 30px; border-left: 1px solid #678076; background: #0c1518; box-shadow: -20px 0 60px rgba(0, 0, 0, .45); }
@@ -260,7 +225,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 }
 
 @media (max-width: 960px) {
-  .lab-grid, .agent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lab-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lab-grid--studio { grid-template-columns: 1fr; }
   .home-content { padding: 35px 30px 60px; }
   .lab-content { padding: 38px 30px 65px; }
@@ -270,7 +235,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   .topbar { padding: 0 18px; }
   .brand { font-size: 16px; }
   .brand img { width: 35px; height: 35px; }
-  .lab-grid, .agent-grid { grid-template-columns: 1fr; }
+  .lab-grid { grid-template-columns: 1fr; }
   .lab-card { min-height: 95px; }
   .lab-card__title { font-size: 18px; }
   .module-frame__topline { flex-direction: column; gap: 5px; }
