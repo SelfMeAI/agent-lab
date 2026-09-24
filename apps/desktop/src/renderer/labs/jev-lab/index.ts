@@ -1,4 +1,5 @@
 import type { LabModule } from "../types";
+import { JevLabPage } from "./Page";
 
 export const jevLab: LabModule = {
   id: "jev-lab",
@@ -8,4 +9,5 @@ export const jevLab: LabModule = {
   symbol: "♧",
   purpose: "观察 JEV 在具体测试项中的决策过程。",
   views: [{ id: "xiangqi", label: "Xiangqi", designId: "jev.xiangqi.workspace" }],
+  Page: JevLabPage,
 };

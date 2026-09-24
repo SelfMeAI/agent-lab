@@ -100,6 +100,21 @@
 .dsh-composer__cancel { color: #ffb75b; }
 .dsh-composer button:disabled { opacity: .32; cursor: default; }
 
+.agent-workspace--codex .dsh-workspace__identity svg,
+.agent-workspace--codex .dsh-conversation__empty svg,
+.agent-workspace--codex .dsh-entry__avatar,
+.agent-workspace--codex .dsh-entry__label,
+.agent-workspace--codex .dsh-composer__send,
+.agent-workspace--codex .dsh-workspace__phase.is-ready { color: #40dbe7; }
+.agent-workspace--codex .dsh-workspace__path:hover,
+.agent-workspace--codex .dsh-conversation__empty button,
+.agent-workspace--codex .dsh-composer textarea:focus { border-color: #40dbe7; }
+.agent-workspace--codex .dsh-conversation__empty button { color: #40dbe7; }
+.agent-workspace--codex .dsh-rail__task { border-color: #40dbe7; background: #10252b; }
+.agent-workspace--codex .dsh-rail__task i,
+.agent-workspace--codex .dsh-activity__dots i { background: #40dbe7; box-shadow: 0 0 7px #40dbe7; }
+.agent-workspace--codex .dsh-activity { color: #8ce9ee; }
+
 @media (max-width: 1150px) {
   .agent-grid { gap: 17px; }
   .agent-tile { gap: 14px; padding: 18px; }

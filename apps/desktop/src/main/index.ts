@@ -2,12 +2,19 @@ import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from "el
 import { join } from "node:path";
 import type { AppInfo } from "../../../../packages/contracts/src/index";
 import { AdapterRegistry } from "../../../../packages/runtime/src/index";
+import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
-import { getDshProvider, getDshProviderStatus, saveDshProvider } from "./provider-store";
+import {
+  getCodexProvider, getCodexProviderStatus, getDshProvider, getDshProviderStatus,
+  getJevProviderStatus, importLegacyCodexProvider, importLegacyJevProvider,
+  saveCodexProvider, saveDshProvider, saveJevProvider,
+} from "./provider-store";
+import { decideJevMove } from "./jev-decision";
 
 const registry = new AdapterRegistry();
 let mainWindow: BrowserWindow | null = null;
 let dsh: DshAdapter;
+let codex: CodexAdapter;
 
 app.setName("SelfMe Lab");
 
@@ -63,7 +70,16 @@ app.whenReady().then(() => {
     provider: getDshProvider,
   });
   registry.register(dsh);
+  codex = new CodexAdapter({
+    executable: app.isPackaged
+      ? join(process.resourcesPath, "codex", "bin", "codex")
+      : join(__dirname, "../../../../runtimes/codex/bin/codex"),
+    homeDirectory: join(app.getPath("userData"), "codex-home"),
+    provider: getCodexProvider,
+  });
+  registry.register(codex);
   dsh.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
+  codex.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
@@ -82,16 +98,45 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("selfme:get-provider-status", async (event, runtimeId: string) => {
     assertMainWindow(event);
-    if (runtimeId !== "dsh") throw new Error("此运行时暂不支持模型配置");
-    return getDshProviderStatus();
+    if (runtimeId === "dsh") return getDshProviderStatus();
+    if (runtimeId === "codex") return getCodexProviderStatus();
+    if (runtimeId === "jev") return getJevProviderStatus();
+    throw new Error("此运行时暂不支持模型配置");
   });
-  ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string }) => {
+  ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
     assertMainWindow(event);
-    if (runtimeId !== "dsh") throw new Error("此运行时暂不支持模型配置");
-    if (dsh.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
-    const status = await saveDshProvider(config);
-    await dsh.stop();
+    if (runtimeId === "dsh") {
+      if (dsh.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      const status = await saveDshProvider(config);
+      await dsh.stop();
+      return status;
+    }
+    if (runtimeId === "codex") {
+      if (codex.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      const status = await saveCodexProvider(config);
+      await codex.stop();
+      return status;
+    }
+    if (runtimeId === "jev") return saveJevProvider(config);
+    throw new Error("此运行时暂不支持模型配置");
+  });
+  ipcMain.handle("selfme:import-legacy-provider", async (event, runtimeId: string) => {
+    assertMainWindow(event);
+    if (runtimeId !== "codex" && runtimeId !== "jev") throw new Error("此运行时不支持旧版配置导入");
+    if (runtimeId === "codex" && codex.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后导入配置");
+    const selection = await dialog.showOpenDialog(mainWindow!, {
+      title: runtimeId === "codex" ? "选择旧版 Codex 配置目录（包含 settings.json 和 credentials.json）" : "选择旧版 JEV .env.local 文件",
+      properties: runtimeId === "codex" ? ["openDirectory"] : ["openFile", "showHiddenFiles"],
+    });
+    if (selection.canceled || !selection.filePaths[0]) return null;
+    if (runtimeId === "jev") return importLegacyJevProvider(selection.filePaths[0]);
+    const status = await importLegacyCodexProvider(selection.filePaths[0]);
+    await codex.stop();
     return status;
+  });
+  ipcMain.handle("selfme:jev-decision", async (event, fen: string, style: "balanced" | "aggressive" | "positional") => {
+    assertMainWindow(event);
+    return decideJevMove(fen, style);
   });
   ipcMain.handle("selfme:start-runtime", async (event, runtimeId: string, workspace: string) => {
     assertMainWindow(event);
@@ -132,9 +177,9 @@ app.whenReady().then(() => {
 
 let quitAfterCleanup = false;
 app.on("before-quit", (event) => {
-  if (!dsh || quitAfterCleanup) return;
+  if (!dsh || !codex || quitAfterCleanup) return;
   event.preventDefault();
-  void dsh.stop().finally(() => {
+  void Promise.allSettled([dsh.stop(), codex.stop()]).finally(() => {
     quitAfterCleanup = true;
     app.quit();
   });

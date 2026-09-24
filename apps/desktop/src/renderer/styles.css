@@ -226,6 +226,9 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 .settings-panel__save { height: 43px; margin-top: 8px; border: 1px solid #d3fb52; color: #d3fb52; background: #d3fb5214; letter-spacing: .05em; }
 .settings-panel__save:hover:not(:disabled) { background: #d3fb5224; }
 .settings-panel__save:disabled { opacity: .45; }
+.settings-panel__import { width: 100%; min-height: 41px; margin-top: 14px; border: 1px solid #567779; color: #9ad9e0; background: #102126; font-size: 12px; }
+.settings-panel__import:hover:not(:disabled) { border-color: #40dbe7; background: #163039; }
+.settings-panel__import:disabled { opacity: .45; }
 
 @media (max-width: 1180px) {
   .lab-grid { gap: 14px; }

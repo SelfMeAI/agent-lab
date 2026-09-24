@@ -1,0 +1,90 @@
+.jev-lab-page { width: min(100%, 1720px); margin: 0 auto; padding: 0 24px 46px; }
+.jev-index { max-width: 1120px; margin: 50px auto; }
+.jev-index__heading { display: flex; align-items: center; gap: 18px; }
+.jev-index__heading svg { width: 58px; height: 58px; color: #d696f2; }
+.jev-index h1 { font-size: 38px; letter-spacing: .04em; font-weight: 500; }
+.jev-index p { color: #a4b2bf; }
+.jev-index button { margin-top: 28px; width: min(100%, 480px); min-height: 110px; padding: 26px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #a96ac6; background: #111a25; color: #f5e9fb; font-size: 24px; text-align: left; }
+.jev-index button span { font-size: 13px; color: #c59bda; }
+.jev-workspace { color: #f1f4f9; font-family: Inter, "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.jev-workspace button, .jev-workspace select { font-family: inherit; }
+.jev-workspace__title { height: 74px; display: flex; align-items: center; gap: 19px; border-bottom: 1px solid #334153; }
+.jev-workspace__title svg { width: 46px; height: 46px; color: #d599ef; }
+.jev-workspace__title h1 { margin: 0; font-size: 25px; font-weight: 700; letter-spacing: .04em; }
+.jev-workspace__title span { margin-left: 12px; padding-left: 25px; border-left: 1px solid #5e6c80; color: #b3bed0; font-size: 17px; letter-spacing: .07em; }
+.jev-workspace__grid { display: grid; grid-template-columns: minmax(240px, .95fr) minmax(430px, 1.68fr) minmax(280px, 1.12fr); gap: 0; min-height: 670px; }
+.jev-panel { min-width: 0; border: 1px solid #293747; background: rgba(13, 22, 34, .95); }
+.jev-panel + .jev-panel { border-left: 0; }
+.jev-modes { height: 76px; padding: 15px 18px; display: flex; border-bottom: 1px solid #2b3b4e; }
+.jev-modes button { flex: 1; border: 1px solid transparent; border-radius: 6px; background: #172130; color: #b8c3d2; font-size: 12px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.jev-modes button.active { border-color: #8d61fa; background: #292753; color: #f4f0ff; box-shadow: 0 0 0 1px #6245a2 inset; }
+.jev-controls__body { padding: 21px 20px; }
+.jev-controls h2, .jev-candidates h2, .jev-history h2 { margin: 0 0 25px; font-size: 15px; letter-spacing: .035em; font-weight: 700; }
+.jev-player { display: flex; align-items: flex-start; gap: 12px; min-height: 122px; }
+.jev-player__avatar { width: 43px; height: 43px; flex: 0 0 43px; display: grid; place-items: center; border-radius: 50%; border: 2px solid; font: 26px "Kaiti SC", KaiTi, "Songti SC", serif; }
+.jev-player__avatar.red { border-color: #e65b64; background: #a23e4b; color: #fff1e5; }
+.jev-player__avatar.black { border-color: #cad5df; background: #162332; color: #f4f4f0; }
+.jev-player > div { min-width: 0; flex: 1; display: grid; gap: 5px; }
+.jev-player strong { font-size: 15px; letter-spacing: .02em; }
+.jev-player small { color: #a3b1c3; font-size: 12px; }
+.jev-player select { height: 40px; width: 100%; margin-top: 3px; padding: 0 11px; border: 0; border-radius: 5px; color: #f1f4f9; background: #192638; font-size: 12px; font-weight: 700; }
+.jev-controls__divider { height: 1px; margin: 3px 0 23px; background: #6d7c8c; }
+.jev-controls__status { min-height: 36px; display: flex; align-items: center; gap: 9px; color: #ececf8; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.jev-controls__status > span { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #554ac8; }
+.jev-controls__status > span::after { content: "Ⅱ"; font-size: 13px; }
+.jev-controls__status > span.busy::after { content: "◌"; animation: jev-spin 1.5s linear infinite; }
+@keyframes jev-spin { to { transform: rotate(360deg); } }
+.jev-controls__status i { height: 20px; width: 1px; margin: 0 4px; background: #627084; }
+.jev-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 24px 0 17px; }
+.jev-actions button { height: 58px; border: 1px solid #243144; border-radius: 7px; background: #1a2738; color: #f9faff; font-size: 25px; }
+.jev-actions button.primary { border-color: #8264fc; background: linear-gradient(135deg, #7455ef, #593dd3); }
+.jev-actions button:disabled { cursor: not-allowed; opacity: .4; }
+.jev-counts { display: grid; grid-template-columns: 1fr 1fr; padding: 16px; border: 1px solid #243242; border-radius: 5px; background: #182536; }
+.jev-counts > div { display: grid; gap: 5px; }
+.jev-counts > div + div { padding-left: 20px; border-left: 1px solid #415063; }
+.jev-counts strong { font-size: 18px; font-weight: 500; }
+.jev-counts span { font-size: 10px; color: #aebbc9; letter-spacing: .06em; }
+.jev-status { min-height: 18px; margin: 16px 0 0; color: #b6c4d3; font-size: 12px; line-height: 1.5; }
+.jev-warning { margin: 10px 0 0; padding: 10px; border: 1px solid #b07957; border-radius: 4px; background: #3a2c2c; color: #ffd4b5; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.jev-config { margin-top: 12px; padding: 8px 0; border: 0; background: transparent; color: #d4a7ee; font-size: 12px; }
+.jev-board-panel { display: flex; flex-direction: column; }
+.jev-panel__heading { min-height: 57px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; color: #f0f2f7; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.jev-panel__heading button { padding: 6px 10px; border: 1px solid #28374b; border-radius: 4px; background: #1b293a; color: #d4ddeb; font-size: 12px; }
+.jev-board-stage { min-height: 560px; flex: 1; padding: 6px 19px 15px; display: grid; place-items: center; }
+.jev-board { position: relative; width: min(100%, 490px); aspect-ratio: 8 / 9; border: 12px ridge #ad7542; border-radius: 3px; box-shadow: inset 0 0 0 2px #8e5e38, 0 11px 20px #050b13a8; background: repeating-linear-gradient(8deg, #c3864f 0, #ca8e54 6px, #c68a51 13px); }
+.jev-board::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #7c4b2627, transparent 14%, transparent 86%, #71411926), linear-gradient(#f3c48b38, transparent 30%, #61310f0e 60%, #f1bc803d); }
+.jev-board__grid { position: absolute; z-index: 1; left: 9%; top: 8.5%; width: 82%; aspect-ratio: 8 / 9; }
+.jev-board__lines { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: #65401fbe; stroke-width: 1.15; vector-effect: non-scaling-stroke; pointer-events: none; }
+.jev-river { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); color: #774321; font: bold clamp(14px, 1.5vw, 24px) "Kaiti SC", KaiTi, serif; letter-spacing: .25em; pointer-events: none; }
+.jev-river.left { left: 11%; }.jev-river.right { right: 8%; }
+.jev-square { position: absolute; z-index: 2; left: calc(var(--file) * 12.5%); top: calc(var(--rank) * 11.11111%); transform: translate(-50%, -50%); width: 12.4%; aspect-ratio: 1; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+.jev-square:not(:disabled):hover, .jev-square.selected { outline: 2px solid #7359dd; outline-offset: 0; background: #9e83f054; }
+.jev-square.target::after { content: ""; position: absolute; width: 25%; height: 25%; border-radius: 50%; background: #7d53da; }
+.jev-square:disabled { cursor: default; }
+.jev-piece { position: relative; z-index: 3; width: 84%; height: 84%; display: grid; place-items: center; border: 2px solid currentColor; border-radius: 50%; background: radial-gradient(circle at 34% 27%, #ffeac0, #eec897 65%, #c99c6a); box-shadow: 0 2px 0 #563921, 0 4px 6px #3925139e, inset 0 0 0 2px #f8e3b4; font: bold clamp(18px, 2.2vw, 30px) "Kaiti SC", KaiTi, "Songti SC", serif; }
+.jev-piece.red { color: #ae3234; }.jev-piece.black { color: #172536; }
+.jev-board-panel__footer { min-height: 45px; padding: 0 17px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #293747; color: #a9b6c7; font-size: 12px; letter-spacing: .04em; }
+.jev-board-panel__footer .online { color: #ad88fa; }
+.jev-trace__inner { padding: 0 18px 16px; }
+.jev-trace__callout { min-height: 95px; padding: 18px 20px; display: grid; gap: 8px; border-left: 4px solid #8862ff; border-radius: 4px; background: #1b293a; }
+.jev-trace__callout strong { font: 30px "Kaiti SC", KaiTi, "Songti SC", serif; }
+.jev-trace__callout span { color: #a9b8c8; font-size: 11px; letter-spacing: .06em; }
+.jev-metrics { display: grid; grid-template-columns: 1fr 1fr; margin-top: 17px; border: 1px solid #2b3a4e; border-radius: 5px; }
+.jev-metrics > div { min-height: 77px; padding: 13px 14px; display: grid; gap: 8px; }
+.jev-metrics > div:nth-child(odd) { border-right: 1px solid #2b3a4e; }.jev-metrics > div:nth-child(-n+2) { border-bottom: 1px solid #2b3a4e; }
+.jev-metrics span { color: #a5b5c5; font-size: 11px; }.jev-metrics strong { font-size: 22px; font-weight: 550; }
+.jev-candidates { margin-top: 26px; }.jev-candidates h2 { margin-bottom: 16px; display: flex; justify-content: space-between; }.jev-candidates h2 small { color: #8395aa; font-size: 10px; }
+.jev-candidates > p { color: #8293a8; font-size: 12px; }
+.jev-candidate { min-height: 48px; margin-bottom: 4px; padding: 0 10px; display: grid; grid-template-columns: 20px minmax(75px, 1fr) minmax(45px, .95fr) 34px; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; }
+.jev-candidate.chosen { border-color: #7b5dda; background: #201f39; }
+.jev-candidate > span { color: #9aabc0; }.jev-candidate strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 16px "Kaiti SC", KaiTi, serif; }.jev-candidate b { text-align: right; font-weight: 500; }
+.jev-candidate__bar { height: 5px; background: #28384c; }.jev-candidate__bar i { display: block; height: 100%; background: #8663f7; }
+.jev-details-toggle { width: 100%; margin-top: 15px; padding: 13px; display: flex; justify-content: space-between; border: 0; border-radius: 5px; background: #1b293a; color: #ebeff8; font-size: 12px; font-weight: 700; }
+.jev-details { padding: 9px 12px; color: #b3c0ce; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }.jev-details p { margin: 7px 0; }
+.jev-history { margin-top: 12px; padding: 14px 18px 16px; border: 1px solid #293747; border-radius: 5px; background: rgba(13, 22, 34, .95); }.jev-history h2 { margin: 0 0 13px; padding-bottom: 8px; border-bottom: 1px solid #2c3b4f; }
+.jev-history > div { min-height: 35px; display: flex; align-items: center; gap: 14px; overflow-x: auto; }
+.jev-history__move { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding-right: 17px; border-right: 1px solid #304054; white-space: nowrap; }
+.jev-history__move > b { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid; border-radius: 50%; font: 19px "Kaiti SC", KaiTi, serif; }.jev-history__move > b.red { color: #ff9d9d; border-color: #c75a64; }.jev-history__move > b.black { color: #dce7ef; border-color: #93a6b9; }
+.jev-history__move strong { font-size: 14px; font-weight: 550; }.jev-history__move em { padding: 3px 5px; border: 1px solid #6c5aaa; border-radius: 3px; color: #c2b4ff; font-size: 9px; font-style: normal; }.jev-history__move small { color: #93a3b5; font-size: 10px; }.jev-history__empty { color: #8c9bad; font-size: 12px; }
+@media (max-width: 1300px) { .jev-lab-page { padding: 0 16px 30px; }.jev-workspace__grid { grid-template-columns: minmax(215px, .85fr) minmax(390px, 1.5fr) minmax(260px, 1fr); }.jev-board-stage { padding: 8px; min-height: 510px; }.jev-controls__body { padding: 18px 13px; }.jev-trace__inner { padding: 0 12px 14px; } }
+@media (max-width: 1060px) { .jev-workspace__grid { grid-template-columns: 220px minmax(400px, 1fr); }.jev-trace { grid-column: 1 / -1; border-left: 1px solid #293747 !important; border-top: 0; }.jev-trace__inner { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }.jev-trace__callout, .jev-metrics { grid-column: 1; }.jev-candidates, .jev-details-toggle, .jev-details { grid-column: 2; }.jev-candidates { grid-row: 1 / span 2; margin-top: 0; } }

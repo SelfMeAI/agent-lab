@@ -2,7 +2,15 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { DshAdapter } from "./dsh";
+import { DshAdapter, contentText } from "./dsh";
+
+describe("DSH ACP content extraction", () => {
+  it("ignores events without text instead of recursively revisiting missing content", () => {
+    expect(contentText(undefined)).toBeUndefined();
+    expect(contentText({ type: "image", data: "..." })).toBeUndefined();
+    expect(contentText({ content: [{ text: "first" }, { text: "second" }] })).toBe("first\nsecond");
+  });
+});
 
 describe("bundled DSH ACP", () => {
   it.skipIf(!process.env.SELFME_DSH_SMOKE)("starts a real ACP session without a global Node or DSH install", async () => {

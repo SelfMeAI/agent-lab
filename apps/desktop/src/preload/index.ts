@@ -7,11 +7,13 @@ const bridge: DesktopBridge = {
   listRuntimes: () => ipcRenderer.invoke("selfme:list-runtimes"),
   getProviderStatus: (runtimeId) => ipcRenderer.invoke("selfme:get-provider-status", runtimeId),
   saveProvider: (runtimeId, config) => ipcRenderer.invoke("selfme:save-provider", runtimeId, config),
+  importLegacyProvider: (runtimeId) => ipcRenderer.invoke("selfme:import-legacy-provider", runtimeId),
   startRuntime: (runtimeId, workspace) => ipcRenderer.invoke("selfme:start-runtime", runtimeId, workspace),
   sendPrompt: (runtimeId, prompt) => ipcRenderer.invoke("selfme:send-prompt", runtimeId, prompt),
   cancelRun: (runtimeId) => ipcRenderer.invoke("selfme:cancel-run", runtimeId),
   respondApproval: (runtimeId, requestId, optionId) => ipcRenderer.invoke("selfme:respond-approval", runtimeId, requestId, optionId),
   stopRuntime: (runtimeId) => ipcRenderer.invoke("selfme:stop-runtime", runtimeId),
+  decideJevMove: (fen, style) => ipcRenderer.invoke("selfme:jev-decision", fen, style),
   onRunEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
     ipcRenderer.on("selfme:run-event", handler);

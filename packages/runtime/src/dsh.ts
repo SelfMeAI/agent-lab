@@ -33,14 +33,18 @@ function string(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function contentText(value: unknown): string | undefined {
+export function contentText(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     const parts = value.map(contentText).filter((part): part is string => Boolean(part));
     return parts.length ? parts.join("\n") : undefined;
   }
+  if (value === null || typeof value !== "object") return undefined;
   const item = object(value);
-  return string(item.text) ?? contentText(item.content) ?? string(item.output) ?? string(item.summary);
+  return string(item.text)
+    ?? (item.content === undefined ? undefined : contentText(item.content))
+    ?? string(item.output)
+    ?? string(item.summary);
 }
 
 export class DshAdapter implements HarnessAdapter {

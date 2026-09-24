@@ -4,7 +4,7 @@ import { LabPage } from "../labs/LabPage";
 import { HomePage } from "../shell/HomePage";
 import { SettingsPanel } from "../shell/SettingsPanel";
 import { TopBar } from "../shell/TopBar";
-import { attachDshEvents } from "../labs/agent-lab/dsh-store";
+import { attachAgentEvents } from "../labs/agent-lab/agent-store";
 import { goHome, goToLab, parseHash } from "./navigation";
 import starfield from "../../../../../assets/backgrounds/lab-space.png";
 
@@ -20,15 +20,15 @@ export function App(): JSX.Element {
     if (window.selfmeLab) {
       void window.selfmeLab.getAppInfo().then(setInfo).catch(() => setInfo(null));
     }
-    const detachDsh = attachDshEvents();
-    return () => { window.removeEventListener("hashchange", syncRoute); detachDsh(); };
+    const detachAgents = attachAgentEvents();
+    return () => { window.removeEventListener("hashchange", syncRoute); detachAgents(); };
   }, []);
 
   return (
     <div className="app-shell" style={{ "--space-art": `url(${starfield})` } as CSSProperties}>
-      <TopBar inLab={Boolean(route.lab)} showSettings={route.lab?.id === "agent-lab" && route.viewId === "dsh"} onBack={() => route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
+      <TopBar inLab={Boolean(route.lab)} showSettings={(route.lab?.id === "agent-lab" && (route.viewId === "dsh" || route.viewId === "codex")) || (route.lab?.id === "jev-lab" && route.viewId === "xiangqi")} onBack={() => route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
       {route.lab ? <LabPage key={route.lab.id} lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
-      {settingsOpen && <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />}
+      {settingsOpen && <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : route.lab?.id === "jev-lab" && route.viewId === "xiangqi" ? "jev" : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />}
     </div>
   );
 }

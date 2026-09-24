@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/openai/codex.git",
+  "tag": "rust-v0.153.4",
+  "commit": "3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
+  "version": "0.153.4",
+  "target": "darwin-arm64",
+  "sha256": {
+    "bin/codex": "11162e0504bf5eb70318cc982aded871e8a0c9bf97fe784d08eb69426c65f3e5",
+    "bin/codex-code-mode-host": "80f2a8c426b189593d0181d64e32d5c60ee684879cf78d99d4808d70a3af4ab8",
+    "codex-resources/codex-code-mode-host": "80f2a8c426b189593d0181d64e32d5c60ee684879cf78d99d4808d70a3af4ab8",
+    "codex-path/rg": "6ef40346bf31fcce79d9614c7745c198542925a0c7d4911e1ffe794c53392ac1"
+  },
+  "origin": "Built from the official source tree by the previous Native Lab project; binary hashes are checked during migration."
+}
