@@ -27,6 +27,7 @@ function assertMainWindow(event: IpcMainInvokeEvent): void {
 function createWindow(): void {
   const window = new BrowserWindow({
     title: "SelfMe Lab",
+    titleBarStyle: process.platform === "darwin" ? "hidden" : "default",
     width: 1440,
     height: 900,
     minWidth: 1024,

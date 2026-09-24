@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 import type { ProviderStatus } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
@@ -82,7 +82,9 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const [localError, setLocalError] = useState<string | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
+  const followOutputRef = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
 
   const connect = useCallback(async (path: string): Promise<void> => {
     if (!window.selfmeLab) return;
@@ -109,9 +111,26 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     return () => { active = false; };
   }, [connect, providerRevision]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [snapshot.entries]);
+  useLayoutEffect(() => {
+    const output = outputRef.current;
+    if (output && followOutputRef.current) output.scrollTop = output.scrollHeight;
+  }, [snapshot.entries, snapshot.statusText, localError]);
+
+  function trackOutputScroll(): void {
+    const output = outputRef.current;
+    if (!output) return;
+    const nearLatest = output.scrollHeight - output.scrollTop - output.clientHeight < 72;
+    followOutputRef.current = nearLatest;
+    setShowLatest(!nearLatest);
+  }
+
+  function jumpToLatest(): void {
+    const output = outputRef.current;
+    if (!output) return;
+    followOutputRef.current = true;
+    setShowLatest(false);
+    output.scrollTop = output.scrollHeight;
+  }
 
   async function chooseWorkspace(): Promise<void> {
     const bridge = window.selfmeLab;
@@ -152,6 +171,8 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     }
     setPrompt("");
     setLocalError(null);
+    followOutputRef.current = true;
+    setShowLatest(false);
     store.addUserPrompt(text);
     try {
       await window.selfmeLab.sendPrompt(runtimeId, text);
@@ -198,11 +219,11 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
       </div>
       <div className="dsh-workspace__grid">
         <aside className="dsh-rail">
-          <div className="dsh-rail__heading"><span>RECENT</span><button onClick={() => void newSession()} disabled={!workspace || busy} title="新建会话" type="button">＋</button></div>
-          {snapshot.currentTask ? <div className="dsh-rail__task"><i aria-hidden="true" /><span>{snapshot.currentTask}</span><small>当前会话</small></div> : <p className="dsh-rail__empty">开始第一项实验后会显示在这里</p>}
+          <div className="dsh-rail__heading"><span>SESSION</span><button onClick={() => void newSession()} disabled={!workspace || busy} title="新建会话" type="button">＋</button></div>
+          <div className="dsh-rail__scroll">{snapshot.currentTask ? <div className="dsh-rail__task"><i aria-hidden="true" /><span>{snapshot.currentTask}</span><small>当前会话</small></div> : <p className="dsh-rail__empty">开始第一项实验后会显示在这里</p>}</div>
         </aside>
         <section className="dsh-conversation" aria-label={`${names[runtimeId]} 工作区`}>
-          <div className="dsh-conversation__scroll">
+          <div className="dsh-conversation__scroll" ref={outputRef} onScroll={trackOutputScroll}>
             {snapshot.entries.length === 0 && <div className="dsh-conversation__empty">
               <LabIcon runtimeId={runtimeId} /><h2>准备好让 {names[runtimeId]} 开始工作</h2>
               <p>{!workspace ? "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
@@ -212,8 +233,8 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
             {snapshot.entries.map((entry) => <TranscriptItem key={entry.id} entry={entry} runtimeId={runtimeId} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy} />)}
             {busy && <div className="dsh-activity"><span className="dsh-activity__dots" aria-hidden="true"><i /><i /><i /></span>{snapshot.statusText}</div>}
             {localError && <div className="dsh-error" role="alert">{localError}</div>}
-            <div ref={bottomRef} />
           </div>
+          {showLatest && <button className="dsh-scroll-jump" onClick={jumpToLatest} type="button">最新输出 ↓</button>}
           <div className="dsh-composer">
             <textarea aria-label="任务内容" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} placeholder={composerHint} value={prompt} rows={2} />
             {["running", "approval", "cancelling"].includes(snapshot.phase) ? <button className="dsh-composer__cancel" disabled={snapshot.phase === "cancelling"} onClick={() => void cancel()} type="button" title="取消当前任务">■</button> : <button className="dsh-composer__send" disabled={!prompt.trim() || connecting} onClick={() => void submit()} type="button" title="发送任务">➤</button>}
