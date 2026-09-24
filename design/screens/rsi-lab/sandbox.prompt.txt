@@ -1,0 +1,6 @@
+Use case: ui-mockup / RSI Lab SANDBOX stage
+Edit target: output/imagegen/lab-ui/19-rsi-lab-modify.png
+
+Preserve the common shell and peer stage navigation; select only SANDBOX. Show three completed scenario runs for candidate c12-b in an isolated ephemeral worktree. The center records execution events and inspectable artifacts, including a handoff-summary run with two read calls. The right region documents disabled network, unavailable credentials, immutable baseline, read-only evaluator, budget, and next stage EVALUATE. This page records execution but does not decide quality or promote a candidate.
+
+Generated with the built-in OpenAI image-generation tool; run records are fictional design content.

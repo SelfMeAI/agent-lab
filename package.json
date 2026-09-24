@@ -1,0 +1,19 @@
+{
+  "name": "selfme-lab",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/desktop",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @selfme/desktop",
+    "build": "npm run build --workspace @selfme/desktop",
+    "typecheck": "npm run typecheck --workspace @selfme/desktop",
+    "test": "npm run test --workspace @selfme/desktop",
+    "package:mac": "npm run package:mac --workspace @selfme/desktop"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

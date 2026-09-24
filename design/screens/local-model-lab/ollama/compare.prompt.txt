@@ -1,0 +1,11 @@
+Use case: ui-mockup
+Asset: SelfMe Lab / Local Model Lab / Ollama COMPARE desktop peer screen.
+Edit target and visual authority: output/imagegen/lab-ui/10-local-model-lab-ollama-playground.png.
+
+Preserve the exact SelfMe Lab top bar and mark, cube mark, LOCAL MODEL LAB / OLLAMA title, near-black panels, quiet starfield and grid margins, hairline dividers, compact typography, and restrained lime accent. Keep PLAYGROUND and COMPARE as equal tabs; select COMPARE only.
+
+Purpose: compare two installed Ollama models on the same prompt and shared settings, without a winner badge or implied general benchmark. Left rail retains INSTALLED MODELS and PULL MODEL. Show qwen3:8b (4.9 GB) selected as A, gemma3:4b (2.6 GB) selected as B, and llama3.2:3b (2.0 GB) unselected. In the center, use one shared prompt: "For a local-first desktop app, when should I choose SQLite over PostgreSQL? Answer in three points." Place RUN COMPARISON beneath it. Show two equal-width completed responses, A and B, side by side, each with three short coherent points and a copy action.
+
+Right rail: SHARED SETTINGS with Temperature 0.7, Context length 8192, Seed 42, and the note "Same prompt · same settings". MEASUREMENTS uses aligned A/B columns: Prompt tokens 34/34, Output tokens 92/110, Decode 38/52 tok/s, Total 3.1/2.5 s. Footer: "Sample run only; speed does not imply quality." These are fictional sample values for this visual reference, not a real benchmark.
+
+Constraints: exactly one runtime, Ollama. No cloud provider, API keys, local folder selector, coding-agent transcript, model-quality score, chart, mobile layout, browser chrome, glowing effects, or watermark. The image is an approved visual reference; functionality is not implemented. Generated and precision-corrected with the built-in OpenAI image-generation tool; no third-party base URL or project API key was used.

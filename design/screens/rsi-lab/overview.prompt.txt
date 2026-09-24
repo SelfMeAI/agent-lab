@@ -1,0 +1,13 @@
+Use case: ui-mockup
+Asset: SelfMe Lab / RSI Lab cycle overview, high-fidelity native desktop visual reference.
+Style references: output/imagegen/lab-ui/13-harness-forge-design.png for the SelfMe Lab shell, compact typography, near-black work surfaces, thin rules, and restrained starfield; output/imagegen/lab-ui/01-lab-home.png for the cool-blue RSI two-arrow mark. Do not inherit Forge's amber accent or content.
+
+Concept: a Harness self-improvement loop above the model layer, without model-weight training. It observes its own runs, forms a falsifiable hypothesis, edits only allowed Harness source/strategies, executes a candidate in isolation, evaluates against an immutable baseline and holdout, then pauses for human promotion review. This is not a chat app, an IDE, or a manual workflow builder.
+
+Shell: SELFME LAB brand at top left; back and settings controls at top right. RSI LAB title with blue circular-arrow mark and CORE LOOP / CYCLE 012 tag. Global status PAUSED AT GATE. Dense professional desktop layout with subdued blue edges, small green completed checks, near-black panels, and starfield only in outer margins.
+
+Navigation: heading CYCLE OVERVIEW and one selected OVERVIEW tab, followed by six peer tabs OBSERVE, HYPOTHESIZE, MODIFY, SANDBOX, EVALUATE, PROMOTE. The first five stages are complete but unselected; PROMOTE awaits human review. Include a subtle return arrow toward the next cycle.
+
+Content: three joined work regions. LINEAGE: immutable Core Loop v0.3, rejected c12-a, selected c12-b in review, Cycle 012 current and Cycle 011 closed. CURRENT CANDIDATE: c12-b / Tool read deduplication; objective to avoid repeated reads of unchanged files; session-local reuse hypothesis; self-generated patch to harnesses/core-loop/src/tool-router.ts (+18, -5); INSPECT DIFF action. EVIDENCE table with Handoff summary/read calls/3/2, Folder audit holdout/read calls/6/6, Approval path/write approval/approved/approved. Note that output diffs are available but no final quality verdict exists. SANDBOX & GATES: isolated execution, Harness-source mutation scope, protected baseline/evaluator/credentials, budget 3 candidates and 30 minutes, human promotion, rollback to Core Loop v0.3. REVIEW GATE awaits decision and asks the reviewer to inspect output diffs; REJECT remains outlined, PROMOTE is disabled until review is complete.
+
+All figures and records are fictional design content. This image is a visual concept, not implemented functionality or a benchmark claim. Generated with the built-in OpenAI image tool; no third-party base URL or project API key was used.

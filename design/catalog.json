@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "visual-reference",
+  "notes": "Approved mockups guide implementation; sample numbers and transcripts are not product data.",
+  "screens": [
+    { "id": "home.index", "legacyNumber": 1, "file": "screens/home/index.png" },
+    { "id": "agent.index", "legacyNumber": 2, "file": "screens/agent-lab/index.png" },
+    { "id": "agent.codex.workspace", "legacyNumber": 3, "file": "screens/agent-lab/codex/workspace.png" },
+    { "id": "agent.dsh.workspace", "legacyNumber": 4, "file": "screens/agent-lab/dsh/workspace.png" },
+    { "id": "agent.pi.workspace", "legacyNumber": 5, "file": "screens/agent-lab/pi/workspace.png" },
+    { "id": "agent.kimi-code.workspace", "legacyNumber": 6, "file": "screens/agent-lab/kimi-code/workspace.png" },
+    { "id": "agent.qwen-code.workspace", "legacyNumber": 7, "file": "screens/agent-lab/qwen-code/workspace.png" },
+    { "id": "agent.claude-code.workspace", "legacyNumber": 8, "file": "screens/agent-lab/claude-code/workspace.png" },
+    { "id": "remote.openhands.run", "legacyNumber": 9, "file": "screens/remote-agent-lab/openhands/run.png" },
+    { "id": "local-model.ollama.playground", "legacyNumber": 10, "file": "screens/local-model-lab/ollama/playground.png" },
+    { "id": "local-model.ollama.compare", "legacyNumber": 11, "file": "screens/local-model-lab/ollama/compare.png" },
+    { "id": "jev.xiangqi.workspace", "legacyNumber": 12, "file": "screens/jev-lab/xiangqi/workspace.png" },
+    { "id": "forge.design", "legacyNumber": 13, "file": "screens/harness-forge/design.png" },
+    { "id": "forge.run", "legacyNumber": 14, "file": "screens/harness-forge/run.png" },
+    { "id": "forge.compare", "legacyNumber": 15, "file": "screens/harness-forge/compare.png" },
+    { "id": "rsi.overview", "legacyNumber": 16, "file": "screens/rsi-lab/overview.png" },
+    { "id": "rsi.observe", "legacyNumber": 17, "file": "screens/rsi-lab/observe.png" },
+    { "id": "rsi.hypothesize", "legacyNumber": 18, "file": "screens/rsi-lab/hypothesize.png" },
+    { "id": "rsi.modify", "legacyNumber": 19, "file": "screens/rsi-lab/modify.png" },
+    { "id": "rsi.sandbox", "legacyNumber": 20, "file": "screens/rsi-lab/sandbox.png" },
+    { "id": "rsi.evaluate", "legacyNumber": 21, "file": "screens/rsi-lab/evaluate.png" },
+    { "id": "rsi.promote", "legacyNumber": 22, "file": "screens/rsi-lab/promote.png" },
+    { "id": "founder.overview", "legacyNumber": 23, "file": "screens/founder-studio/overview.png" }
+  ]
+}

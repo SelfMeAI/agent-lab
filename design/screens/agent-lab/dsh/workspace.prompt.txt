@@ -1,0 +1,12 @@
+Use case: ui-mockup
+Asset type: approved SelfMe Lab DSH Lab desktop workspace reference
+
+Primary request: retain the approved direct DSH workspace: deep stellar black background, lime DSH identity, compact RECENT rail, inspectable live output, inline file events, an amber approval request, and a task composer.
+
+Branding: mechanically composite the exact transparent asset `output/imagegen/brand/selfme-lab-mark.png` into the upper-left brand area. Never ask an image model to redraw or approximate the SelfMe Lab mark.
+
+Workspace controls: the WORKSPACE path strip beside "DSH LAB" contains the sole folder-selection icon. The upper-right toolbar contains only a back arrow followed by sliders/settings. Do not add a folder icon or another work-directory control there.
+
+Run state: keep the amber approval surface in the active task flow. The following action must remain pending, labelled "NEXT: update_files" and "AWAITING APPROVAL". No later successful tool state or final summary may appear before approval.
+
+Constraints: desktop application reference only; preserve the approved lime-led palette, transcript, RECENT rail, typography, background, and composer. Amber is reserved for approval. No cyan shared-border treatment, provider panel, fake metrics, browser chrome, extra navigation, watermark, or layout shifts.

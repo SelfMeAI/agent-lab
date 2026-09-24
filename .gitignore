@@ -1,0 +1,13 @@
+node_modules/
+.work/
+design/review/
+out/
+release/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log

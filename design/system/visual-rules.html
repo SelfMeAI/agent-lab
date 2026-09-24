@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SelfMe Lab · 视觉规则</title>
+    <style>
+      body { max-width: 820px; margin: 56px auto; padding: 0 24px; color: #e8ebed; background: #090d11; font: 16px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+      h1, h2 { font-weight: 600; letter-spacing: .02em; }
+      h1 { font-size: 32px; }
+      h2 { margin-top: 36px; font-size: 20px; }
+      p, li { color: #b9c3c8; }
+      code { color: #d3ed8d; }
+      .line { height: 1px; background: #587377; margin: 28px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>SelfMe Lab 视觉规则</h1>
+    <p>这里记录跨实验室共享的视觉边界；每张正式界面仍以 <code>design/screens/</code> 的图片为具体参考。</p>
+    <div class="line"></div>
+    <h2>统一外壳</h2>
+    <p>深黑色桌面、克制的稀疏星空、几乎不可见的技术网格、清晰的细线分隔。星空主要留在工作区域之外，不覆盖正文。工作表面应不透明，文字必须易读。</p>
+    <h2>品牌与颜色</h2>
+    <p>应用 logo 与图标只使用 <code>assets/brand/</code> 中的正式文件；不要根据截图重画。每个实验室保留设计稿中的识别色，但不把识别色铺成大面积发光背景。</p>
+    <h2>界面行为</h2>
+    <p>首页是大项目切换。实验室可共用外壳与底层能力，但拥有独立的信息布局。设计稿中的运行结果、指标和对话属于示例，接入前必须明确标记“待实现”，不能伪装成真实数据。</p>
+    <h2>新增设计稿</h2>
+    <p>生成原始文件放项目内、Git 忽略的 <code>.work/design/</code>；仅把选中的候选稿放入 <code>design/review/</code> 待确认。确认后将图片及同名 <code>.prompt.txt</code> 放入语义路径，并登记到 <code>design/catalog.json</code>。正式文件名不使用全局递增编号或版本后缀。</p>
+  </body>
+</html>

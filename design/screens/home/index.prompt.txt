@@ -1,0 +1,14 @@
+Use case: ui-mockup
+Asset type: approved high-fidelity 2048x1152 macOS desktop homepage reference for SelfMe Lab
+Primary request: a restrained Lab Index with seven independent destinations organized into RUNTIMES, ENGINES, and STUDIO.
+Visual references: use the approved deep-space background at output/imagegen/backgrounds/01-lab-home-background.png and the exact brand mark at output/imagegen/brand/selfme-lab-mark.png. Do not redraw the brand mark.
+Scene/backdrop: near-black, quiet stellar field with sparse points of light and a barely visible technical grid. The stars are subdued and do not compete with the interface.
+Composition/framing: compact top brand bar with the brand mark and "SELFME LAB" at upper left; main heading "LAB INDEX"; three left-aligned horizontal groups with thin muted dividers. Use one consistent three-column grid with shared margins.
+- RUNTIMES: three equal rectangular cards, ordered "AGENT LAB", "REMOTE AGENT LAB", "LOCAL MODEL LAB".
+- ENGINES: three equal rectangular cards, ordered "JEV LAB", "HARNESS FORGE", "RSI LAB".
+- STUDIO: one "FOUNDER STUDIO" card spanning the full three-column width. Keep its icon and label left-aligned like the other cards and put its single entry arrow at the far-right inset. Leave the remainder of the wide card calm and empty.
+Style/medium: precise native desktop software UI, not concept art. Near-black flat card surfaces, thin colored borders, compact monospaced-influenced typography, restrained line icons, square-to-6px corners, no glossy or glass effects. Preserve generous negative space.
+Color and marks: Agent Lab and Local Model Lab use restrained lime; Remote Agent Lab cyan; JEV Lab muted violet; Harness Forge warm amber; RSI Lab cool blue; Founder Studio coral red. Every card has one compact identity mark and one right-facing entry arrow. JEV uses a branching-decision mark, not a chess icon. RSI uses an iterative-improvement loop mark, not a model-training diagram.
+Text (verbatim): "SELFME LAB", "LAB INDEX", "RUNTIMES", "AGENT LAB", "REMOTE AGENT LAB", "LOCAL MODEL LAB", "ENGINES", "JEV LAB", "HARNESS FORGE", "RSI LAB", "STUDIO", "FOUNDER STUDIO".
+Constraints: exactly seven cards and exactly three group labels. All text is correctly spelled, crisp, non-overlapping, and fully contained. Maintain one consistent card height, border weight, icon scale, label baseline, and arrow size. No subtitles, descriptions, status pills, metrics, online indicators, sidebar navigation, chat content, browser chrome, settings, or placeholder cards.
+Avoid: bento layout; oversized hero cards; generic SaaS dashboard; rounded-card stacks; gradients; glows; colorful clutter; literal stars inside cards; copied third-party logos; watermark; mobile layout.

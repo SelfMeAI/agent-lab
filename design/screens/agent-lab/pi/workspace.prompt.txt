@@ -1,0 +1,18 @@
+Use case: ui-mockup
+Asset type: high-fidelity macOS desktop application reference for a Pi harness workspace inside SelfMe Lab
+
+Primary request: create a practical, independently usable "PI LAB" workspace for experimenting with the Pi coding agent. It should feel lighter and more programmable than Codex Lab, while remaining a complete task-focused desktop application rather than a settings screen.
+
+Scene/backdrop: deep black, quiet stellar field and barely visible technical grid, matching the approved SelfMe Lab visual language. Keep the space background subtle behind the working surfaces.
+
+Subject: a thin top bar. In the upper-left reserve a clean empty 64 by 64 pixel safe area for a brand mark to be composited later; place the words "SELFME LAB" immediately to its right, but do not generate any logo, icon, hexagon, or substitute mark in the reserved area. At upper right place only a back arrow and a sliders/settings icon. Below, give Pi a restrained ice-blue identity with the title "PI LAB" and a small simple pi glyph. Beside it, show a WORKSPACE path strip with a single folder icon at its right end; this is the only work-directory control.
+
+Composition/framing: 16:9 desktop screenshot, dense but calm. A compact left rail titled "THREADS" with a plus icon and two threads, one selected. The wide central surface starts with one user task, then a Pi response labelled "PI" and "LIVE OUTPUT". Show readable incremental reasoning text followed by two compact inspectable tool rows: "Read project files" and "Inspect package.json". Then show an inline amber "APPROVAL REQUIRED" surface with "ALLOW ONCE" and "DENY". Below it show only a pending row labelled "NEXT: write_plan" with the state "AWAITING APPROVAL"; do not show a later successful tool event or final result. Finish with one bottom task composer labelled "Describe a task" and a send icon.
+
+Style/medium: refined native desktop agent tool, thin precise lines, restrained mono-influenced typography, dark practical panels, calm ice-blue Pi accent. The Pi workspace must be recognizably distinct from the cyan Codex and lime DSH pages without looking like a different product.
+
+Text (verbatim): "SELFME LAB", "PI LAB", "WORKSPACE", "THREADS", "PI", "LIVE OUTPUT", "Read project files", "Inspect package.json", "APPROVAL REQUIRED", "ALLOW ONCE", "DENY", "NEXT: write_plan", "AWAITING APPROVAL", "Describe a task"
+
+Constraints: desktop app only; readable text with no overlaps; approval is embedded in the active task flow; no completed, passed, or final-summary state after approval; one work-directory entry only; no provider panel, model picker, fake metrics, browser chrome, marketing copy, mobile layout, watermark, or extra navigation. No logo or icon in the reserved upper-left brand safe area.
+
+Avoid: generic AI logos, copied third-party logos, rounded card grids, gradient blobs, glow bloom, terminal wall, empty hero layout, or visual clutter.
