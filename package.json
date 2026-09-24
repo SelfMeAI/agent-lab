@@ -7,11 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @selfme/desktop",
-    "build": "npm run build --workspace @selfme/desktop",
-    "typecheck": "npm run typecheck --workspace @selfme/desktop",
-    "test": "npm run test --workspace @selfme/desktop",
-    "package:mac": "npm run package:mac --workspace @selfme/desktop"
+    "dev": "npm run dev --workspace @selfme-lab/desktop",
+    "build": "npm run build --workspace @selfme-lab/desktop",
+    "typecheck": "npm run typecheck --workspace @selfme-lab/desktop",
+    "test": "npm run test --workspace @selfme-lab/desktop",
+    "package:mac": "npm run package:mac --workspace @selfme-lab/desktop"
   },
   "engines": {
     "node": ">=22.12.0"

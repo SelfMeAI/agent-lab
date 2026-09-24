@@ -6,6 +6,8 @@ import { AdapterRegistry } from "../../../../packages/runtime/src/index";
 const registry = new AdapterRegistry();
 let mainWindow: BrowserWindow | null = null;
 
+app.setName("SelfMe Lab");
+
 function assertMainWindow(event: IpcMainInvokeEvent): void {
   if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
     throw new Error("Untrusted IPC sender");

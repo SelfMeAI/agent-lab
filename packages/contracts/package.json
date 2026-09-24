@@ -1,5 +1,5 @@
 {
-  "name": "@selfme/contracts",
+  "name": "@selfme-lab/contracts",
   "private": true,
   "version": "0.1.0",
   "types": "./src/index.ts"

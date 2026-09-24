@@ -1,5 +1,5 @@
 {
-  "name": "@selfme/runtime",
+  "name": "@selfme-lab/runtime",
   "private": true,
   "version": "0.1.0",
   "types": "./src/index.ts"

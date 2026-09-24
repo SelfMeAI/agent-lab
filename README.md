@@ -11,6 +11,8 @@ npm install
 npm run dev
 ```
 
+首次启动开发版时，如果 npm 未安装 Electron 二进制，`predev` 会运行 Electron 包自带的安装脚本，将其补到本项目的 `node_modules/`；后续启动会直接复用。
+
 检查与打包：
 
 ```bash

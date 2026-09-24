@@ -1,10 +1,12 @@
 {
-  "name": "@selfme/desktop",
+  "name": "@selfme-lab/desktop",
+  "productName": "SelfMe Lab",
   "private": true,
   "version": "0.1.0",
   "description": "SelfMe Lab desktop experiment platform",
   "main": "./out/main/index.js",
   "scripts": {
+    "predev": "node ../../node_modules/electron/install.js",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
