@@ -48,25 +48,6 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
     }
   }
 
-  async function importLegacy(): Promise<void> {
-    if (!window.selfmeLab || (runtimeId !== "codex" && runtimeId !== "jev")) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const status = await window.selfmeLab.importLegacyProvider(runtimeId);
-      if (!status) return;
-      setProvider(status);
-      setBaseUrl(status.baseUrl);
-      if (status.model) setModel(status.model);
-      onProviderSaved();
-      onClose();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <div className="modal-backdrop" onMouseDown={onClose} role="presentation">
       <section className="settings-panel" onMouseDown={(event) => event.stopPropagation()} aria-label="设置">
@@ -83,7 +64,6 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
             {error && <p className="settings-panel__error" role="alert">{error}</p>}
             <button className="settings-panel__save" disabled={saving} type="submit">{saving ? "保存中…" : runtimeId === "jev" ? "保存设置" : "保存并连接"}</button>
           </form>
-          {(runtimeId === "codex" || runtimeId === "jev") && <button className="settings-panel__import" disabled={saving} onClick={() => void importLegacy()} type="button">{runtimeId === "codex" ? "从旧版 Native Lab 导入配置" : "从旧版 JEV .env.local 导入密钥"}</button>}
         </> : <>
           <p>SelfMe Lab 桌面实验平台</p>
           <dl><dt>版本</dt><dd>{info?.version ?? "开发预览"}</dd><dt>平台</dt><dd>{info?.platform ?? "Browser preview"}</dd><dt>架构</dt><dd>Electron + TypeScript</dd></dl>

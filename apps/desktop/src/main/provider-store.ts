@@ -135,15 +135,6 @@ export async function saveCodexProvider(input: { baseUrl: string; model?: string
   return { baseUrl, model, configured: true };
 }
 
-export async function importLegacyCodexProvider(directory: string): Promise<ProviderStatus> {
-  const settings = JSON.parse(await readFile(join(directory, "settings.json"), "utf8")) as { baseUrl?: unknown; model?: unknown };
-  const credentials = JSON.parse(await readFile(join(directory, "credentials.json"), "utf8")) as { apiKey?: unknown };
-  if (typeof settings.baseUrl !== "string" || typeof settings.model !== "string" || typeof credentials.apiKey !== "string") {
-    throw new Error("旧版 Codex 设置文件缺少必要字段");
-  }
-  return saveCodexProvider({ baseUrl: settings.baseUrl, model: settings.model, apiKey: credentials.apiKey });
-}
-
 interface StoredJevProvider extends StoredProvider {
   model: string;
 }
@@ -199,12 +190,4 @@ export async function saveJevProvider(input: { baseUrl: string; model?: string; 
   await writeFile(temporary, JSON.stringify({ baseUrl, model, encryptedApiKey } satisfies StoredJevProvider), { mode: 0o600 });
   await rename(temporary, path);
   return { baseUrl, model, configured: true };
-}
-
-export async function importLegacyJevProvider(filePath: string): Promise<ProviderStatus> {
-  const contents = await readFile(filePath, "utf8");
-  const raw = contents.split(/\r?\n/u).find((line) => line.startsWith("TYPESAFE_API_KEY="))?.slice("TYPESAFE_API_KEY=".length).trim();
-  const apiKey = raw?.replace(/^(?:"|')|(?:"|')$/gu, "");
-  if (!apiKey) throw new Error("文件中未找到 TYPESAFE_API_KEY");
-  return saveJevProvider({ baseUrl: defaultJevBaseUrl, model: defaultJevModel, apiKey });
 }

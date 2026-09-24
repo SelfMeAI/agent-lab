@@ -126,7 +126,6 @@ export interface DesktopBridge {
   listRuntimes(): Promise<RuntimeStatus[]>;
   getProviderStatus(runtimeId: string): Promise<ProviderStatus>;
   saveProvider(runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }): Promise<ProviderStatus>;
-  importLegacyProvider(runtimeId: string): Promise<ProviderStatus | null>;
   startRuntime(runtimeId: string, workspace: string): Promise<void>;
   sendPrompt(runtimeId: string, prompt: string): Promise<void>;
   cancelRun(runtimeId: string): Promise<void>;

@@ -25,8 +25,8 @@ npm run package:mac
 ## 已接入能力
 
 - DSH：在 Agent Lab → DSH 选择工作目录，右上角配置 DeepSeek 官方或兼容接口根地址与 API Key。自动连接后可发送任务、看增量输出与工具详情、处理审批和取消。
-- Codex：在 Agent Lab → Codex 使用项目内从官方源码构建的 app-server。设置支持 Responses 兼容根地址、模型 ID、API Key，或导入旧版 Native Lab 配置目录。可看增量消息、命令/文件变更和审批；工作区外操作会等待人工批准。
-- JEV：在 JEV Lab → Xiangqi 配置 TypeSafe JEV API，或导入旧版 `.env.local`。可玩人类执红 vs JEV，或 JEV 红黑自对弈；支持单步、自动/暂停、重开、合法着校验、决策指标、候选概率和棋谱。API 不可用时只执行一次明确标记的本地规则回退，自动对弈会停止，绝不把回退标成 JEV 在线结果。
+- Codex：在 Agent Lab → Codex 使用项目内从官方源码构建的 app-server。设置支持 Responses 兼容根地址、模型 ID 和 API Key。可看增量消息、命令/文件变更和审批；工作区外操作会等待人工批准。
+- JEV：在 JEV Lab → Xiangqi 配置 TypeSafe JEV API。可玩人类执红 vs JEV，或 JEV 红黑自对弈；支持单步、自动/暂停、重开、合法着校验、决策指标、候选概率和棋谱。API 不可用时只执行一次明确标记的本地规则回退，自动对弈会停止，绝不把回退标成 JEV 在线结果。
 
 三套密钥分别通过 Electron 系统凭据加密能力保存在本机应用数据目录，不写入仓库、工作目录或渲染进程。设置可以再次打开修改。
 

@@ -6,7 +6,7 @@ import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import {
   getCodexProvider, getCodexProviderStatus, getDshProvider, getDshProviderStatus,
-  getJevProviderStatus, importLegacyCodexProvider, importLegacyJevProvider,
+  getJevProviderStatus,
   saveCodexProvider, saveDshProvider, saveJevProvider,
 } from "./provider-store";
 import { decideJevMove } from "./jev-decision";
@@ -119,20 +119,6 @@ app.whenReady().then(() => {
     }
     if (runtimeId === "jev") return saveJevProvider(config);
     throw new Error("此运行时暂不支持模型配置");
-  });
-  ipcMain.handle("selfme:import-legacy-provider", async (event, runtimeId: string) => {
-    assertMainWindow(event);
-    if (runtimeId !== "codex" && runtimeId !== "jev") throw new Error("此运行时不支持旧版配置导入");
-    if (runtimeId === "codex" && codex.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后导入配置");
-    const selection = await dialog.showOpenDialog(mainWindow!, {
-      title: runtimeId === "codex" ? "选择旧版 Codex 配置目录（包含 settings.json 和 credentials.json）" : "选择旧版 JEV .env.local 文件",
-      properties: runtimeId === "codex" ? ["openDirectory"] : ["openFile", "showHiddenFiles"],
-    });
-    if (selection.canceled || !selection.filePaths[0]) return null;
-    if (runtimeId === "jev") return importLegacyJevProvider(selection.filePaths[0]);
-    const status = await importLegacyCodexProvider(selection.filePaths[0]);
-    await codex.stop();
-    return status;
   });
   ipcMain.handle("selfme:jev-decision", async (event, fen: string, style: "balanced" | "aggressive" | "positional") => {
     assertMainWindow(event);
