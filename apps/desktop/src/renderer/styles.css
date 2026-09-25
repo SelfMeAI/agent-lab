@@ -10,6 +10,13 @@
 
 * { box-sizing: border-box; }
 
+* { scrollbar-width: thin; scrollbar-color: #526a70 transparent; }
+*::-webkit-scrollbar { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { border-radius: 8px; background: #526a70a8; }
+*::-webkit-scrollbar-thumb:hover { background: #78959a; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 
 button { font: inherit; cursor: pointer; }
@@ -50,7 +57,10 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   -webkit-app-region: drag;
 }
 
+.app-shell--mac { --topbar-height: 52px; }
 .app-shell--mac .topbar { padding-left: 96px; }
+.app-shell--mac .brand { font-size: 15px; }
+.app-shell--mac .brand img { width: 29px; height: 29px; flex-basis: 29px; }
 
 .brand, .topbar-actions, .icon-button { -webkit-app-region: no-drag; }
 

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
+import { FileChangeTracker } from "./file-change-tracker";
 
 type JsonObject = Record<string, unknown>;
 
@@ -64,6 +65,7 @@ export class DshAdapter implements HarnessAdapter {
   private startPromise: Promise<void> | null = null;
   private stderrTail: string[] = [];
   private apiKey: string | undefined;
+  private fileTracker: FileChangeTracker | null = null;
 
   constructor(private readonly options: DshAdapterOptions) {}
 
@@ -123,6 +125,7 @@ export class DshAdapter implements HarnessAdapter {
     });
     this.child = child;
     this.workspace = workspace;
+    this.fileTracker = new FileChangeTracker(workspace);
     this.sessionId = null;
     this.stderrTail = [];
     this.approvals.clear();
@@ -202,6 +205,8 @@ export class DshAdapter implements HarnessAdapter {
     this.child = null;
     this.sessionId = null;
     this.workspace = null;
+    this.fileTracker?.clear();
+    this.fileTracker = null;
     this.approvals.clear();
     this.toolTitles.clear();
     if (child) {
@@ -287,12 +292,16 @@ export class DshAdapter implements HarnessAdapter {
     if (kind === "user_message_chunk") return;
     const toolCallId = string(update.toolCallId);
     if (toolCallId && string(update.title)) this.toolTitles.set(toolCallId, string(update.title)!);
+    if (kind === "tool_call" && toolCallId) this.fileTracker?.start(toolCallId, string(update.title), update.rawInput);
+    const fileDiff = kind === "tool_call_update" && toolCallId
+      ? this.fileTracker?.finish(toolCallId, update.status === "completed") : undefined;
+    const raw = fileDiff ? { ...update, content: [...(Array.isArray(update.content) ? update.content : []), fileDiff] } : update;
     const common = {
       text: contentText(update.content) ?? string(update.summary),
       title: string(update.title),
       toolCallId,
       toolStatus: string(update.status),
-      raw: update,
+      raw,
     };
     if (kind === "agent_message_chunk") this.emit("message", common);
     else if (kind === "agent_thought_chunk") this.emit("thought", common);
@@ -327,6 +336,9 @@ export class DshAdapter implements HarnessAdapter {
     if (child !== this.child) return;
     this.child = null;
     this.sessionId = null;
+    this.workspace = null;
+    this.fileTracker?.clear();
+    this.fileTracker = null;
     for (const pending of this.pending.values()) pending.reject(error);
     this.pending.clear();
     this.approvals.clear();

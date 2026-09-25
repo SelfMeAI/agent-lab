@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { ProviderStatus } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
-import { presentEntry } from "./tool-presentation";
+import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
 const names = { dsh: "DSH", codex: "CODEX" } as const;
 
@@ -19,9 +19,16 @@ function AgentMarkdown({ text }: { text: string }): JSX.Element {
   }}>{text}</ReactMarkdown></div>;
 }
 
-function ToolItem({ entry }: { entry: TranscriptEntry }): JSX.Element {
+function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: string | null }): JSX.Element {
   const view = presentEntry(entry);
-  return <details className="dsh-tool">
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const hadDiffRef = useRef(false);
+  const hasDiff = view.files.some((file) => file.lines.length > 0);
+  useEffect(() => {
+    if (hasDiff && !hadDiffRef.current && detailsRef.current) detailsRef.current.open = true;
+    hadDiffRef.current = hasDiff;
+  }, [hasDiff]);
+  return <details className="dsh-tool" id={`transcript-${entry.id}`} ref={detailsRef}>
     <summary>
       <span className={`dsh-tool__indicator ${view.status === "进行中" ? "is-active" : ""}`} aria-hidden="true" />
       <span className="dsh-tool__headline"><strong>{view.label}</strong>{view.summary && <small>{view.summary}</small>}</span>
@@ -29,15 +36,15 @@ function ToolItem({ entry }: { entry: TranscriptEntry }): JSX.Element {
       <span className="dsh-tool__chevron" aria-hidden="true">⌄</span>
     </summary>
     <div className="dsh-tool__details">
-      {view.command && <div className="dsh-tool__section"><span className="dsh-tool__caption">COMMAND</span><code className="dsh-tool__command">{view.command}</code>{view.cwd && <small className="dsh-tool__meta">位于 {view.cwd}</small>}</div>}
-      {view.plan.length > 0 && <div className="dsh-tool__section"><span className="dsh-tool__caption">PLAN</span><ol className="dsh-tool__plan">{view.plan.map((step, index) => <li key={`${index}:${step.text}`} className={`is-${step.status}`}><span>{step.status === "completed" ? "✓" : step.status === "in_progress" || step.status === "inProgress" ? "◉" : "○"}</span>{step.text}</li>)}</ol></div>}
+      {view.command && <div className="dsh-tool__section"><span className="dsh-tool__caption">命令</span><code className="dsh-tool__command">{view.command}</code>{view.cwd && <small className="dsh-tool__meta">位于 {view.cwd}</small>}</div>}
+      {view.plan.length > 0 && <div className="dsh-tool__section"><span className="dsh-tool__caption">步骤</span><ol className="dsh-tool__plan">{view.plan.map((step, index) => <li key={`${index}:${step.text}`} className={`is-${step.status}`}><span>{step.status === "completed" ? "✓" : step.status === "in_progress" || step.status === "inProgress" ? "◉" : "○"}</span>{step.text}</li>)}</ol></div>}
       {view.files.map((file) => <div className="dsh-tool__section dsh-tool__file" key={file.path}>
-        <div className="dsh-tool__file-heading"><span className="dsh-tool__caption">{file.action.toUpperCase()}</span><strong title={file.path}>{file.path}</strong><span className="dsh-tool__added">+{file.added}</span><span className="dsh-tool__removed">−{file.removed}</span></div>
+        <div className="dsh-tool__file-heading"><span className="dsh-tool__caption">{file.action.toUpperCase()}</span><strong title={file.path}>{workspace && file.path.startsWith(`${workspace}/`) ? file.path.slice(workspace.length + 1) : file.path}</strong><span className="dsh-tool__added">+{file.added}</span><span className="dsh-tool__removed">−{file.removed}</span></div>
         {file.lines.length > 0 && <div className="dsh-tool__diff">{file.lines.map((line, index) => <div className={`dsh-tool__diff-line is-${line.kind}`} key={`${index}:${line.text}`}>{line.text || " "}</div>)}</div>}
         {file.hiddenLines > 0 && <small className="dsh-tool__meta">仅展示前 160 行，另有 {file.hiddenLines} 行变更</small>}
       </div>)}
       {view.locations.length > 0 && view.files.length === 0 && <div className="dsh-tool__section"><span className="dsh-tool__caption">涉及位置</span><div className="dsh-tool__paths">{view.locations.map((path) => <code key={path}>{path}</code>)}</div></div>}
-      {view.output && <div className="dsh-tool__section"><span className="dsh-tool__caption">{entry.kind === "status" ? "DETAIL" : "OUTPUT"}</span><pre className="dsh-tool__output">{view.output}</pre></div>}
+      {view.output && <div className="dsh-tool__section"><span className="dsh-tool__caption">{entry.kind === "status" ? "详情" : "结果"}</span><pre className="dsh-tool__output">{view.output}</pre></div>}
       {view.notes.map((note, index) => <p className="dsh-tool__note" key={`${index}:${note.slice(0, 16)}`}>{note}</p>)}
       {(view.exitCode !== undefined || view.duration) && <p className="dsh-tool__meta">{view.exitCode !== undefined && `退出码 ${view.exitCode}`}{view.exitCode !== undefined && view.duration && " · "}{view.duration && `耗时 ${view.duration}`}</p>}
       {!view.command && !view.output && view.files.length === 0 && view.plan.length === 0 && view.locations.length === 0 && view.notes.length === 0 && <p className="dsh-tool__meta">运行时未提供更多细节</p>}
@@ -45,9 +52,10 @@ function ToolItem({ entry }: { entry: TranscriptEntry }): JSX.Element {
   </details>;
 }
 
-function TranscriptItem({ entry, runtimeId, onApprove, approvalBusy }: {
+function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }: {
   entry: TranscriptEntry;
   runtimeId: AgentRuntimeId;
+  workspace: string | null;
   onApprove(requestId: string | number, optionId: string): void;
   approvalBusy: boolean;
 }): JSX.Element {
@@ -72,21 +80,19 @@ function TranscriptItem({ entry, runtimeId, onApprove, approvalBusy }: {
             disabled={approvalBusy}
             key={option.optionId}
             onClick={() => onApprove(entry.approval!.requestId, option.optionId)}
+            title={option.kind === "allow_session" ? "仅当前 Codex 会话有效，新会话会重新询问" : undefined}
             type="button"
           >{option.name}</button>
         ))}
       </div>
     </article>
   );
-  if (entry.kind === "tool" || entry.kind === "status") return <ToolItem entry={entry} />;
+  if (entry.kind === "tool" || entry.kind === "status") return <ToolItem entry={entry} workspace={workspace} />;
   if (entry.kind === "error") return <div className="dsh-error" role="alert">{entry.text}</div>;
-  if (entry.kind === "thought") return (
-    <details className="dsh-thought"><summary>思考过程 · 展开查看</summary><AgentMarkdown text={entry.text} /></details>
-  );
   return (
     <article className="dsh-entry dsh-entry--agent">
       <LabIcon className="dsh-entry__avatar" runtimeId={runtimeId} />
-      <div className="dsh-entry__body"><span className="dsh-entry__label">{names[runtimeId]} · LIVE OUTPUT</span><AgentMarkdown text={entry.text} /></div>
+      <div className="dsh-entry__body"><span className="dsh-entry__label">{names[runtimeId]} · 回复</span><AgentMarkdown text={entry.text} /></div>
     </article>
   );
 }
@@ -144,7 +150,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     const input = promptRef.current;
     if (!input) return;
     input.style.height = "auto";
-    input.style.height = `${Math.min(Math.max(input.scrollHeight, 54), 178)}px`;
+    input.style.height = `${Math.min(Math.max(input.scrollHeight, 38), 178)}px`;
     input.style.overflowY = input.scrollHeight > 178 ? "auto" : "hidden";
   }, [prompt]);
 
@@ -251,7 +257,6 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           <span>WORKSPACE</span><strong>{workspace ?? "选择工作目录"}</strong>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M2 5h7l2 2h11v13H2zM2 9h20" /></svg>
         </button>
-        <span className={`dsh-workspace__phase is-${snapshot.phase}`}>{connecting ? "CONNECTING" : snapshot.phase.toUpperCase()}</span>
       </div>
       <div className="dsh-workspace__grid">
         <aside className="dsh-rail">
@@ -266,14 +271,14 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
               {!workspace && <button onClick={() => void chooseWorkspace()} type="button">选择工作目录</button>}
               {workspace && !provider?.configured && <button onClick={onOpenSettings} type="button">配置模型</button>}
             </div>}
-            {snapshot.entries.map((entry) => <TranscriptItem key={entry.id} entry={entry} runtimeId={runtimeId} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy} />)}
+            {visibleTranscriptEntries(snapshot.entries).filter((entry) => entry.kind !== "thought").map((entry) => <TranscriptItem key={entry.id} entry={entry} runtimeId={runtimeId} workspace={workspace} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy} />)}
             {localError && <div className="dsh-error" role="alert">{localError}</div>}
           </div>
           {showLatest && <button className="dsh-scroll-jump" onClick={jumpToLatest} type="button">最新输出 ↓</button>}
           {busy && <div className="dsh-live-status" role="status"><span className="dsh-activity__dots" aria-hidden="true"><i /><i /><i /></span><span>{liveStatus}</span><small>{snapshot.phase === "approval" ? "需要你的决定" : "实时工作中"}</small></div>}
           <div className="dsh-composer">
             <div className="dsh-composer__field">
-              <textarea ref={promptRef} aria-label="任务内容" title="Enter 发送 · Shift+Enter 换行" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} placeholder={composerHint} value={prompt} rows={2} />
+              <textarea ref={promptRef} aria-label="任务内容" title="Enter 发送 · Shift+Enter 换行" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} placeholder={composerHint} value={prompt} rows={1} />
               {["running", "approval", "cancelling"].includes(snapshot.phase) ? <button className="dsh-composer__cancel" disabled={snapshot.phase === "cancelling"} onClick={() => void cancel()} type="button" title="取消当前任务" aria-label="取消当前任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg></button> : <button className="dsh-composer__send" disabled={!prompt.trim() || connecting} onClick={() => void submit()} type="button" title="发送任务" aria-label="发送任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M3 11.5 21 3l-5.5 18-3.9-7.1L3 11.5Z" /><path d="m11.6 13.9 4.9-5" /></svg></button>}
             </div>
           </div>

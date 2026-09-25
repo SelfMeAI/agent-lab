@@ -275,6 +275,7 @@ export class CodexAdapter implements HarnessAdapter {
     }
     const options: ApprovalOption[] = [
       { optionId: "accept", name: "允许一次", kind: "allow" },
+      { optionId: "acceptForSession", name: "本会话始终允许", kind: "allow_session" },
       { optionId: "decline", name: "拒绝", kind: "reject" },
     ];
     const title = method.includes("commandExecution") ? "命令执行授权" : "文件修改授权";
@@ -336,6 +337,15 @@ export class CodexAdapter implements HarnessAdapter {
       });
       return;
     }
+    if (method === "turn/diff/updated") {
+      const turnId = string(params.turnId) ?? this.turnId;
+      if (turnId && typeof params.diff === "string") {
+        const toolCallId = `turn-diff:${turnId}`;
+        this.activeTools.add(toolCallId);
+        this.emit("tool", { toolCallId, title: "本轮文件变更", toolStatus: "running", raw: { type: "turnDiff", diff: params.diff } });
+      }
+      return;
+    }
     if (method === "item/started" || method === "item/completed") {
       this.handleItem(object(params.item), method === "item/completed");
       return;
@@ -348,7 +358,11 @@ export class CodexAdapter implements HarnessAdapter {
       this.emit("status", { title: "Codex 提示", text: string(params.message) ?? string(params.summary), raw: params });
       return;
     }
-    if (method === "error") this.emit("error", { text: errorText(params.error), raw: params });
+    if (method === "error") {
+      const message = errorText(params.error);
+      if (params.willRetry === true || /^Reconnecting\.\.\./iu.test(message)) this.emitStatus("running", `Codex 正在重连 · ${message}`);
+      else this.emit("error", { text: message, raw: params });
+    }
   }
 
   private handleItem(item: JsonObject, completed: boolean): void {
