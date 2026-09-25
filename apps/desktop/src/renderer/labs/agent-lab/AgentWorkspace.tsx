@@ -245,6 +245,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     try {
       const created = await bridge.createAgentSession(runtimeId, path);
       store.addSession(created);
+      setShowDeletedSessions(false);
       setPrompt("");
       setLocalError(null);
       if (provider?.configured) await connect(created.id);

@@ -127,10 +127,14 @@ export class AgentSessionController {
       const unsubscribe = adapter.onEvent((event) => this.forward(id, event));
       this.live.set(id, { adapter, unsubscribe });
       try {
-        await adapter.start(record.workspace, record.nativeRef ?? undefined);
+        // Codex does not write a resumable rollout until the first turn starts.
+        // An empty thread may have an id but thread/resume cannot load it later.
+        const resumeRef = record.runtimeId === "codex" && record.lastPromptAt === null
+          ? undefined : record.nativeRef ?? undefined;
+        await adapter.start(record.workspace, resumeRef);
         const nativeRef = adapter.getResumeRef();
         if (!nativeRef) throw new Error("运行时未返回可恢复的会话标识");
-        this.repository.setNativeRef(id, nativeRef);
+        if (record.runtimeId !== "codex") this.repository.setNativeRef(id, nativeRef);
       } catch (error) {
         await this.stop(id);
         throw error;
@@ -151,7 +155,13 @@ export class AgentSessionController {
         runtimeId, runId: randomUUID(), sequence: 0, at: new Date().toISOString(),
         source: "SelfMe Lab", kind: "user", text,
       });
-      await this.live.get(id)!.adapter.send(text);
+      const adapter = this.live.get(id)!.adapter;
+      await adapter.send(text);
+      if (runtimeId === "codex") {
+        const nativeRef = adapter.getResumeRef();
+        if (!nativeRef) throw new Error("Codex 首轮任务未返回可恢复的会话标识");
+        this.repository.setNativeRef(id, nativeRef);
+      }
     });
   }
 

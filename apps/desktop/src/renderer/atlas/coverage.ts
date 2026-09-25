@@ -184,7 +184,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
       "packages/runtime/src/kimi.ts",
     ],
     checkedAt: "2026-09-26",
-    note: "四种 Harness 均可从桌面创建并切换会话；手动重命名和跨端接续未实现。",
+    note: "四种 Harness 均可从桌面创建并切换会话；在最近删除中新建会自动回到会话列表。手动重命名和跨端接续未实现。",
   },
   {
     capabilityId: "sessions.resume",
@@ -201,7 +201,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
       "apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx",
     ],
     checkedAt: "2026-09-26",
-    note: "本地历史与原生会话恢复已打通；跨端接续和各 Harness 的长期稳定性仍需持续验收。",
+    note: "本地历史与原生会话恢复已打通；Codex 空会话不再恢复尚未生成的 rollout，首轮任务后已实测可切换恢复。跨端接续和各 Harness 的长期稳定性仍需持续验收。",
   },
   {
     capabilityId: "sessions.list-search",

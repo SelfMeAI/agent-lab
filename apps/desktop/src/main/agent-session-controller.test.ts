@@ -41,6 +41,40 @@ class FakeAdapter implements HarnessAdapter {
 }
 
 describe("non-parallel multi-session lifecycle", () => {
+  it("does not resume an empty Codex thread before its first turn creates a rollout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-controller-codex-empty-"));
+    roots.push(root);
+    const repository = new AgentSessionRepository(root);
+    await repository.init();
+    const config = new AppConfigStore(root);
+    await config.init();
+    const adapters: FakeAdapter[] = [];
+    const controller = new AgentSessionController(repository, config, (runtimeId, sessionId) => {
+      const adapter = new FakeAdapter(runtimeId, sessionId);
+      adapters.push(adapter);
+      return adapter;
+    }, () => {});
+
+    const session = await controller.create("codex", root);
+    await controller.activate(session.id);
+    expect(repository.get(session.id).nativeRef).toBeNull();
+    await controller.stopRuntime("codex");
+
+    // Older builds saved this id immediately, although Codex had no rollout yet.
+    repository.setNativeRef(session.id, "old-empty-thread");
+    await controller.activate(session.id);
+    expect(adapters[1].starts[0].resumeRef).toBeUndefined();
+    await controller.send(session.id, "第一轮任务");
+    expect(repository.get(session.id).nativeRef).toBe(`native-${session.id}`);
+    adapters[1].complete();
+    await controller.stopRuntime("codex");
+    await controller.activate(session.id);
+    expect(adapters[2].starts[0].resumeRef).toBe(`native-${session.id}`);
+
+    await controller.stopAll();
+    repository.close();
+  });
+
   it("preserves the old session, blocks a new one mid-turn, and resumes its native context", async () => {
     const root = await mkdtemp(join(tmpdir(), "selfme-controller-"));
     roots.push(root);
