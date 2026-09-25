@@ -11,7 +11,7 @@ export function LabPage({ lab, viewId, onOpenSettings, providerRevision }: LabPa
       <div className="lab-heading">
         <LabIcon className="lab-heading__symbol" labId={lab.id} />
         <div>
-          <p className="eyebrow">SELFME LAB / EXPERIMENT</p>
+          <p className="eyebrow">{lab.id === "founder-studio" ? "SELFME LAB / BUSINESS OVERVIEW" : "SELFME LAB / EXPERIMENT"}</p>
           <h1>{lab.title}</h1>
         </div>
       </div>

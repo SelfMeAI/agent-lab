@@ -11,7 +11,6 @@ import type { LabModule } from "./types";
 export const labGroups: readonly { id: LabGroup; title: string }[] = [
   { id: "runtimes", title: "RUNTIMES" },
   { id: "engines", title: "ENGINES" },
-  { id: "studio", title: "STUDIO" },
 ];
 
 export const labs: readonly LabModule[] = [

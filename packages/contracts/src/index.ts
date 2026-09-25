@@ -7,7 +7,7 @@ export type LabId =
   | "rsi-lab"
   | "founder-studio";
 
-export type LabGroup = "runtimes" | "engines" | "studio";
+export type LabGroup = "overviews" | "runtimes" | "engines";
 
 export interface LabView {
   id: string;

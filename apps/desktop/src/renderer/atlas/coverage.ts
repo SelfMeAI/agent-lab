@@ -148,23 +148,6 @@ export const atlasModules: readonly AtlasModule[] = [
     ],
     note: "仅指 Harness 工作方式的自我改进，不涉及基础模型训练。",
   },
-  {
-    id: "founder-studio",
-    title: "Founder Studio",
-    description: "创业想法与产品判断",
-    domainIds: [
-      "knowledge",
-      "memory",
-      "goals",
-      "business-data",
-      "entry",
-      "composer",
-      "delivery-experience",
-      "evaluation",
-      "verticals",
-    ],
-    note: "当前为设计与入口，不能把其他 Agent 的通用能力直接算作此模块已完成。",
-  },
 ];
 
 // Hand-reviewed against repository code on checkedAt. This is a curated

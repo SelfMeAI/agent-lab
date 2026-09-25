@@ -45,7 +45,7 @@
 .dsh-rail__task small { grid-column: 2; color: #9ba9a7; font-size: 11px; }
 .dsh-rail__empty { padding: 18px; margin: 0; color: #7e918e; font-size: 12px; line-height: 1.7; }
 .dsh-conversation { position: relative; display: flex; flex-direction: column; overflow: hidden; }
-.dsh-conversation__scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 23px 28px; scrollbar-color: #4b6666 transparent; scrollbar-width: thin; }
+.dsh-conversation__scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 23px 28px; scrollbar-color: #4b6666 transparent; scrollbar-width: thin; }
 .dsh-scroll-jump { position: absolute; right: 25px; bottom: 94px; z-index: 2; padding: 8px 12px; border: 1px solid #789993; border-radius: 3px; background: #15272c; color: #effbf6; box-shadow: 0 8px 24px #000a; font-size: 12px; }
 .dsh-scroll-jump:hover { border-color: #d3fb52; }
 .dsh-conversation__empty { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }

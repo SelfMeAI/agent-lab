@@ -7,12 +7,21 @@ export function HomePage(): JSX.Element {
   return (
     <main className="home-content">
       <h1 className="page-title">LAB INDEX</h1>
-      <button className="atlas-home-entry" type="button" onClick={goToAtlas}>
-        <span className="atlas-home-entry__mark" aria-hidden="true"><i /><i /><i /><i /><b>✳</b></span>
-        <span className="atlas-home-entry__title">AGENT ATLAS</span>
-        <span className="atlas-home-entry__meta">跨实验室的能力与体验全景</span>
-        <span className="atlas-home-entry__arrow" aria-hidden="true">↗</span>
-      </button>
+      <section className="lab-group home-overviews" aria-label="OVERVIEWS">
+        <div className="group-heading"><h2>OVERVIEWS</h2><span /></div>
+        <div className="home-overview-grid">
+          <button className="home-overview-card" type="button" onClick={goToAtlas}>
+            <span className="home-overview-card__mark home-overview-card__mark--atlas" aria-hidden="true"><i /><i /><i /><i /><b>✳</b></span>
+            <span className="home-overview-card__copy"><strong>AGENT ATLAS</strong><small>技术能力与体验全景</small></span>
+            <span className="home-overview-card__arrow" aria-hidden="true">↗</span>
+          </button>
+          <button className="home-overview-card home-overview-card--founder" type="button" onClick={() => goToLab("founder-studio")}>
+            <LabIcon className="home-overview-card__icon" labId="founder-studio" />
+            <span className="home-overview-card__copy"><strong>FOUNDER STUDIO</strong><small>业务方向与想法验证</small></span>
+            <span className="home-overview-card__arrow" aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </section>
       {labGroups.map((group) => (
         <section className="lab-group" key={group.id} aria-label={group.title}>
           <div className="group-heading"><h2>{group.title}</h2><span /></div>

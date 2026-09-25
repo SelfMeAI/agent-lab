@@ -90,6 +90,8 @@ describe("Agent Atlas knowledge base", () => {
   });
 
   it("does not count upstream features as SelfMe implementation", () => {
+    expect(atlasModules.some((module) => module.id === "founder-studio")).toBe(false);
+    expect(coverageRecords.some((record) => record.moduleId === "founder-studio")).toBe(false);
     expect(new Set(atlasModules.map((item) => item.id)).size).toBe(
       atlasModules.length,
     );

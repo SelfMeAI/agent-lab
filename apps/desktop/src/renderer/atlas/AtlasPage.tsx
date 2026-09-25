@@ -369,7 +369,7 @@ export function AtlasPage(): JSX.Element {
   };
 
   return (
-    <main className="atlas-page">
+    <main className={`atlas-page${view === "capabilities" || view === "experience" ? " atlas-page--explorer" : ""}`}>
       <header className="atlas-heading">
         <div>
           <span className="atlas-overline">
@@ -431,6 +431,7 @@ export function AtlasPage(): JSX.Element {
               <span className="atlas-intro__orbit atlas-intro__orbit--one" />
               <span className="atlas-intro__orbit atlas-intro__orbit--two" />
               <span className="atlas-intro__orbit atlas-intro__orbit--three" />
+              <span className="atlas-intro__orbit atlas-intro__orbit--four" />
               <b>∗</b>
             </div>
           </section>
