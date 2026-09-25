@@ -59,9 +59,16 @@ export function elapsedTime(startedAt: string, now = Date.now()): string | null 
     : `${pad(minutes)}:${pad(seconds % 60)}`;
 }
 
-export function shortDuration(milliseconds: number): string | null {
+export function toolDuration(milliseconds: number): string | null {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) return null;
-  return milliseconds < 100 ? "<0.1s" : `${(milliseconds / 1000).toFixed(1)}s`;
+  if (milliseconds < 1) return "<1ms";
+  if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`;
+  if (milliseconds < 60_000) return `${(milliseconds / 1000).toFixed(1)}s`;
+  const seconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return hours > 0 ? `${hours}h ${minutes}m ${remainder}s` : `${minutes}m ${remainder}s`;
 }
 
 export function durationMsBetween(startedAt: string, finishedAt: string): number | null {

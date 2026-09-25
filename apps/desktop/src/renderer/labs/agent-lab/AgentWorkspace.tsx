@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { AgentSessionSummary, ProviderStatus, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
-import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, shortDuration, turnDuration } from "./conversation-time";
+import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, toolDuration, turnDuration } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
 const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE" } as const;
@@ -80,8 +80,8 @@ function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: str
   const recordedAt = clockTime(entry.at, true);
   const exactRecordedAt = exactTime(entry.at);
   const exactFinishedAt = entry.finishedAt ? exactTime(entry.finishedAt) : null;
-  const durationMs = (entry.finishedAt ? durationMsBetween(entry.at, entry.finishedAt) : null) ?? view.durationMs;
-  const duration = durationMs !== undefined && durationMs !== null && durationMs >= 1000 ? shortDuration(durationMs) : null;
+  const durationMs = view.durationMs ?? (entry.finishedAt ? durationMsBetween(entry.at, entry.finishedAt) : null);
+  const duration = durationMs === undefined || durationMs === null ? null : toolDuration(durationMs);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const hadDiffRef = useRef(false);
   const hasDiff = view.files.some((file) => file.lines.length > 0);
