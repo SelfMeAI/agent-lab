@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import type { AppInfo } from "../../../../packages/contracts/src/index";
 import { AdapterRegistry } from "../../../../packages/runtime/src/index";
@@ -85,6 +85,13 @@ app.whenReady().then(() => {
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
+  });
+  ipcMain.handle("selfme:open-external", async (event, value: string): Promise<void> => {
+    assertMainWindow(event);
+    const url = new URL(value);
+    const allowed = new Set(["developers.openai.com", "modelcontextprotocol.io", "github.com", "code.claude.com", "learn.microsoft.com", "support.google.com", "deepmind.google", "docs.langchain.com"]);
+    if (url.protocol !== "https:" || !allowed.has(url.hostname) || url.username || url.password) throw new Error("不允许打开此外部地址");
+    await shell.openExternal(url.toString());
   });
   ipcMain.handle("selfme:choose-workspace", async (event): Promise<string | null> => {
     assertMainWindow(event);

@@ -1,5 +1,5 @@
 import type { CSSProperties, JSX } from "react";
-import { goToLab } from "../app/navigation";
+import { goToAtlas, goToLab } from "../app/navigation";
 import { labGroups, labs } from "../labs/registry";
 import { LabIcon } from "./LabIcon";
 
@@ -7,6 +7,12 @@ export function HomePage(): JSX.Element {
   return (
     <main className="home-content">
       <h1 className="page-title">LAB INDEX</h1>
+      <button className="atlas-home-entry" type="button" onClick={goToAtlas}>
+        <span className="atlas-home-entry__mark" aria-hidden="true"><i /><i /><i /><i /><b>✳</b></span>
+        <span className="atlas-home-entry__title">AGENT ATLAS</span>
+        <span className="atlas-home-entry__meta">跨实验室的能力与体验全景</span>
+        <span className="atlas-home-entry__arrow" aria-hidden="true">↗</span>
+      </button>
       {labGroups.map((group) => (
         <section className="lab-group" key={group.id} aria-label={group.title}>
           <div className="group-heading"><h2>{group.title}</h2><span /></div>

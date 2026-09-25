@@ -116,6 +116,19 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   letter-spacing: .055em;
 }
 
+.atlas-home-entry { width: 100%; min-height: 79px; margin: 0 0 31px; padding: 11px 22px; display: flex; align-items: center; gap: 20px; border: 1px solid #8dbaaa; color: #f5faf6; background: radial-gradient(circle at 75% 30%, #345a5250, transparent 38%), #0b171aee; text-align: left; box-shadow: 0 0 27px #91c8a316, inset 0 1px #d6f9dc12; transition: background .18s, border-color .18s, transform .18s; }
+.atlas-home-entry:hover { transform: translateY(-2px); border-color: #d5ecc5; background: #19312c; }
+.atlas-home-entry__mark { position: relative; width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; color: #c9e7bc; }
+.atlas-home-entry__mark i { position: absolute; width: 38px; height: 18px; border: 1px solid #9eccb79c; border-radius: 50%; transform: rotate(45deg); }
+.atlas-home-entry__mark i:nth-child(2) { transform: rotate(-45deg); }
+.atlas-home-entry__mark i:nth-child(3) { width: 28px; transform: rotate(90deg); }
+.atlas-home-entry__mark i:nth-child(4) { width: 28px; transform: rotate(0deg); }
+.atlas-home-entry__mark b { z-index: 1; font-size: 15px; font-weight: 400; }
+.atlas-home-entry__title { font: 400 clamp(18px, 1.6vw, 24px) Menlo, "SFMono-Regular", monospace; letter-spacing: -.02em; }
+.atlas-home-entry__meta { margin-left: auto; color: #a9c3b5; font-size: 11px; letter-spacing: .04em; }
+.atlas-home-entry__arrow { margin-left: 14px; color: #c7e4bd; font-size: 24px; }
+@media (max-width: 800px) { .atlas-home-entry__meta { display: none; } .atlas-home-entry__arrow { margin-left: auto; } }
+
 .lab-group { margin: 0 0 34px; }
 .lab-group:last-child { margin-bottom: 0; }
 

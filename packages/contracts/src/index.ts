@@ -122,6 +122,7 @@ export interface JevDecision {
 
 export interface DesktopBridge {
   getAppInfo(): Promise<AppInfo>;
+  openExternal(url: string): Promise<void>;
   chooseWorkspace(): Promise<string | null>;
   listRuntimes(): Promise<RuntimeStatus[]>;
   getProviderStatus(runtimeId: string): Promise<ProviderStatus>;

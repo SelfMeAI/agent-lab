@@ -3,6 +3,7 @@ import type { DesktopBridge } from "../../../../packages/contracts/src/index";
 
 const bridge: DesktopBridge = {
   getAppInfo: () => ipcRenderer.invoke("selfme:app-info"),
+  openExternal: (url) => ipcRenderer.invoke("selfme:open-external", url),
   chooseWorkspace: () => ipcRenderer.invoke("selfme:choose-workspace"),
   listRuntimes: () => ipcRenderer.invoke("selfme:list-runtimes"),
   getProviderStatus: (runtimeId) => ipcRenderer.invoke("selfme:get-provider-status", runtimeId),

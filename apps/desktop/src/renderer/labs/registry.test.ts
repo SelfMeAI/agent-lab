@@ -33,6 +33,7 @@ describe("lab modules and approved designs", () => {
   });
 
   it("resolves valid routes and rejects unknown modules", () => {
+    expect(parseHash("#/atlas")).toEqual({ atlas: true });
     expect(parseHash("#/lab/agent-lab/codex")).toMatchObject({ lab: { id: "agent-lab" }, viewId: "codex" });
     expect(parseHash("#/lab/rsi-lab/not-a-view")).toMatchObject({ lab: { id: "rsi-lab" }, viewId: undefined });
     expect(parseHash("#/lab/unknown")).toEqual({});
