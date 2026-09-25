@@ -100,6 +100,9 @@
 .dsh-conversation__empty button { padding: 9px 16px; margin-top: 13px; border: 1px solid #d3fb52; color: #d3fb52; background: transparent; }
 .dsh-conversation__empty button:hover { background: color-mix(in srgb, var(--agent-accent, #d3fb52) 10%, transparent); }
 .dsh-entry { display: flex; gap: 19px; padding: 4px 0 22px; margin-bottom: 20px; border-bottom: 1px solid #7b8e893d; }
+.dsh-entry:has(+ .dsh-turn-duration) { margin-bottom: 0; padding-bottom: 10px; border-bottom: 0; }
+.dsh-turn-duration { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; margin: 0 0 20px 61px; padding: 0 0 15px; border-bottom: 1px solid #7b8e893d; color: #829b95; font-size: 11px; font-variant-numeric: tabular-nums; }
+.dsh-turn-duration strong { color: #acc5bd; font-weight: 500; }
 .dsh-entry__avatar { width: 42px; height: 42px; flex: 0 0 42px; color: #d3fb52; }
 .dsh-entry__avatar--user { display: grid; place-items: center; color: #b9c9c5; }
 .dsh-entry__avatar--user svg { width: 36px; height: 36px; padding: 6px; border-radius: 50%; background: #233238; }

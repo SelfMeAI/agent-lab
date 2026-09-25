@@ -34,6 +34,41 @@ describe("agent transcript updates", () => {
     expect(store.getSnapshot().entries).toHaveLength(0);
   });
 
+  it("reconstructs one completed turn from persisted status events, including approval wait", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    const history = [
+      event("a", 1, { kind: "status", phase: "ready", at: "2026-09-25T00:00:00Z" }),
+      event("a", 2, { kind: "user", text: "检查项目", at: "2026-09-25T00:01:00Z" }),
+      event("a", 3, { kind: "status", phase: "running", at: "2026-09-25T00:01:01Z" }),
+      event("a", 4, { kind: "approval", phase: "approval", at: "2026-09-25T00:01:10Z" }),
+      event("a", 5, { kind: "status", phase: "running", at: "2026-09-25T00:02:00Z" }),
+      event("a", 6, { kind: "message", text: "完成", at: "2026-09-25T00:02:10Z" }),
+      event("a", 7, { kind: "status", phase: "ready", text: "本轮已完成", at: "2026-09-25T00:02:30Z" }),
+    ];
+    store.loadHistory("a", history);
+    expect(store.getSnapshot().entries.at(-1)).toMatchObject({
+      kind: "turn_end", at: "2026-09-25T00:02:30Z", startedAt: "2026-09-25T00:01:00Z",
+    });
+    expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end")).toHaveLength(1);
+    store.ingest(event("a", 8, { kind: "status", phase: "ready", at: "2026-09-25T00:03:00Z" }));
+    expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end")).toHaveLength(1);
+    store.loadHistory("a", history);
+    expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end")).toHaveLength(1);
+  });
+
+  it("does not invent a finished turn when an interrupted session reconnects", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    store.loadHistory("a", [
+      event("a", 1, { kind: "user", text: "未完成的任务", at: "2026-09-25T00:01:00Z" }),
+      event("a", 2, { kind: "status", phase: "running", at: "2026-09-25T00:01:01Z" }),
+      event("a", 3, { kind: "status", phase: "starting", at: "2026-09-25T00:10:00Z" }),
+      event("a", 4, { kind: "status", phase: "ready", at: "2026-09-25T00:10:01Z" }),
+    ]);
+    expect(store.getSnapshot().entries.some((entry) => entry.kind === "turn_end")).toBe(false);
+  });
+
   it("keeps two sessions separate and merges saved history with live updates", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [session("b"), session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });

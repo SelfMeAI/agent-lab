@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarDayKey, clockTime, dateDividerLabel, durationBetween, elapsedTime, exactTime, sessionTimeLabel, shortDuration } from "./conversation-time";
+import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, shortDuration, turnDuration } from "./conversation-time";
 
 function localTime(year: number, month: number, day: number, hour: number, minute: number, second = 0): string {
   return new Date(year, month - 1, day, hour, minute, second).toISOString();
@@ -27,9 +27,10 @@ describe("agent conversation time", () => {
     const finish = localTime(2026, 9, 26, 14, 32, 7);
     expect(elapsedTime(start, new Date(finish).getTime())).toBe("00:07");
     expect(elapsedTime(start, new Date(start).getTime() + 3_726_000)).toBe("1:02:06");
-    expect(durationBetween(start, finish)).toBe("7.0s");
-    expect(durationBetween(start, start)).toBe("<0.1s");
-    expect(durationBetween(finish, start)).toBeNull();
+    expect(durationMsBetween(start, finish)).toBe(7000);
+    expect(durationMsBetween(finish, start)).toBeNull();
+    expect(turnDuration(start, finish)).toBe("00:07");
+    expect(turnDuration(start, start)).toBe("<1 秒");
     expect(shortDuration(0)).toBe("<0.1s");
     expect(shortDuration(99)).toBe("<0.1s");
     expect(shortDuration(100)).toBe("0.1s");

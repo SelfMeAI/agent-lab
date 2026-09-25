@@ -1,6 +1,5 @@
 import { diffLines } from "diff";
 import type { TranscriptEntry } from "./agent-store";
-import { shortDuration } from "./conversation-time";
 
 type RecordValue = Record<string, unknown>;
 
@@ -31,7 +30,7 @@ export interface EntryPresentation {
   cwd?: string;
   output?: string;
   exitCode?: number;
-  duration?: string;
+  durationMs?: number;
   files: FileChangeView[];
   plan: PlanStepView[];
   locations: string[];
@@ -193,7 +192,7 @@ export function presentEntry(entry: TranscriptEntry): EntryPresentation {
   const command = string(raw.command) ?? string(rawInput.command);
   const cwd = string(raw.cwd);
   const exitCode = typeof raw.exitCode === "number" ? raw.exitCode : undefined;
-  const duration = typeof raw.durationMs === "number" ? shortDuration(raw.durationMs) ?? undefined : undefined;
+  const durationMs = typeof raw.durationMs === "number" && Number.isFinite(raw.durationMs) && raw.durationMs >= 0 ? raw.durationMs : undefined;
   if (!output && raw.rawOutput !== undefined) {
     output = string(raw.rawOutput) ?? string(record(raw.rawOutput).text);
   }
@@ -212,6 +211,6 @@ export function presentEntry(entry: TranscriptEntry): EntryPresentation {
           : entry.text?.trim().split("\n")[0] ?? "";
   return {
     label, status: statusLabels[entry.toolStatus ?? ""] ?? (entry.kind === "status" ? "更新" : "进行中"),
-    summary, command, cwd, output, exitCode, duration, files, plan, locations, notes,
+    summary, command, cwd, output, exitCode, durationMs, files, plan, locations, notes,
   };
 }

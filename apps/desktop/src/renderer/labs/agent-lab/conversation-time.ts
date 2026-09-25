@@ -64,9 +64,14 @@ export function shortDuration(milliseconds: number): string | null {
   return milliseconds < 100 ? "<0.1s" : `${(milliseconds / 1000).toFixed(1)}s`;
 }
 
-export function durationBetween(startedAt: string, finishedAt: string): string | null {
+export function durationMsBetween(startedAt: string, finishedAt: string): number | null {
   const start = parseTimestamp(startedAt)?.getTime();
   const finish = parseTimestamp(finishedAt)?.getTime();
-  if (start === undefined || finish === undefined || finish < start) return null;
-  return shortDuration(finish - start);
+  return start === undefined || finish === undefined || finish < start ? null : finish - start;
+}
+
+export function turnDuration(startedAt: string, finishedAt: string): string | null {
+  const milliseconds = durationMsBetween(startedAt, finishedAt);
+  if (milliseconds === null) return null;
+  return milliseconds < 1000 ? "<1 秒" : elapsedTime(startedAt, new Date(finishedAt).getTime());
 }

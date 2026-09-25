@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { AgentSessionSummary, ProviderStatus, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
-import { calendarDayKey, clockTime, dateDividerLabel, durationBetween, elapsedTime, exactTime, sessionTimeLabel } from "./conversation-time";
+import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, shortDuration, turnDuration } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
 const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE" } as const;
@@ -77,10 +77,11 @@ function RunElapsed({ startedAt }: { startedAt: string }): JSX.Element | null {
 
 function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: string | null }): JSX.Element {
   const view = presentEntry(entry);
-  const recordedAt = exactTime(entry.at);
-  const finishedAt = entry.finishedAt ? exactTime(entry.finishedAt) : null;
-  const duration = view.duration ?? (entry.finishedAt ? durationBetween(entry.at, entry.finishedAt) : null);
-  const began = Boolean(finishedAt) || ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? "");
+  const recordedAt = clockTime(entry.at, true);
+  const exactRecordedAt = exactTime(entry.at);
+  const exactFinishedAt = entry.finishedAt ? exactTime(entry.finishedAt) : null;
+  const durationMs = (entry.finishedAt ? durationMsBetween(entry.at, entry.finishedAt) : null) ?? view.durationMs;
+  const duration = durationMs !== undefined && durationMs !== null && durationMs >= 1000 ? shortDuration(durationMs) : null;
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const hadDiffRef = useRef(false);
   const hasDiff = view.files.some((file) => file.lines.length > 0);
@@ -106,10 +107,9 @@ function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: str
       {view.locations.length > 0 && view.files.length === 0 && <div className="dsh-tool__section"><span className="dsh-tool__caption">涉及位置</span><div className="dsh-tool__paths">{view.locations.map((path) => <code key={path}>{path}</code>)}</div></div>}
       {view.output && <div className="dsh-tool__section"><span className="dsh-tool__caption">{entry.kind === "status" ? "详情" : "结果"}</span><pre className="dsh-tool__output">{view.output}</pre></div>}
       {view.notes.map((note, index) => <p className="dsh-tool__note" key={`${index}:${note.slice(0, 16)}`}>{note}</p>)}
-      {(recordedAt || finishedAt || duration || view.exitCode !== undefined) && <div className="dsh-tool__timing">
-        {recordedAt && <span>{began ? "开始" : "记录"} <time dateTime={entry.at}>{recordedAt}</time></span>}
-        {finishedAt && <span>结束 <time dateTime={entry.finishedAt}>{finishedAt}</time></span>}
-        {duration && <span>耗时 {duration}</span>}
+      {(recordedAt || duration || view.exitCode !== undefined) && <div className="dsh-tool__timing">
+        {recordedAt && <span>{entry.kind === "tool" ? "执行于" : "记录于"} <time dateTime={entry.at} title={exactFinishedAt ? `${exactRecordedAt} → ${exactFinishedAt}` : exactRecordedAt ?? undefined}>{recordedAt}</time></span>}
+        {duration && <span>用时 {duration}</span>}
         {view.exitCode !== undefined && <span>退出码 {view.exitCode}</span>}
       </div>}
       {!view.command && !view.output && view.files.length === 0 && view.plan.length === 0 && view.locations.length === 0 && view.notes.length === 0 && <p className="dsh-tool__meta">运行时未提供更多细节</p>}
@@ -126,6 +126,10 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
 }): JSX.Element {
   const time = clockTime(entry.at);
   const exact = exactTime(entry.at);
+  if (entry.kind === "turn_end") {
+    const duration = entry.startedAt ? turnDuration(entry.startedAt, entry.at) : null;
+    return duration ? <div className="dsh-turn-duration" title={`${exactTime(entry.startedAt!)} → ${exact}`}><span>本轮用时</span><strong>{duration}</strong></div> : <></>;
+  }
   if (entry.kind === "user") return (
     <article className="dsh-entry dsh-entry--user">
       <div className="dsh-entry__avatar dsh-entry__avatar--user" aria-hidden="true">

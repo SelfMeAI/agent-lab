@@ -4,7 +4,7 @@ export type { AgentRuntimeId } from "../../../../../../packages/contracts/src/in
 
 export interface TranscriptEntry {
   id: string;
-  kind: "user" | "message" | "thought" | "tool" | "approval" | "error" | "status";
+  kind: "user" | "message" | "thought" | "tool" | "approval" | "error" | "status" | "turn_end";
   runId: string;
   text: string;
   title?: string;
@@ -13,6 +13,7 @@ export interface TranscriptEntry {
   approval?: ApprovalRequest;
   raw?: unknown;
   at: string;
+  startedAt?: string;
   finishedAt?: string;
 }
 
@@ -51,7 +52,21 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
     };
   }
   if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return snapshot;
-  if (event.kind === "status" && event.phase) return { ...snapshot, phase: event.phase, statusText: event.text ?? event.phase };
+  if (event.kind === "status" && event.phase) {
+    let entries = snapshot.entries;
+    if (event.phase === "ready" && ["running", "approval", "cancelling"].includes(snapshot.phase)) {
+      let lastUserIndex = entries.length - 1;
+      while (lastUserIndex >= 0 && entries[lastUserIndex].kind !== "user") lastUserIndex--;
+      const user = entries[lastUserIndex];
+      if (user && !entries.slice(lastUserIndex + 1).some((entry) => entry.kind === "turn_end")) {
+        entries = [...entries, {
+          id: `${event.sessionId}:${event.eventIndex}`, kind: "turn_end", runId: user.runId,
+          text: event.text ?? "", at: event.at, startedAt: user.at,
+        }];
+      }
+    }
+    return { ...snapshot, entries, phase: event.phase, statusText: event.text ?? event.phase };
+  }
   if (event.kind === "status" && !event.raw) return snapshot;
   const kind = event.kind;
   if (!["message", "thought", "tool", "approval", "error", "status"].includes(kind)) return snapshot;
