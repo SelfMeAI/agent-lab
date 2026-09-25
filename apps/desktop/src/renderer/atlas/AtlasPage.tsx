@@ -258,7 +258,7 @@ export function AtlasPage(): JSX.Element {
   const [coverageQuery, setCoverageQuery] = useState("");
   const resultsRef = useRef<HTMLDivElement>(null);
   const patternsRef = useRef<HTMLDivElement>(null);
-  const coverageListRef = useRef<HTMLDivElement>(null);
+  const coverageControlsRef = useRef<HTMLDivElement>(null);
   const counts = useMemo(domainCounts, []);
 
   useEffect(() => {
@@ -274,7 +274,18 @@ export function AtlasPage(): JSX.Element {
   }, [phase, surface]);
 
   useEffect(() => {
-    coverageListRef.current?.scrollTo({ top: 0 });
+    const viewport = document.querySelector<HTMLElement>(".app-viewport");
+    const controls = coverageControlsRef.current;
+    if (!viewport || !controls) return;
+    const controlsTop = controls.getBoundingClientRect().top
+      - viewport.getBoundingClientRect().top + viewport.scrollTop;
+    const tabsHeight = document.querySelector(".atlas-tabs")?.getBoundingClientRect().height ?? 55;
+    const resultStart = Math.max(0, controlsTop - tabsHeight);
+    const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const target = maxScroll < resultStart ? 0 : resultStart;
+    if (viewport.scrollTop > target + 4) {
+      viewport.scrollTo({ top: target });
+    }
   }, [moduleId, coverageFilter, coverageQuery]);
 
   const filteredCapabilities = useMemo(
@@ -374,7 +385,7 @@ export function AtlasPage(): JSX.Element {
   };
 
   return (
-    <main className={`atlas-page${view === "capabilities" || view === "experience" || view === "coverage" ? " atlas-page--explorer" : ""}${view === "coverage" ? " atlas-page--coverage" : ""}`}>
+    <main className={`atlas-page${view === "capabilities" || view === "experience" ? " atlas-page--explorer" : ""}${view === "coverage" ? " atlas-page--coverage" : ""}`}>
       <header className="atlas-heading">
         <div>
           <span className="atlas-overline">
@@ -828,10 +839,6 @@ export function AtlasPage(): JSX.Element {
             <div>
               <span className="atlas-overline">EVIDENCE, NOT ASSUMPTION</span>
               <h2>实现覆盖</h2>
-              <p>
-                上游存在、SelfMe
-                接入、可使用、已验证、已打磨是不同状态。无记录默认“未接入”。
-              </p>
             </div>
             <strong>BASELINE / {baselineDate}</strong>
           </div>
@@ -861,54 +868,57 @@ export function AtlasPage(): JSX.Element {
             </aside>
             <div className="atlas-coverage-main">
               <div className="atlas-coverage-hero">
-                <div>
-                  <span>{currentModule.id.toUpperCase()}</span>
+                <div className="atlas-coverage-hero__identity">
                   <h3>{currentModule.title}</h3>
                   <p>{currentModule.description}</p>
-                  <small>{currentModule.note}</small>
                 </div>
-                <div className="atlas-coverage-hero__count">
-                  <strong>
-                    {summary.total - summary.counts.unstarted}
-                    <small> / {summary.total}</small>
-                  </strong>
-                  <span>有接入记录 / 观察能力</span>
+                <div className="atlas-coverage-hero__meta">
+                  <div className="atlas-coverage-hero__count">
+                    <strong>
+                      {summary.total - summary.counts.unstarted}
+                      <small> / {summary.total}</small>
+                    </strong>
+                    <span>有接入记录 / 观察能力</span>
+                  </div>
+                  <details className="atlas-coverage-guide">
+                    <summary>怎么读 <span aria-hidden="true">⌄</span></summary>
+                    <div>
+                      <p>{currentModule.note}</p>
+                      <p>“已接入”表示代码通路存在；“可使用”表示有用户可触达界面；“已验证”需要对应验收证据；“已打磨”还需真实体验检查。绿色勾只代表当前代码审查观察到的要点，不等于完整端到端验收。记录不是实时遥测。</p>
+                    </div>
+                  </details>
                 </div>
               </div>
-              <div className="atlas-state-strip">
-                {coverageOrder.map((state) => (
-                  <button
-                    type="button"
-                    className={coverageFilter === state ? "is-active" : ""}
-                    key={state}
-                    data-state={state}
-                    onClick={() =>
-                      setCoverageFilter(
-                        coverageFilter === state ? "all" : state,
-                      )
-                    }
-                  >
-                    <strong>{summary.counts[state]}</strong>
-                    <span>{coverageTitles[state]}</span>
-                  </button>
-                ))}
+              <div className="atlas-coverage-controls" ref={coverageControlsRef}>
+                <div className="atlas-state-strip">
+                  {coverageOrder.map((state) => (
+                    <button
+                      type="button"
+                      className={coverageFilter === state ? "is-active" : ""}
+                      key={state}
+                      data-state={state}
+                      onClick={() =>
+                        setCoverageFilter(
+                          coverageFilter === state ? "all" : state,
+                        )
+                      }
+                    >
+                      <strong>{summary.counts[state]}</strong>
+                      <span>{coverageTitles[state]}</span>
+                    </button>
+                  ))}
+                </div>
+                <label className="atlas-search atlas-search--coverage">
+                  <span aria-hidden="true">⌕</span>
+                  <input
+                    aria-label="搜索观察能力"
+                    placeholder="在当前模块的观察范围内搜索"
+                    value={coverageQuery}
+                    onChange={(event) => setCoverageQuery(event.target.value)}
+                  />
+                </label>
               </div>
-              <div className="atlas-coverage-note">
-                <b>怎么读</b>
-                <span>
-                  “已接入”表示代码通路存在；“可使用”表示有用户可触达界面；“已验证”需要对应验收证据；“已打磨”还需真实体验检查。绿色勾只代表当前代码审查观察到的要点，不等于完整端到端验收。记录不是实时遥测。
-                </span>
-              </div>
-              <label className="atlas-search atlas-search--coverage">
-                <span aria-hidden="true">⌕</span>
-                <input
-                  aria-label="搜索观察能力"
-                  placeholder="在当前模块的观察范围内搜索"
-                  value={coverageQuery}
-                  onChange={(event) => setCoverageQuery(event.target.value)}
-                />
-              </label>
-              <div className="atlas-coverage-list" ref={coverageListRef}>
+              <div className="atlas-coverage-list">
                 <div className="atlas-list-caption">
                   <span>OBSERVATION SCOPE</span>
                   <span>{moduleCapabilities.length} ITEMS</span>
