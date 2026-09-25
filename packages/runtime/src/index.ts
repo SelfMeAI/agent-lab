@@ -4,7 +4,8 @@ export interface HarnessAdapter {
   readonly id: string;
   readonly label: string;
   probe(): Promise<RuntimeStatus>;
-  start(workspace: string): Promise<void>;
+  start(workspace: string, resumeRef?: string): Promise<void>;
+  getResumeRef(): string | null;
   send(prompt: string): Promise<void>;
   cancel(): Promise<void>;
   respondApproval(requestId: string | number, optionId: string): Promise<void>;

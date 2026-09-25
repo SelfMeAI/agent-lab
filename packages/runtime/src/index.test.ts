@@ -6,6 +6,7 @@ const adapter: HarnessAdapter = {
   label: "Sample",
   probe: async () => ({ id: "sample", label: "Sample", availability: "ready" }),
   start: async () => {},
+  getResumeRef: () => null,
   send: async () => {},
   cancel: async () => {},
   respondApproval: async () => {},

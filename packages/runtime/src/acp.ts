@@ -94,7 +94,9 @@ export class AcpAdapter implements HarnessAdapter {
     return ["starting", "running", "approval", "cancelling"].includes(this.phase);
   }
 
-  async start(workspace: string): Promise<void> {
+  getResumeRef(): string | null { return this.sessionId; }
+
+  async start(workspace: string, resumeRef?: string): Promise<void> {
     const canonical = await realpath(workspace);
     if (!(await stat(canonical)).isDirectory()) throw new Error("工作目录必须是文件夹");
     if (this.child && this.workspace === canonical && ["ready", "running", "approval"].includes(this.phase)) {
@@ -102,7 +104,7 @@ export class AcpAdapter implements HarnessAdapter {
       return;
     }
     if (this.startPromise) return this.startPromise;
-    this.startPromise = this.boot(canonical);
+    this.startPromise = this.boot(canonical, resumeRef);
     try {
       await this.startPromise;
     } finally {
@@ -110,7 +112,7 @@ export class AcpAdapter implements HarnessAdapter {
     }
   }
 
-  private async boot(workspace: string): Promise<void> {
+  private async boot(workspace: string, resumeRef?: string): Promise<void> {
     if (this.child) await this.stop();
     await access(this.options.probePath);
     const launch = await this.options.launch(workspace);
@@ -144,8 +146,10 @@ export class AcpAdapter implements HarnessAdapter {
         clientInfo: { name: "selfme-lab", version: "0.1.0" },
         clientCapabilities: {},
       }, 30000);
-      const session = await this.request("session/new", { cwd: workspace, mcpServers: [] }, 30000);
-      const sessionId = string(session.sessionId) ?? string(session.session_id);
+      const session = resumeRef
+        ? await this.request("session/resume", { sessionId: resumeRef, cwd: workspace, mcpServers: [] }, 30000)
+        : await this.request("session/new", { cwd: workspace, mcpServers: [] }, 30000);
+      const sessionId = resumeRef ?? string(session.sessionId) ?? string(session.session_id);
       if (!sessionId) throw new Error(`${this.label} 未返回 ACP sessionId`);
       this.sessionId = sessionId;
       this.emitStatus("ready", `${this.label} 已就绪`);
@@ -193,6 +197,11 @@ export class AcpAdapter implements HarnessAdapter {
 
   async stop(): Promise<void> {
     const child = this.child;
+    const sessionId = this.sessionId;
+    if (child && sessionId && this.phase === "ready") {
+      try { await this.request("session/close", { sessionId }, 5000); }
+      catch (error) { console.warn(`${this.label} session/close failed:`, error); }
+    }
     this.child = null;
     this.sessionId = null;
     this.workspace = null;

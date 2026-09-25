@@ -40,10 +40,17 @@
 .dsh-rail__heading button:hover:not(:disabled) { color: #d3fb52; }
 .dsh-rail__heading button:disabled { opacity: .35; cursor: default; }
 .dsh-rail__scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #405a5d transparent; }
-.dsh-rail__task { margin: 10px; padding: 14px 15px; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 5px 11px; border: 1px solid #b4d978; border-radius: 3px; background: #172329; }
-.dsh-rail__task i { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: #d3fb52; box-shadow: 0 0 7px #d3fb52; }
-.dsh-rail__task span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-.dsh-rail__task small { grid-column: 2; color: #9ba9a7; font-size: 11px; }
+.dsh-rail__session { width: calc(100% - 20px); margin: 10px 10px 0; padding: 13px 14px; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 5px 10px; border: 1px solid #405552; border-radius: 3px; color: #e6efec; background: #101d22; text-align: left; }
+.dsh-rail__session:hover:not(:disabled) { border-color: #8da59a; background: #17272b; }
+.dsh-rail__session.is-selected { border-color: var(--agent-accent, #d3fb52); background: #172329; }
+.dsh-rail__session:disabled { cursor: default; opacity: .65; }
+.dsh-rail__session i { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #79908d; }
+.dsh-rail__session i.is-ready { background: var(--agent-accent, #d3fb52); box-shadow: 0 0 7px var(--agent-accent, #d3fb52); }
+.dsh-rail__session i.is-running, .dsh-rail__session i.is-starting, .dsh-rail__session i.is-cancelling { background: var(--agent-accent, #d3fb52); box-shadow: 0 0 8px var(--agent-accent, #d3fb52); }
+.dsh-rail__session i.is-approval { background: #efc15c; box-shadow: 0 0 8px #efc15c; }
+.dsh-rail__session i.is-error { background: #e48484; }
+.dsh-rail__session span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.dsh-rail__session small { grid-column: 2; color: #95aaa5; font-size: 11px; }
 .dsh-rail__empty { padding: 18px; margin: 0; color: #7e918e; font-size: 12px; line-height: 1.7; }
 .dsh-conversation { position: relative; display: flex; flex-direction: column; overflow: hidden; }
 .dsh-conversation__scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 23px 28px; scrollbar-color: #4b6666 transparent; scrollbar-width: thin; }

@@ -84,6 +84,7 @@ export class PiAdapter implements HarnessAdapter {
   private runId = "session";
   private messageHadDelta = false;
   private apiKey: string | null = null;
+  private sessionFile: string | null = null;
 
   constructor(private readonly options: PiAdapterOptions) {}
 
@@ -105,16 +106,18 @@ export class PiAdapter implements HarnessAdapter {
     return ["starting", "running", "approval", "cancelling"].includes(this.phase);
   }
 
-  async start(workspace: string): Promise<void> {
+  getResumeRef(): string | null { return this.sessionFile; }
+
+  async start(workspace: string, resumeRef?: string): Promise<void> {
     const canonical = await realpath(workspace);
     if (!(await stat(canonical)).isDirectory()) throw new Error("工作目录必须是文件夹");
     if (this.session && this.workspace === canonical && ["ready", "running", "approval"].includes(this.phase)) return;
     if (this.startPromise) return this.startPromise;
-    this.startPromise = this.boot(canonical);
+    this.startPromise = this.boot(canonical, resumeRef);
     try { await this.startPromise; } finally { this.startPromise = null; }
   }
 
-  private async boot(workspace: string): Promise<void> {
+  private async boot(workspace: string, resumeRef?: string): Promise<void> {
     if (this.session) await this.stop();
     this.emitStatus("starting", "正在启动 Pi");
     await mkdir(this.options.homeDirectory, { recursive: true, mode: 0o700 });
@@ -171,13 +174,16 @@ export class PiAdapter implements HarnessAdapter {
         modelRuntime,
         model,
         thinkingLevel: model.reasoning ? "medium" : "off",
-        sessionManager: sdk.SessionManager.inMemory(workspace),
+        sessionManager: resumeRef
+          ? sdk.SessionManager.open(resumeRef, join(this.options.homeDirectory, "sessions"), workspace)
+          : sdk.SessionManager.create(workspace, join(this.options.homeDirectory, "sessions")),
         settingsManager,
         resourceLoader,
         tools: ["read", "bash", "edit", "write"],
         customTools: customTools as unknown as ToolDefinition[],
       });
       this.session = session;
+      this.sessionFile = session.sessionFile ?? null;
       this.workspace = workspace;
       this.fileTracker = new FileChangeTracker(workspace);
       this.allowedForSession.clear();
@@ -226,6 +232,7 @@ export class PiAdapter implements HarnessAdapter {
   async stop(): Promise<void> {
     const session = this.session;
     this.session = null;
+    this.sessionFile = null;
     this.workspace = null;
     this.unsubscribe?.();
     this.unsubscribe = null;

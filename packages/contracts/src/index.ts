@@ -35,6 +35,25 @@ export interface RuntimeStatus {
 
 export type RuntimePhase = "idle" | "starting" | "ready" | "running" | "approval" | "cancelling" | "error";
 
+export type AgentRuntimeId = "dsh" | "codex" | "pi" | "kimi-code";
+
+export interface AgentSessionSummary {
+  id: string;
+  runtimeId: AgentRuntimeId;
+  workspace: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  phase: RuntimePhase;
+  statusText: string;
+}
+
+export interface AgentSessionCatalog {
+  sessions: AgentSessionSummary[];
+  selectedSessionId: string | null;
+  lastWorkspace: string | null;
+}
+
 export interface ProviderStatus {
   configured: boolean;
   baseUrl: string;
@@ -55,6 +74,7 @@ export interface ApprovalRequest {
 }
 
 export type RunEventKind =
+  | "user"
   | "message"
   | "thought"
   | "tool"
@@ -77,6 +97,11 @@ export interface RunEvent {
   toolCallId?: string;
   toolStatus?: string;
   raw?: unknown;
+}
+
+export interface AgentSessionEvent extends RunEvent {
+  sessionId: string;
+  eventIndex: number;
 }
 
 export interface AppInfo {
@@ -128,11 +153,14 @@ export interface DesktopBridge {
   getProviderStatus(runtimeId: string): Promise<ProviderStatus>;
   listProviderModels(runtimeId: string, config: { baseUrl: string; apiKey?: string }): Promise<string[]>;
   saveProvider(runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }): Promise<ProviderStatus>;
-  startRuntime(runtimeId: string, workspace: string): Promise<void>;
-  sendPrompt(runtimeId: string, prompt: string): Promise<void>;
-  cancelRun(runtimeId: string): Promise<void>;
-  respondApproval(runtimeId: string, requestId: string | number, optionId: string): Promise<void>;
-  stopRuntime(runtimeId: string): Promise<void>;
+  getAgentSessionCatalog(runtimeId: AgentRuntimeId): Promise<AgentSessionCatalog>;
+  createAgentSession(runtimeId: AgentRuntimeId, workspace: string): Promise<AgentSessionSummary>;
+  getAgentSessionEvents(sessionId: string): Promise<AgentSessionEvent[]>;
+  selectAgentSession(sessionId: string): Promise<void>;
+  startAgentSession(sessionId: string): Promise<void>;
+  sendSessionPrompt(sessionId: string, prompt: string): Promise<void>;
+  cancelSessionRun(sessionId: string): Promise<void>;
+  respondSessionApproval(sessionId: string, requestId: string | number, optionId: string): Promise<void>;
   decideJevMove(fen: string, style: JevStyle): Promise<JevDecision>;
-  onRunEvent(listener: (event: RunEvent) => void): () => void;
+  onRunEvent(listener: (event: AgentSessionEvent) => void): () => void;
 }

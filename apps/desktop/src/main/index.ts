@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
-import type { AppInfo } from "../../../../packages/contracts/src/index";
-import { AdapterRegistry } from "../../../../packages/runtime/src/index";
+import type { AgentRuntimeId, AppInfo } from "../../../../packages/contracts/src/index";
+import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
@@ -13,13 +13,13 @@ import {
 } from "./provider-store";
 import { discoverModels, modelListUrl } from "./model-discovery";
 import { decideJevMove } from "./jev-decision";
+import { AgentSessionRepository } from "./agent-session-repository";
+import { AppConfigStore } from "./app-config";
+import { AgentSessionController } from "./agent-session-controller";
 
-const registry = new AdapterRegistry();
 let mainWindow: BrowserWindow | null = null;
-let dsh: DshAdapter;
-let codex: CodexAdapter;
-let pi: PiAdapter;
-let kimi: KimiAdapter;
+let sessions: AgentSessionController | null = null;
+let sessionRepository: AgentSessionRepository | null = null;
 
 app.setName("SelfMe Lab");
 
@@ -66,42 +66,37 @@ function createWindow(): void {
   else void window.loadFile(join(__dirname, "../renderer/index.html"));
 }
 
-app.whenReady().then(() => {
+function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapter {
+  const homeDirectory = join(app.getPath("userData"), "runtime-homes", runtimeId, sessionId);
   const entryPoint = app.isPackaged
     ? join(process.resourcesPath, "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
     : join(__dirname, "../../../../runtimes/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js");
-  dsh = new DshAdapter({
-    entryPoint,
-    homeDirectory: join(app.getPath("userData"), "dsh-home"),
-    nodeExecutable: process.execPath,
-    provider: getDshProvider,
+  if (runtimeId === "dsh") return new DshAdapter({
+    entryPoint, homeDirectory, nodeExecutable: process.execPath, provider: getDshProvider,
   });
-  registry.register(dsh);
-  codex = new CodexAdapter({
+  if (runtimeId === "codex") return new CodexAdapter({
     executable: app.isPackaged
       ? join(process.resourcesPath, "codex", "bin", "codex")
       : join(__dirname, "../../../../runtimes/codex/bin/codex"),
-    homeDirectory: join(app.getPath("userData"), "codex-home"),
-    provider: getCodexProvider,
+    homeDirectory, provider: getCodexProvider,
   });
-  registry.register(codex);
-  pi = new PiAdapter({
-    homeDirectory: join(app.getPath("userData"), "pi-home"),
-    provider: getPiProvider,
-  });
-  registry.register(pi);
-  kimi = new KimiAdapter({
+  if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider });
+  return new KimiAdapter({
     executable: app.isPackaged
       ? join(process.resourcesPath, "kimi-code", "bin", "kimi")
       : join(__dirname, "../../../../runtimes/kimi-code/bin/kimi"),
-    homeDirectory: join(app.getPath("userData"), "kimi-home"),
-    provider: getKimiProvider,
+    homeDirectory, provider: getKimiProvider,
   });
-  registry.register(kimi);
-  dsh.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
-  codex.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
-  pi.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
-  kimi.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
+}
+
+app.whenReady().then(async () => {
+  const root = app.getPath("userData");
+  sessionRepository = new AgentSessionRepository(root);
+  await sessionRepository.init();
+  const appConfig = new AppConfigStore(root);
+  await appConfig.init();
+  sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
+    (event) => mainWindow?.webContents.send("selfme:run-event", event));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
@@ -123,7 +118,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("selfme:list-runtimes", async (event) => {
     assertMainWindow(event);
-    return registry.list();
+    return Promise.all((["dsh", "codex", "pi", "kimi-code"] as const).map((runtimeId) => makeAdapter(runtimeId, "probe").probe()));
   });
   ipcMain.handle("selfme:get-provider-status", async (event, runtimeId: string) => {
     assertMainWindow(event);
@@ -152,27 +147,27 @@ app.whenReady().then(() => {
   ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
     assertMainWindow(event);
     if (runtimeId === "dsh") {
-      if (dsh.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      if (sessions!.isBusy("dsh")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
       const status = await saveDshProvider(config);
-      await dsh.stop();
+      await sessions!.stopRuntime("dsh");
       return status;
     }
     if (runtimeId === "codex") {
-      if (codex.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      if (sessions!.isBusy("codex")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
       const status = await saveCodexProvider(config);
-      await codex.stop();
+      await sessions!.stopRuntime("codex");
       return status;
     }
     if (runtimeId === "pi") {
-      if (pi.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      if (sessions!.isBusy("pi")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
       const status = await savePiProvider(config);
-      await pi.stop();
+      await sessions!.stopRuntime("pi");
       return status;
     }
     if (runtimeId === "kimi-code") {
-      if (kimi.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      if (sessions!.isBusy("kimi-code")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
       const status = await saveKimiProvider(config);
-      await kimi.stop();
+      await sessions!.stopRuntime("kimi-code");
       return status;
     }
     if (runtimeId === "jev") return saveJevProvider(config);
@@ -182,35 +177,37 @@ app.whenReady().then(() => {
     assertMainWindow(event);
     return decideJevMove(fen, style);
   });
-  ipcMain.handle("selfme:start-runtime", async (event, runtimeId: string, workspace: string) => {
+  ipcMain.handle("selfme:agent-session-catalog", async (event, runtimeId: AgentRuntimeId) => {
     assertMainWindow(event);
-    const adapter = registry.get(runtimeId);
-    if (!adapter) throw new Error("运行时尚未接入");
-    await adapter.start(workspace);
+    return sessions!.catalog(runtimeId);
   });
-  ipcMain.handle("selfme:send-prompt", async (event, runtimeId: string, prompt: string) => {
+  ipcMain.handle("selfme:create-agent-session", async (event, runtimeId: AgentRuntimeId, workspace: string) => {
     assertMainWindow(event);
-    const adapter = registry.get(runtimeId);
-    if (!adapter) throw new Error("运行时尚未接入");
-    await adapter.send(prompt);
+    return sessions!.create(runtimeId, workspace);
   });
-  ipcMain.handle("selfme:cancel-run", async (event, runtimeId: string) => {
+  ipcMain.handle("selfme:agent-session-events", async (event, sessionId: string) => {
     assertMainWindow(event);
-    const adapter = registry.get(runtimeId);
-    if (!adapter) throw new Error("运行时尚未接入");
-    await adapter.cancel();
+    return sessions!.events(sessionId);
   });
-  ipcMain.handle("selfme:respond-approval", async (event, runtimeId: string, requestId: string | number, optionId: string) => {
+  ipcMain.handle("selfme:select-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
-    const adapter = registry.get(runtimeId);
-    if (!adapter) throw new Error("运行时尚未接入");
-    await adapter.respondApproval(requestId, optionId);
+    await sessions!.select(sessionId);
   });
-  ipcMain.handle("selfme:stop-runtime", async (event, runtimeId: string) => {
+  ipcMain.handle("selfme:start-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
-    const adapter = registry.get(runtimeId);
-    if (!adapter) throw new Error("运行时尚未接入");
-    await adapter.stop();
+    await sessions!.activate(sessionId);
+  });
+  ipcMain.handle("selfme:send-session-prompt", async (event, sessionId: string, prompt: string) => {
+    assertMainWindow(event);
+    await sessions!.send(sessionId, prompt);
+  });
+  ipcMain.handle("selfme:cancel-session-run", async (event, sessionId: string) => {
+    assertMainWindow(event);
+    await sessions!.cancel(sessionId);
+  });
+  ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string) => {
+    assertMainWindow(event);
+    await sessions!.respondApproval(sessionId, requestId, optionId);
   });
 
   createWindow();
@@ -221,9 +218,10 @@ app.whenReady().then(() => {
 
 let quitAfterCleanup = false;
 app.on("before-quit", (event) => {
-  if (!dsh || !codex || !pi || !kimi || quitAfterCleanup) return;
+  if (!sessions || quitAfterCleanup) return;
   event.preventDefault();
-  void Promise.allSettled([dsh.stop(), codex.stop(), pi.stop(), kimi.stop()]).finally(() => {
+  void sessions.stopAll().finally(() => {
+    sessionRepository?.close();
     quitAfterCleanup = true;
     app.quit();
   });

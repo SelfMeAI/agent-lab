@@ -80,16 +80,18 @@ export class CodexAdapter implements HarnessAdapter {
     return ["starting", "running", "approval", "cancelling"].includes(this.phase);
   }
 
-  async start(workspace: string): Promise<void> {
+  getResumeRef(): string | null { return this.threadId; }
+
+  async start(workspace: string, resumeRef?: string): Promise<void> {
     const canonical = await realpath(workspace);
     if (!(await stat(canonical)).isDirectory()) throw new Error("工作目录必须是文件夹");
     if (this.child && this.workspace === canonical && ["ready", "running", "approval"].includes(this.phase)) return;
     if (this.startPromise) return this.startPromise;
-    this.startPromise = this.boot(canonical);
+    this.startPromise = this.boot(canonical, resumeRef);
     try { await this.startPromise; } finally { this.startPromise = null; }
   }
 
-  private async boot(workspace: string): Promise<void> {
+  private async boot(workspace: string, resumeRef?: string): Promise<void> {
     if (this.child) await this.stop();
     await access(this.options.executable);
     const provider = await this.options.provider();
@@ -148,14 +150,16 @@ export class CodexAdapter implements HarnessAdapter {
         clientInfo: { name: "selfme_lab", title: "SelfMe Lab", version: "0.1.0" },
       }, 30000);
       this.notify("initialized", {});
-      const result = await this.request("thread/start", {
+      const threadSettings = {
         cwd: workspace,
         model: provider.model,
         modelProvider: "selfme_lab",
         approvalPolicy: "on-request",
         sandbox: "workspace-write",
-        serviceName: "selfme_lab",
-      }, 45000);
+      };
+      const result = await this.request(resumeRef ? "thread/resume" : "thread/start", resumeRef
+        ? { ...threadSettings, threadId: resumeRef }
+        : { ...threadSettings, serviceName: "selfme_lab" }, 45000);
       const threadId = string(object(result.thread).id);
       if (!threadId) throw new Error("Codex 未返回 thread.id");
       this.threadId = threadId;

@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ProviderStatus } from "../../../../../../packages/contracts/src/index";
+import type { AgentSessionSummary, ProviderStatus, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
 const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE" } as const;
+const busyPhases = new Set<RuntimePhase>(["starting", "running", "approval", "cancelling"]);
+
+function sessionStateLabel(phase: RuntimePhase): string {
+  if (phase === "running") return "工作中";
+  if (phase === "approval") return "待审批";
+  if (phase === "starting") return "连接中";
+  if (phase === "cancelling") return "取消中";
+  if (phase === "ready") return "待命";
+  if (phase === "error") return "出错";
+  return "已暂停";
+}
 
 const approvalOptionLabels: Record<string, string> = {
   approve: "同意",
@@ -140,44 +151,51 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   onOpenSettings?(): void;
   providerRevision?: number;
 }): JSX.Element {
-  const workspaceKey = `selfme-lab:${runtimeId}-workspace`;
   const store = agentStores[runtimeId];
-  const [workspace, setWorkspace] = useState(() => localStorage.getItem(workspaceKey));
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  const [connectingSessionId, setConnectingSessionId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const session = snapshot.sessions.find((item) => item.id === snapshot.selectedSessionId) ?? null;
+  const workspace = session?.workspace ?? null;
   const outputRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const followOutputRef = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
 
-  const connect = useCallback(async (path: string): Promise<void> => {
+  const connect = useCallback(async (sessionId: string): Promise<void> => {
     if (!window.selfmeLab) return;
-    setConnecting(true);
+    setConnectingSessionId(sessionId);
     setLocalError(null);
     try {
-      await window.selfmeLab.startRuntime(runtimeId, path);
+      await window.selfmeLab.startAgentSession(sessionId);
     } catch (error) {
       setLocalError(errorMessage(error));
     } finally {
-      setConnecting(false);
+      setConnectingSessionId((current) => current === sessionId ? null : current);
     }
-  }, [runtimeId]);
+  }, []);
 
   useEffect(() => {
     let active = true;
     if (window.selfmeLab) {
-      void window.selfmeLab.getProviderStatus(runtimeId).then((status) => {
-        if (!active) return;
-        setProvider(status);
-        if (status.configured && workspace) void connect(workspace);
-      }).catch((error: unknown) => { if (active) setLocalError(errorMessage(error)); });
+      void Promise.all([window.selfmeLab.getProviderStatus(runtimeId), window.selfmeLab.getAgentSessionCatalog(runtimeId)])
+        .then(async ([status, catalog]) => {
+          if (!active) return;
+          setProvider(status);
+          store.setCatalog(catalog);
+          if (catalog.selectedSessionId) {
+            const history = await window.selfmeLab!.getAgentSessionEvents(catalog.selectedSessionId);
+            if (!active) return;
+            store.loadHistory(catalog.selectedSessionId, history);
+            if (status.configured) await connect(catalog.selectedSessionId);
+          }
+        }).catch((error: unknown) => { if (active) setLocalError(errorMessage(error)); });
     }
     return () => { active = false; };
-  }, [connect, providerRevision]);
+  }, [connect, providerRevision, runtimeId, store]);
 
   useLayoutEffect(() => {
     const output = outputRef.current;
@@ -208,38 +226,57 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     output.scrollTop = output.scrollHeight;
   }
 
-  async function chooseWorkspace(): Promise<void> {
+  async function createSession(path: string): Promise<void> {
     const bridge = window.selfmeLab;
     if (!bridge) return;
-    if (busy) { setLocalError("当前任务仍在运行，请先完成或取消后切换工作目录"); return; }
     try {
-      const selected = await bridge.chooseWorkspace();
-      if (!selected || selected === workspace) return;
-      await bridge.stopRuntime(runtimeId);
-      store.clearTranscript();
-      localStorage.setItem(workspaceKey, selected);
-      setWorkspace(selected);
-      if (provider?.configured) await connect(selected);
+      const created = await bridge.createAgentSession(runtimeId, path);
+      store.addSession(created);
+      setPrompt("");
+      setLocalError(null);
+      if (provider?.configured) await connect(created.id);
     } catch (error) {
       setLocalError(errorMessage(error));
     }
   }
 
-  async function newSession(): Promise<void> {
-    if (!workspace || !window.selfmeLab) return;
+  async function chooseWorkspace(): Promise<void> {
+    if (!window.selfmeLab) return;
+    if (anyBusy) { setLocalError("当前任务仍在运行，请先完成或取消后新建会话"); return; }
     try {
-      await window.selfmeLab.stopRuntime(runtimeId);
-      store.clearTranscript();
-      if (provider?.configured) await connect(workspace);
-    } catch (error) {
-      setLocalError(errorMessage(error));
+      const selected = await window.selfmeLab.chooseWorkspace();
+      if (selected) await createSession(selected);
+    } catch (error) { setLocalError(errorMessage(error)); }
+  }
+
+  async function newSession(): Promise<void> {
+    if (anyBusy) { setLocalError("当前任务仍在运行，请先完成或取消后新建会话"); return; }
+    const path = workspace ?? snapshot.lastWorkspace;
+    if (path) await createSession(path);
+    else await chooseWorkspace();
+  }
+
+  async function selectSession(next: AgentSessionSummary): Promise<void> {
+    if (!window.selfmeLab) return;
+    if (next.id === snapshot.selectedSessionId) {
+      if (provider?.configured && !busy && snapshot.phase !== "ready") await connect(next.id);
+      return;
     }
+    if (anyBusy) { setLocalError("当前任务仍在运行，请先完成或取消后切换会话"); return; }
+    store.select(next.id);
+    setPrompt("");
+    setLocalError(null);
+    try {
+      await window.selfmeLab.selectAgentSession(next.id);
+      store.loadHistory(next.id, await window.selfmeLab.getAgentSessionEvents(next.id));
+      if (provider?.configured) await connect(next.id);
+    } catch (error) { setLocalError(errorMessage(error)); }
   }
 
   async function submit(): Promise<void> {
     const text = prompt.trim();
     if (!text || !window.selfmeLab) return;
-    if (!workspace) { await chooseWorkspace(); return; }
+    if (!snapshot.selectedSessionId) { await chooseWorkspace(); return; }
     if (!provider?.configured) { onOpenSettings?.(); return; }
     if (snapshot.phase !== "ready") {
       setLocalError(`${names[runtimeId]} 尚未就绪，请稍等或检查连接状态`);
@@ -249,20 +286,19 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     setLocalError(null);
     followOutputRef.current = true;
     setShowLatest(false);
-    store.addUserPrompt(text);
     try {
-      await window.selfmeLab.sendPrompt(runtimeId, text);
+      await window.selfmeLab.sendSessionPrompt(snapshot.selectedSessionId, text);
     } catch (error) {
       setLocalError(errorMessage(error));
     }
   }
 
   async function approve(requestId: string | number, optionId: string): Promise<void> {
-    if (!window.selfmeLab) return;
+    if (!window.selfmeLab || !snapshot.selectedSessionId) return;
     setApprovalBusy(true);
     try {
-      await window.selfmeLab.respondApproval(runtimeId, requestId, optionId);
-      store.removeApproval(requestId);
+      await window.selfmeLab.respondSessionApproval(snapshot.selectedSessionId, requestId, optionId);
+      store.removeApproval(snapshot.selectedSessionId, requestId);
       setLocalError(null);
     } catch (error) {
       setLocalError(errorMessage(error));
@@ -273,14 +309,16 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   async function cancel(): Promise<void> {
     try {
-      await window.selfmeLab?.cancelRun(runtimeId);
-      store.removeAllApprovals();
+      if (!snapshot.selectedSessionId) return;
+      await window.selfmeLab?.cancelSessionRun(snapshot.selectedSessionId);
+      store.removeAllApprovals(snapshot.selectedSessionId);
     } catch (error) {
       setLocalError(errorMessage(error));
     }
   }
 
-  const busy = connecting || ["starting", "running", "approval", "cancelling"].includes(snapshot.phase);
+  const busy = (connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId) || busyPhases.has(snapshot.phase);
+  const anyBusy = connectingSessionId !== null || snapshot.sessions.some((item) => busyPhases.has(item.phase));
   const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : busy ? "任务执行中" : "Describe a task";
   const lastPromptIndex = snapshot.entries.reduce((index, entry, current) => entry.kind === "user" ? current : index, -1);
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
@@ -291,21 +329,25 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     <div className={`dsh-workspace agent-workspace--${runtimeId}`}>
       <div className="dsh-workspace__masthead">
         <div className="dsh-workspace__identity"><LabIcon runtimeId={runtimeId} /><h1>{names[runtimeId]} LAB</h1></div>
-        <button className="dsh-workspace__path" disabled={busy} onClick={() => void chooseWorkspace()} type="button" title="选择工作目录">
+        <button className="dsh-workspace__path" disabled={anyBusy} onClick={() => void chooseWorkspace()} type="button" title="选择工作目录并新建会话">
           <span>WORKSPACE</span><strong>{workspace ?? "选择工作目录"}</strong>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M2 5h7l2 2h11v13H2zM2 9h20" /></svg>
         </button>
       </div>
       <div className="dsh-workspace__grid">
         <aside className="dsh-rail">
-          <div className="dsh-rail__heading"><span>SESSION</span><button onClick={() => void newSession()} disabled={!workspace || busy} title="新建会话" type="button">＋</button></div>
-          <div className="dsh-rail__scroll">{snapshot.currentTask ? <div className="dsh-rail__task"><i aria-hidden="true" /><span>{snapshot.currentTask}</span><small>当前会话</small></div> : <p className="dsh-rail__empty">开始第一项实验后会显示在这里</p>}</div>
+          <div className="dsh-rail__heading"><span>SESSIONS</span><button onClick={() => void newSession()} disabled={anyBusy} title="新建会话" type="button">＋</button></div>
+          <div className="dsh-rail__scroll">{snapshot.sessions.length ? snapshot.sessions.map((item) => (
+            <button className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} disabled={anyBusy && item.id !== snapshot.selectedSessionId} key={item.id} onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
+              <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small>{sessionStateLabel(item.phase)}</small>
+            </button>
+          )) : <p className="dsh-rail__empty">选择工作目录，创建第一个会话</p>}</div>
         </aside>
         <section className="dsh-conversation" aria-label={`${names[runtimeId]} 工作区`}>
           <div className="dsh-conversation__scroll" ref={outputRef} onScroll={trackOutputScroll}>
             {snapshot.entries.length === 0 && <div className="dsh-conversation__empty">
               <LabIcon runtimeId={runtimeId} /><h2>准备好让 {names[runtimeId]} 开始工作</h2>
-              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
+              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
               {!workspace && <button onClick={() => void chooseWorkspace()} type="button">选择工作目录</button>}
               {workspace && !provider?.configured && <button onClick={onOpenSettings} type="button">配置模型</button>}
             </div>}
@@ -317,7 +359,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           <div className="dsh-composer">
             <div className="dsh-composer__field">
               <textarea ref={promptRef} aria-label="任务内容" title="Enter 发送 · Shift+Enter 换行" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} placeholder={composerHint} value={prompt} rows={1} />
-              {["running", "approval", "cancelling"].includes(snapshot.phase) ? <button className="dsh-composer__cancel" disabled={snapshot.phase === "cancelling"} onClick={() => void cancel()} type="button" title="取消当前任务" aria-label="取消当前任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg></button> : <button className="dsh-composer__send" disabled={!prompt.trim() || connecting} onClick={() => void submit()} type="button" title="发送任务" aria-label="发送任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M3 11.5 21 3l-5.5 18-3.9-7.1L3 11.5Z" /><path d="m11.6 13.9 4.9-5" /></svg></button>}
+              {["running", "approval", "cancelling"].includes(snapshot.phase) ? <button className="dsh-composer__cancel" disabled={snapshot.phase === "cancelling"} onClick={() => void cancel()} type="button" title="取消当前任务" aria-label="取消当前任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg></button> : <button className="dsh-composer__send" disabled={!prompt.trim() || (connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId)} onClick={() => void submit()} type="button" title="发送任务" aria-label="发送任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M3 11.5 21 3l-5.5 18-3.9-7.1L3 11.5Z" /><path d="m11.6 13.9 4.9-5" /></svg></button>}
             </div>
           </div>
         </section>
