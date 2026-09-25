@@ -323,7 +323,17 @@ export class CodexAdapter implements HarnessAdapter {
       if (!itemId) return;
       const text = `${this.toolText.get(itemId) ?? ""}${string(params.delta) ?? ""}`;
       this.toolText.set(itemId, text.slice(-20000));
-      this.emit("tool", { toolCallId: itemId, title: "命令输出", toolStatus: "running", text: this.toolText.get(itemId), raw: params });
+      this.emit("tool", { toolCallId: itemId, toolStatus: "running", text: this.toolText.get(itemId) });
+      return;
+    }
+    if (method === "item/fileChange/patchUpdated") {
+      const itemId = string(params.itemId);
+      if (itemId) this.emit("tool", {
+        toolCallId: itemId,
+        title: "文件修改",
+        toolStatus: "running",
+        raw: { type: "fileChange", changes: params.changes },
+      });
       return;
     }
     if (method === "item/started" || method === "item/completed") {

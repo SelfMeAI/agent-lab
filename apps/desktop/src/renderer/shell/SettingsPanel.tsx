@@ -50,17 +50,40 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose} role="presentation">
-      <section className="settings-panel" onMouseDown={(event) => event.stopPropagation()} aria-label="设置">
-        <div className="settings-panel__heading"><h2>SETTINGS</h2><button onClick={onClose} type="button" aria-label="关闭">×</button></div>
+      <section className="settings-panel" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div className="settings-panel__heading">
+          <h2 id="settings-title">SETTINGS</h2>
+          <button onClick={onClose} type="button" aria-label="关闭设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg></button>
+        </div>
+        <div className="settings-panel__body">
         {runtimeId === "dsh" || runtimeId === "codex" || runtimeId === "jev" ? <>
-          <p>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : "JEV 决策连接"}</p>
+          <div className="settings-panel__intro">
+            <span>LOCAL CONFIGURATION</span>
+            <div className="settings-panel__title-row">
+              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : "JEV 决策连接"}</h3>
+              {provider && <small>{provider.configured ? "已配置" : "未配置"}</small>}
+            </div>
+            <p>为当前实验配置模型服务；不同实验的连接信息分别保存。</p>
+          </div>
           <form className="settings-panel__form" onSubmit={(event) => void save(event)}>
-            <label htmlFor="dsh-base-url">API BASE URL</label>
-            <input id="dsh-base-url" onChange={(event) => setBaseUrl(event.target.value)} type="url" value={baseUrl} required />
-            {(runtimeId === "codex" || runtimeId === "jev") && <><label htmlFor="codex-model">MODEL ID</label><input id="codex-model" onChange={(event) => setModel(event.target.value)} type="text" value={model} required /></>}
-            <label htmlFor="dsh-api-key">API KEY</label>
-            <input autoComplete="off" id="dsh-api-key" onChange={(event) => setApiKey(event.target.value)} placeholder={provider?.configured ? "已保存 · 留空则保持原密钥" : "首次配置请填写"} type="password" value={apiKey} />
-            <p className="settings-panel__note">{runtimeId === "dsh" ? "支持 DeepSeek 官方或兼容 DeepSeek Chat Completions 的中转根地址（不要填写 /chat/completions）。" : runtimeId === "codex" ? "Codex 需要兼容 Responses API 的根地址。" : "填写 JEV API 根地址（不含 /v1/systemone）。"}密钥由系统凭据服务加密保存在本机，不回传给页面。{runtimeId !== "jev" && "更改配置会重启当前连接。"}</p>
+            <div className="settings-panel__field">
+              <label htmlFor="provider-base-url">API BASE URL</label>
+              <input id="provider-base-url" onChange={(event) => setBaseUrl(event.target.value)} type="url" value={baseUrl} required spellCheck={false} />
+            </div>
+            {(runtimeId === "codex" || runtimeId === "jev") && <div className="settings-panel__field">
+              <label htmlFor="provider-model">MODEL ID</label>
+              <input id="provider-model" onChange={(event) => setModel(event.target.value)} type="text" value={model} required spellCheck={false} />
+            </div>}
+            <div className="settings-panel__field">
+              <label htmlFor="provider-api-key">API KEY</label>
+              <input autoComplete="off" id="provider-api-key" onChange={(event) => setApiKey(event.target.value)} placeholder={provider?.configured ? "已保存 · 留空保持原密钥" : "输入 API Key"} type="password" value={apiKey} />
+              {provider?.configured && <span className="settings-panel__field-hint">无需重新填写已保存的密钥</span>}
+            </div>
+            <div className="settings-panel__note">
+              <strong>连接说明</strong>
+              <p>{runtimeId === "dsh" ? "支持 DeepSeek 官方或兼容 DeepSeek Chat Completions 的中转根地址；不要填写 /chat/completions。" : runtimeId === "codex" ? "Codex 需要兼容 Responses API 的根地址。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
+              <p>密钥由系统凭据服务加密保存在本机，不回传给页面。{runtimeId !== "jev" && "更改配置会重启当前连接。"}</p>
+            </div>
             {error && <p className="settings-panel__error" role="alert">{error}</p>}
             <button className="settings-panel__save" disabled={saving} type="submit">{saving ? "保存中…" : runtimeId === "jev" ? "保存设置" : "保存并连接"}</button>
           </form>
@@ -68,6 +91,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
           <p>SelfMe Lab 桌面实验平台</p>
           <dl><dt>版本</dt><dd>{info?.version ?? "开发预览"}</dd><dt>平台</dt><dd>{info?.platform ?? "Browser preview"}</dd><dt>架构</dt><dd>Electron + TypeScript</dd></dl>
         </>}
+        </div>
       </section>
     </div>
   );

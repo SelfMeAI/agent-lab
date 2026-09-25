@@ -14,6 +14,7 @@ export function App(): JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [providerRevision, setProviderRevision] = useState(0);
   const agentWorkspace = route.lab?.id === "agent-lab" && (route.viewId === "dsh" || route.viewId === "codex");
+  const jevWorkspace = route.lab?.id === "jev-lab" && route.viewId === "xiangqi";
   const macDesktop = Boolean(window.selfmeLab) && /Macintosh/.test(navigator.userAgent);
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export function App(): JSX.Element {
   return (
     <div className={`app-shell${macDesktop ? " app-shell--mac" : ""}`} style={{ "--space-art": `url(${starfield})` } as CSSProperties}>
       <TopBar inLab={Boolean(route.lab)} showSettings={(route.lab?.id === "agent-lab" && (route.viewId === "dsh" || route.viewId === "codex")) || (route.lab?.id === "jev-lab" && route.viewId === "xiangqi")} onBack={() => route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
-      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}`} key={`${route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
+      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}`} key={`${route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
         {route.lab ? <LabPage lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
       </div>
       {settingsOpen && <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : route.lab?.id === "jev-lab" && route.viewId === "xiangqi" ? "jev" : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />}

@@ -56,6 +56,7 @@ function createAgentStore(runtimeId: AgentRuntimeId) {
     },
     ingest(event: RunEvent): void {
       if (event.runtimeId !== runtimeId) return;
+      if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return;
       if (event.kind === "status" && event.phase) {
         publish({ ...snapshot, phase: event.phase, statusText: event.text ?? event.phase });
         return;
@@ -80,7 +81,10 @@ function createAgentStore(runtimeId: AgentRuntimeId) {
             text: event.text ?? entries[index].text,
             title: event.title ?? entries[index].title,
             toolStatus: event.toolStatus ?? entries[index].toolStatus,
-            raw: event.raw ?? entries[index].raw,
+            raw: event.raw && typeof event.raw === "object" && !Array.isArray(event.raw)
+              && entries[index].raw && typeof entries[index].raw === "object" && !Array.isArray(entries[index].raw)
+              ? { ...entries[index].raw, ...event.raw }
+              : event.raw ?? entries[index].raw,
           };
           publish({ ...snapshot, entries });
           return;
