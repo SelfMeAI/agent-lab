@@ -370,7 +370,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   const busy = (connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId) || busyPhases.has(snapshot.phase);
   const anyBusy = connectingSessionId !== null || snapshot.sessions.some((item) => busyPhases.has(item.phase));
-  const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : busy ? "任务执行中" : "Describe a task";
+  const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : busy ? "任务执行中" : "描述任务或提出问题";
   const lastPromptIndex = snapshot.entries.reduce((index, entry, current) => entry.kind === "user" ? current : index, -1);
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
   const activeTool = [...activeEntries].reverse().find((entry) => entry.kind === "tool" && ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? ""));
