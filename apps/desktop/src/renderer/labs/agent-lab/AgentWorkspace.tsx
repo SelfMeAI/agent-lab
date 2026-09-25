@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AgentSessionSummary, ProviderStatus, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
+import { calendarDayKey, clockTime, dateDividerLabel, durationBetween, elapsedTime, exactTime, sessionTimeLabel } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
 const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE" } as const;
@@ -63,8 +64,23 @@ function AgentMarkdown({ text }: { text: string }): JSX.Element {
   }}>{text}</ReactMarkdown></div>;
 }
 
+function RunElapsed({ startedAt }: { startedAt: string }): JSX.Element | null {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    setNow(Date.now());
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [startedAt]);
+  const elapsed = elapsedTime(startedAt, now);
+  return elapsed ? <small className="dsh-live-status__elapsed">已运行 {elapsed}</small> : null;
+}
+
 function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: string | null }): JSX.Element {
   const view = presentEntry(entry);
+  const recordedAt = exactTime(entry.at);
+  const finishedAt = entry.finishedAt ? exactTime(entry.finishedAt) : null;
+  const duration = view.duration ?? (entry.finishedAt ? durationBetween(entry.at, entry.finishedAt) : null);
+  const began = Boolean(finishedAt) || ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? "");
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const hadDiffRef = useRef(false);
   const hasDiff = view.files.some((file) => file.lines.length > 0);
@@ -90,7 +106,12 @@ function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: str
       {view.locations.length > 0 && view.files.length === 0 && <div className="dsh-tool__section"><span className="dsh-tool__caption">涉及位置</span><div className="dsh-tool__paths">{view.locations.map((path) => <code key={path}>{path}</code>)}</div></div>}
       {view.output && <div className="dsh-tool__section"><span className="dsh-tool__caption">{entry.kind === "status" ? "详情" : "结果"}</span><pre className="dsh-tool__output">{view.output}</pre></div>}
       {view.notes.map((note, index) => <p className="dsh-tool__note" key={`${index}:${note.slice(0, 16)}`}>{note}</p>)}
-      {(view.exitCode !== undefined || view.duration) && <p className="dsh-tool__meta">{view.exitCode !== undefined && `退出码 ${view.exitCode}`}{view.exitCode !== undefined && view.duration && " · "}{view.duration && `耗时 ${view.duration}`}</p>}
+      {(recordedAt || finishedAt || duration || view.exitCode !== undefined) && <div className="dsh-tool__timing">
+        {recordedAt && <span>{began ? "开始" : "记录"} <time dateTime={entry.at}>{recordedAt}</time></span>}
+        {finishedAt && <span>结束 <time dateTime={entry.finishedAt}>{finishedAt}</time></span>}
+        {duration && <span>耗时 {duration}</span>}
+        {view.exitCode !== undefined && <span>退出码 {view.exitCode}</span>}
+      </div>}
       {!view.command && !view.output && view.files.length === 0 && view.plan.length === 0 && view.locations.length === 0 && view.notes.length === 0 && <p className="dsh-tool__meta">运行时未提供更多细节</p>}
     </div>
   </details>;
@@ -103,6 +124,8 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
   onApprove(requestId: string | number, optionId: string): void;
   approvalBusy: boolean;
 }): JSX.Element {
+  const time = clockTime(entry.at);
+  const exact = exactTime(entry.at);
   if (entry.kind === "user") return (
     <article className="dsh-entry dsh-entry--user">
       <div className="dsh-entry__avatar dsh-entry__avatar--user" aria-hidden="true">
@@ -111,14 +134,14 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
           <path d="M5.4 19c.6-3.4 2.9-5.1 6.6-5.1s6 1.7 6.6 5.1" />
         </svg>
       </div>
-      <div className="dsh-entry__body"><span className="dsh-entry__label">YOU</span><p>{entry.text}</p></div>
+      <div className="dsh-entry__body"><div className="dsh-entry__heading"><span className="dsh-entry__label">YOU</span>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div><p>{entry.text}</p></div>
     </article>
   );
   if (entry.kind === "approval" && entry.approval) return (
     <article className="dsh-approval">
       <span className="dsh-approval__mark" aria-hidden="true">!</span>
       <div className="dsh-approval__content">
-        <strong>需要你确认</strong>
+        <div className="dsh-approval__heading"><strong>需要你确认</strong>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div>
         <p>{approvalActionLabel(runtimeId, entry.text || entry.approval.title)}</p>
         {entry.approval.toolCallId && <small>工具调用 · {entry.approval.toolCallId}</small>}
       </div>
@@ -141,7 +164,7 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
   return (
     <article className="dsh-entry dsh-entry--agent">
       <LabIcon className="dsh-entry__avatar" runtimeId={runtimeId} />
-      <div className="dsh-entry__body"><span className="dsh-entry__label">{names[runtimeId]} · 回复</span><AgentMarkdown text={entry.text} /></div>
+      <div className="dsh-entry__body"><div className="dsh-entry__heading"><span className="dsh-entry__label">{names[runtimeId]} · 回复</span>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div><AgentMarkdown text={entry.text} /></div>
     </article>
   );
 }
@@ -375,6 +398,8 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
   const activeTool = [...activeEntries].reverse().find((entry) => entry.kind === "tool" && ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? ""));
   const liveStatus = snapshot.phase === "approval" ? "等待审批后继续" : activeTool ? `${presentEntry(activeTool).label} · ${presentEntry(activeTool).summary}` : snapshot.statusText;
+  const transcriptEntries = visibleTranscriptEntries(snapshot.entries).filter((entry) => entry.kind !== "thought");
+  const runningSince = ["running", "approval", "cancelling"].includes(snapshot.phase) ? snapshot.entries[lastPromptIndex]?.at : undefined;
 
   return (
     <div className={`dsh-workspace agent-workspace--${runtimeId}`}>
@@ -406,7 +431,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           ) : snapshot.sessions.length ? snapshot.sessions.map((item) => (
             <div className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} key={item.id}>
               <button className="dsh-rail__session-main" disabled={anyBusy && item.id !== snapshot.selectedSessionId} onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
-                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small>{sessionStateLabel(item.phase)}</small>
+                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small className="dsh-rail__session-meta"><span>{sessionStateLabel(item.phase)}</span><time dateTime={item.lastActivityAt ?? item.createdAt} title={`${item.lastActivityAt ? "最后活动" : "创建于"} ${exactTime(item.lastActivityAt ?? item.createdAt) ?? ""}`}>{sessionTimeLabel(item.lastActivityAt ?? item.createdAt)}</time></small>
               </button>
               <button className="dsh-rail__session-delete" disabled={busyPhases.has(item.phase)} onClick={() => setSessionAction({ id: item.id, title: item.title, kind: "delete" })} title="移至最近删除" aria-label={`删除会话：${item.title}`} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
             </div>
@@ -420,11 +445,18 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
               {!workspace && <button onClick={() => void chooseWorkspace()} type="button">选择工作目录</button>}
               {workspace && !provider?.configured && <button onClick={onOpenSettings} type="button">配置模型</button>}
             </div>}
-            {visibleTranscriptEntries(snapshot.entries).filter((entry) => entry.kind !== "thought").map((entry) => <TranscriptItem key={entry.id} entry={entry} runtimeId={runtimeId} workspace={workspace} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy} />)}
+            {transcriptEntries.map((entry, index) => {
+              const day = calendarDayKey(entry.at);
+              const previousDay = index > 0 ? calendarDayKey(transcriptEntries[index - 1].at) : null;
+              return <Fragment key={entry.id}>
+                {day && day !== previousDay && <div className="dsh-conversation__date" role="separator"><span>{dateDividerLabel(entry.at)}</span></div>}
+                <TranscriptItem entry={entry} runtimeId={runtimeId} workspace={workspace} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy} />
+              </Fragment>;
+            })}
             {localError && <div className="dsh-error" role="alert">{localError}</div>}
           </div>
           {showLatest && <button className="dsh-scroll-jump" onClick={jumpToLatest} type="button">最新输出 ↓</button>}
-          {busy && <div className="dsh-live-status" role="status"><span className="dsh-activity__dots" aria-hidden="true"><i /><i /><i /></span><span>{liveStatus}</span><small>{snapshot.phase === "approval" ? "需要你的决定" : "实时工作中"}</small></div>}
+          {busy && <div className="dsh-live-status"><span className="dsh-activity__dots" aria-hidden="true"><i /><i /><i /></span><span role="status">{liveStatus}</span><small>{snapshot.phase === "approval" ? "需要你的决定" : "实时工作中"}</small>{runningSince && <RunElapsed startedAt={runningSince} />}</div>}
           <div className="dsh-composer">
             <div className="dsh-composer__field">
               <textarea ref={promptRef} aria-label="任务内容" title="Enter 发送 · Shift+Enter 换行" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} placeholder={composerHint} value={prompt} rows={1} />

@@ -5,7 +5,7 @@ import { presentEntry } from "./tool-presentation";
 
 const session = (id: string): AgentSessionSummary => ({
   id, runtimeId: "dsh", workspace: "/tmp/example", title: "新会话",
-  createdAt: "2026-09-25T00:00:00Z", updatedAt: "2026-09-25T00:00:00Z", lastPromptAt: null, phase: "ready", statusText: "已就绪",
+  createdAt: "2026-09-25T00:00:00Z", updatedAt: "2026-09-25T00:00:00Z", lastPromptAt: null, lastActivityAt: null, phase: "ready", statusText: "已就绪",
 });
 
 function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessionEvent>): AgentSessionEvent {
@@ -20,9 +20,10 @@ describe("agent transcript updates", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: "/tmp/example" });
     store.ingest(event("a", 1, { toolCallId: "edit-1", title: "edit", toolStatus: "in_progress", raw: { kind: "edit", locations: [{ path: "src/a.ts" }] } }));
-    store.ingest(event("a", 2, { toolCallId: "edit-1", toolStatus: "completed", raw: { content: [{ type: "diff", path: "src/a.ts", oldText: "old\n", newText: "new\n" }] } }));
+    store.ingest(event("a", 2, { toolCallId: "edit-1", toolStatus: "completed", at: "2026-09-25T00:00:02Z", raw: { content: [{ type: "diff", path: "src/a.ts", oldText: "old\n", newText: "new\n" }] } }));
     const entries = store.getSnapshot().entries;
     expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ at: "2026-09-25T00:00:00Z", finishedAt: "2026-09-25T00:00:02Z" });
     expect(presentEntry(entries[0])).toMatchObject({ label: "编辑文件", summary: "1 个文件 · +1 −1", status: "已完成" });
   });
 
@@ -54,7 +55,9 @@ describe("agent transcript updates", () => {
     expect(store.getSnapshot().sessions.map((item) => item.id)).toEqual(["recent", "old"]);
     store.ingest(event("old", 1, { kind: "status", phase: "ready", at: "2026-09-26T09:00:00Z" }));
     expect(store.getSnapshot().sessions.map((item) => item.id)).toEqual(["recent", "old"]);
+    expect(store.getSnapshot().sessions.find((item) => item.id === "old")?.lastActivityAt).toBeNull();
     store.ingest(event("old", 2, { kind: "user", text: "new work", at: "2026-09-26T10:00:00Z" }));
     expect(store.getSnapshot().sessions.map((item) => item.id)).toEqual(["old", "recent"]);
+    expect(store.getSnapshot().sessions[0].lastActivityAt).toBe("2026-09-26T10:00:00Z");
   });
 });

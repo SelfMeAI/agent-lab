@@ -10,6 +10,14 @@ export interface StoredAgentSession extends AgentSessionSummary {
 }
 
 const runtimeIds = new Set<AgentRuntimeId>(["dsh", "codex", "pi", "kimi-code"]);
+// Connection/status events can occur without user-visible work, so they do not
+// count as conversation activity in the session rail.
+const lastActivitySql = `(
+  SELECT json_extract(agent_events.payload, '$.at') FROM agent_events
+  WHERE agent_events.session_id = agent_sessions.id
+    AND json_extract(agent_events.payload, '$.kind') IN ('user', 'message', 'tool', 'approval', 'artifact', 'error')
+  ORDER BY agent_events.event_index DESC LIMIT 1
+) AS last_activity_at`;
 
 function summary(record: StoredAgentSession): AgentSessionSummary {
   const { nativeRef: _nativeRef, deletedAt: _deletedAt, ...visible } = record;
@@ -21,7 +29,8 @@ function fromRow(row: Record<string, unknown>): StoredAgentSession {
     id: String(row.id), runtimeId: String(row.runtime_id) as AgentRuntimeId,
     workspace: String(row.workspace), title: String(row.title),
     createdAt: String(row.created_at), updatedAt: String(row.updated_at),
-    lastPromptAt: row.last_prompt_at === null ? null : String(row.last_prompt_at),
+    lastPromptAt: row.last_prompt_at == null ? null : String(row.last_prompt_at),
+    lastActivityAt: row.last_activity_at == null ? null : String(row.last_activity_at),
     phase: String(row.phase) as RuntimePhase, statusText: String(row.status_text),
     nativeRef: row.native_ref === null ? null : String(row.native_ref),
     deletedAt: row.deleted_at === null ? null : String(row.deleted_at),
@@ -84,12 +93,15 @@ export class AgentSessionRepository {
   close(): void { this.db?.close(); this.db = null; }
 
   list(runtimeId: AgentRuntimeId): AgentSessionSummary[] {
-    return this.database().prepare("SELECT * FROM agent_sessions WHERE runtime_id = ? AND deleted_at IS NULL ORDER BY COALESCE(last_prompt_at, created_at) DESC, created_at DESC, rowid DESC")
+    return this.database().prepare(`SELECT agent_sessions.*, ${lastActivitySql} FROM agent_sessions
+      WHERE runtime_id = ? AND deleted_at IS NULL
+      ORDER BY COALESCE(last_prompt_at, created_at) DESC, created_at DESC, rowid DESC`)
       .all(runtimeId).map((row) => summary(fromRow(row)));
   }
 
   listDeleted(runtimeId: AgentRuntimeId): AgentSessionSummary[] {
-    return this.database().prepare("SELECT * FROM agent_sessions WHERE runtime_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC")
+    return this.database().prepare(`SELECT agent_sessions.*, ${lastActivitySql} FROM agent_sessions
+      WHERE runtime_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`)
       .all(runtimeId).map((row) => summary(fromRow(row)));
   }
 
@@ -107,7 +119,7 @@ export class AgentSessionRepository {
     const record: StoredAgentSession = {
       id: randomUUID(), runtimeId, workspace, title: "新会话", createdAt: now, updatedAt: now,
       phase: "idle", statusText: "尚未连接", nativeRef: null,
-      lastPromptAt: null, deletedAt: null,
+      lastPromptAt: null, lastActivityAt: null, deletedAt: null,
     };
     this.database().prepare(`INSERT INTO agent_sessions
       (id, runtime_id, workspace, title, created_at, updated_at, phase, status_text, native_ref)

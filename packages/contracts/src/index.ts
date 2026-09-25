@@ -45,6 +45,7 @@ export interface AgentSessionSummary {
   createdAt: string;
   updatedAt: string;
   lastPromptAt: string | null;
+  lastActivityAt: string | null;
   phase: RuntimePhase;
   statusText: string;
 }

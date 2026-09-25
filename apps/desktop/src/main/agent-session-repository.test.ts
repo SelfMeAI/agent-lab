@@ -36,6 +36,7 @@ describe("agent session SQLite storage", () => {
     expect(reopened.events(a.id).map((entry) => entry.kind)).toEqual(["user", "status", "message"]);
     expect(reopened.events(b.id).map((entry) => entry.text)).toEqual(["另一个实验"]);
     expect(reopened.list("pi").map((entry) => entry.id)).toEqual([b.id, a.id]);
+    expect(reopened.list("pi").find((entry) => entry.id === a.id)?.lastActivityAt).toBe(reopened.events(a.id).at(-1)?.at);
     reopened.close();
   });
 
@@ -78,6 +79,7 @@ describe("agent session SQLite storage", () => {
     repo.append(second.id, { ...event("user", "second task"), at: "2026-09-26T10:00:00.000Z" });
     repo.append(first.id, { ...event("status", "finished", "ready"), at: "2026-09-26T11:00:00.000Z" });
     expect(repo.list("pi").map((item) => item.id)).toEqual([second.id, first.id]);
+    expect(repo.list("pi").find((item) => item.id === first.id)?.lastActivityAt).toBe("2026-09-26T09:00:00.000Z");
     expect(repo.get(first.id).lastPromptAt).toBe("2026-09-26T09:00:00.000Z");
     repo.softDelete(second.id);
     expect(repo.list("pi").map((item) => item.id)).toEqual([first.id]);

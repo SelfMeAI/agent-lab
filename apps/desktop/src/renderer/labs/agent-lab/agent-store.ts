@@ -13,6 +13,7 @@ export interface TranscriptEntry {
   approval?: ApprovalRequest;
   raw?: unknown;
   at: string;
+  finishedAt?: string;
 }
 
 interface ConversationSnapshot {
@@ -31,6 +32,7 @@ export interface AgentSnapshot extends ConversationSnapshot {
 }
 
 const emptyConversation = (): ConversationSnapshot => ({ entries: [], phase: "idle", statusText: "尚未连接", currentTask: null });
+const activityKinds = new Set(["user", "message", "tool", "approval", "artifact", "error"]);
 
 /** Sort on task starts, not status/tool events, so active rows do not jump. */
 export function recentSessions(sessions: readonly AgentSessionSummary[]): AgentSessionSummary[] {
@@ -64,9 +66,11 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
   if (kind === "tool" && event.toolCallId) {
     const index = entries.findIndex((entry) => entry.kind === "tool" && entry.toolCallId === event.toolCallId && entry.runId === event.runId);
     if (index >= 0) {
+      const finished = ["completed", "finished", "failed", "interrupted", "cancelled", "canceled"].includes(event.toolStatus ?? "");
       entries[index] = {
         ...entries[index], text: event.text ?? entries[index].text,
         title: event.title ?? entries[index].title, toolStatus: event.toolStatus ?? entries[index].toolStatus,
+        finishedAt: finished ? event.at : entries[index].finishedAt,
         raw: event.raw && typeof event.raw === "object" && !Array.isArray(event.raw)
           && entries[index].raw && typeof entries[index].raw === "object" && !Array.isArray(entries[index].raw)
           ? { ...entries[index].raw, ...event.raw } : event.raw ?? entries[index].raw,
@@ -108,6 +112,7 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
     const statusText = event.phase || event.kind === "error" ? event.text ?? phase : session.statusText;
     return { ...session, title, phase, statusText,
       lastPromptAt: event.kind === "user" ? event.at : session.lastPromptAt,
+      lastActivityAt: activityKinds.has(event.kind) ? event.at : session.lastActivityAt,
       updatedAt: event.kind === "user" || event.phase || event.kind === "error" ? event.at : session.updatedAt };
     });
     return event.kind === "user" ? recentSessions(sessions) : sessions;
