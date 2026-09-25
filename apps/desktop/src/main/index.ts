@@ -89,7 +89,7 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
   });
 }
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   const root = app.getPath("userData");
   sessionRepository = new AgentSessionRepository(root);
   await sessionRepository.init();
@@ -100,6 +100,10 @@ app.whenReady().then(async () => {
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
+  });
+  ipcMain.handle("selfme:migrate-legacy-workspaces", async (event, workspaces) => {
+    assertMainWindow(event);
+    await appConfig.migrateLegacyWorkspaces(workspaces);
   });
   ipcMain.handle("selfme:open-external", async (event, value: string): Promise<void> => {
     assertMainWindow(event);
@@ -214,6 +218,11 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch((error: unknown) => {
+  sessionRepository?.close();
+  const message = error instanceof Error ? error.message : String(error);
+  dialog.showErrorBox("SelfMe Lab 无法启动", `读取本地会话或配置失败：${message}`);
+  app.quit();
 });
 
 let quitAfterCleanup = false;

@@ -49,4 +49,33 @@ describe("agent session SQLite storage", () => {
     expect(reopened.get("dsh")).toEqual({ selectedSessionId: "session-a", lastWorkspace: root });
     expect(reopened.get("pi")).toEqual({ selectedSessionId: null, lastWorkspace: null });
   });
+
+  it("keeps the last selection when config writes overlap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-config-overlap-"));
+    roots.push(root);
+    const config = new AppConfigStore(root);
+    await config.init();
+    await Promise.all([
+      config.select("dsh", "first", root),
+      config.select("pi", "second", root),
+      config.select("dsh", "third", root),
+    ]);
+    const reopened = new AppConfigStore(root);
+    await reopened.init();
+    expect(reopened.get("dsh").selectedSessionId).toBe("third");
+    expect(reopened.get("pi").selectedSessionId).toBe("second");
+  });
+
+  it("migrates only missing legacy workspaces without replacing current preferences", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-config-migrate-"));
+    roots.push(root);
+    const config = new AppConfigStore(root);
+    await config.init();
+    await config.select("pi", "selected", "/current/pi");
+    await config.migrateLegacyWorkspaces({ pi: "/old/pi", dsh: "/old/dsh" });
+    const reopened = new AppConfigStore(root);
+    await reopened.init();
+    expect(reopened.get("pi")).toEqual({ selectedSessionId: "selected", lastWorkspace: "/current/pi" });
+    expect(reopened.get("dsh")).toEqual({ selectedSessionId: null, lastWorkspace: "/old/dsh" });
+  });
 });

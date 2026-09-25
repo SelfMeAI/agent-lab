@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SelfMe Lab · 本地存储清单</title>
+  <style>
+    :root { color-scheme: dark; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; background: #090e14; color: #e6edf3; }
+    body { max-width: 1080px; margin: 0 auto; padding: 56px 28px 96px; }
+    h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: .02em; }
+    h2 { margin-top: 42px; font-size: 19px; }
+    p, li { color: #b7c3ce; }
+    .lead { margin: 0 0 30px; color: #92a6b8; }
+    .pill { display: inline-block; padding: 2px 9px; border: 1px solid #3a5264; border-radius: 99px; color: #b8d5e5; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; background: #101922; }
+    th, td { padding: 13px 15px; border: 1px solid #263542; vertical-align: top; text-align: left; }
+    th { color: #d9e7f0; background: #17232d; white-space: nowrap; }
+    td { color: #bac8d2; }
+    code { color: #c3e7f8; overflow-wrap: anywhere; }
+    .note { padding: 15px 18px; border-left: 3px solid #829bad; background: #131e27; }
+    @media (max-width: 700px) { body { padding: 28px 16px 60px; } table { display: block; overflow-x: auto; } th, td { min-width: 140px; } }
+  </style>
+</head>
+<body>
+  <h1>本地存储清单</h1>
+  <p class="lead">SelfMe Lab · 2026-09-26 审计 · 当前已实现范围，不代表未来模块已落地</p>
+  <p class="note">原则：应用自主拥有的会话数据进入 SQLite；少量可读偏好与 Provider 连接进入配置文件；第三方 Harness 的原生上下文由其自身格式保管，不能强行改造成应用数据库。</p>
+
+  <h2>应用自主数据</h2>
+  <table>
+    <thead><tr><th>数据</th><th>实际位置</th><th>存储方式</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Agent Lab 多会话目录</td><td><code>userData/agent-sessions.sqlite</code> · <code>agent_sessions</code></td><td><span class="pill">SQLite</span></td><td>运行时、工作目录、标题、状态、时间和原生恢复标识。</td></tr>
+      <tr><td>用户输入与运行事件</td><td><code>userData/agent-sessions.sqlite</code> · <code>agent_events</code></td><td><span class="pill">SQLite</span></td><td>按会话有序保存消息、工具、审批、状态与输出；界面可重放。SQLite 的 WAL/SHM 是数据库自身的附属文件。</td></tr>
+      <tr><td>当前选中会话、最近工作目录</td><td><code>userData/app-config.json</code></td><td><span class="pill">配置文件</span></td><td>按 DSH、Codex、Pi、Kimi Code 分开；写入采用临时文件和顺序提交。</td></tr>
+      <tr><td>模型连接</td><td><code>userData/{dsh,codex,pi,kimi,jev}-provider.json</code></td><td><span class="pill">配置文件</span></td><td>Base URL、模型 ID，以及通过 Electron safeStorage 加密后的 API Key。DSH 也可读取启动环境中的 <code>DEEPSEEK_API_KEY</code>；环境变量不是应用落盘数据。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>必要例外与边界</h2>
+  <table>
+    <thead><tr><th>类别</th><th>实际位置</th><th>为何不进应用 SQLite</th></tr></thead>
+    <tbody>
+      <tr><td>Harness 原生上下文</td><td><code>userData/runtime-homes/&lt;runtime&gt;/&lt;session-id&gt;/</code></td><td>DSH、Codex、Pi、Kimi Code 各自写会话、索引、状态、日志或缓存。恢复原生上下文依赖这些格式；应用 SQLite 只保存关联标识和可展示事件。</td></tr>
+      <tr><td>Harness 派生配置</td><td>上述目录中的 Codex <code>config.toml</code>、DSH <code>selfme-model.patch.yml</code> 等</td><td>由当前 Provider 配置重新生成，符合配置文件原则；不保存明文 API Key。</td></tr>
+      <tr><td>Electron / Chromium 内部数据</td><td><code>userData/Cache</code>、<code>Code Cache</code>、<code>Session Storage</code>、<code>Local Storage</code> 等</td><td>框架管理的缓存、浏览器状态或内部数据库；应用业务代码不以它们保存新数据。旧版四个工作目录 Local Storage 键会先迁移至 <code>app-config.json</code>，再逻辑删除。LevelDB 日志里的历史字节可能要等框架压缩才消失。</td></tr>
+      <tr><td>旧版 Harness 目录</td><td><code>userData/{dsh,codex,pi,kimi}-home/</code></td><td>升级前的原生数据。新代码已不引用；暂不删除，避免破坏用户旧会话。</td></tr>
+      <tr><td>短暂界面状态</td><td>React 进程内存</td><td>输入框草稿、筛选、展开状态，以及当前 JEV 棋盘、走棋历史、决策详情目前只在本次打开期间有效；关闭后不恢复。JEV 若要保存棋局，需要新增 SQLite 表，不能误称已持久化。</td></tr>
+      <tr><td>静态实验内容与构建物</td><td>源码中的 Atlas 目录/覆盖标注、<code>design/</code>、<code>assets/</code>、<code>runtimes/</code>、<code>out/</code>、<code>release/</code>、<code>.work/</code>、<code>.cache/</code></td><td>源码、设计资产、内嵌运行时、打包产物或被 Git 忽略的开发缓存，不是用户会话存储。Founder Studio、Harness Forge、RSI Lab、Remote Agent Lab、Local Model Lab 尚无业务数据写入。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>安全与后续约束</h2>
+  <ul>
+    <li>当前用户数据目录为当前用户可访问，应用数据库与配置文件为 <code>0600</code>；数据库内容不做额外的整库加密，因此任务输入和工具输出可能包含敏感内容，应按敏感本地数据处理。</li>
+    <li>新增持久化功能时，先决定是会话/事件型数据（SQLite）、少量用户可编辑配置（配置文件），还是 Harness / Electron 自主管理的必要例外；不要再以 Local Storage 承载业务数据。</li>
+    <li>现阶段不迁移、不删除旧版 Harness 目录，也不清空整个 Chromium 存储。只定向迁移并移除旧工作目录键。</li>
+  </ul>
+</body>
+</html>

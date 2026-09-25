@@ -13,6 +13,7 @@ type AppConfig = { version: 1; agentLab: Partial<Record<AgentRuntimeId, AgentVie
 /** Small, human-readable application preferences. Conversation data lives in SQLite. */
 export class AppConfigStore {
   private data: AppConfig = { version: 1, agentLab: {} };
+  private pendingWrite: Promise<void> = Promise.resolve();
 
   constructor(private readonly root: string) {}
 
@@ -42,6 +43,21 @@ export class AppConfigStore {
     return { ...(this.data.agentLab[runtimeId] ?? { selectedSessionId: null, lastWorkspace: null }) };
   }
 
+  async migrateLegacyWorkspaces(workspaces: Partial<Record<AgentRuntimeId, string>>): Promise<void> {
+    if (!workspaces || typeof workspaces !== "object" || Array.isArray(workspaces)) throw new Error("旧工作目录格式无效");
+    let changed = false;
+    for (const runtimeId of ["dsh", "codex", "pi", "kimi-code"] as const) {
+      const workspace = workspaces[runtimeId];
+      if (workspace === undefined) continue;
+      if (typeof workspace !== "string" || !workspace.trim() || workspace.length > 4096 || /\0/u.test(workspace)) throw new Error("旧工作目录格式无效");
+      const current = this.data.agentLab[runtimeId];
+      if (current?.lastWorkspace) continue;
+      this.data.agentLab[runtimeId] = { selectedSessionId: current?.selectedSessionId ?? null, lastWorkspace: workspace };
+      changed = true;
+    }
+    if (changed) await this.write();
+  }
+
   async select(runtimeId: AgentRuntimeId, sessionId: string, workspace: string): Promise<void> {
     const current = this.data.agentLab[runtimeId];
     if (current?.selectedSessionId === sessionId && current.lastWorkspace === workspace) return;
@@ -51,9 +67,14 @@ export class AppConfigStore {
 
   private path(): string { return join(this.root, "app-config.json"); }
 
-  private async write(): Promise<void> {
-    const temporary = join(this.root, `app-config-${randomUUID()}.tmp`);
-    await writeFile(temporary, JSON.stringify(this.data, null, 2), { mode: 0o600 });
-    await rename(temporary, this.path());
+  private write(): Promise<void> {
+    const contents = JSON.stringify(this.data, null, 2);
+    const current = this.pendingWrite.then(async () => {
+      const temporary = join(this.root, `app-config-${randomUUID()}.tmp`);
+      await writeFile(temporary, contents, { mode: 0o600 });
+      await rename(temporary, this.path());
+    });
+    this.pendingWrite = current.catch(() => {});
+    return current;
   }
 }
