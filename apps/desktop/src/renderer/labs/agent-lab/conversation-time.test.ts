@@ -13,13 +13,20 @@ describe("agent conversation time", () => {
     expect(exactTime(at)).toBe("2026-09-26 14:32:07");
     expect(dateDividerLabel(at, new Date(2026, 8, 26, 18))).toBe("今天 · 9月26日");
     expect(dateDividerLabel(at, new Date(2026, 8, 27, 9))).toBe("昨天 · 9月26日");
+    expect(sessionTimeLabel(at, new Date(2026, 8, 26, 18))).toBe("14:32");
     expect(sessionTimeLabel(at, new Date(2026, 8, 27, 9))).toBe("昨天 14:32");
+    expect(sessionTimeLabel(at, new Date(2026, 8, 28, 9))).toBe("前天 14:32");
+    expect(sessionTimeLabel(at, new Date(2026, 8, 29, 9))).toBe("3天前 14:32");
+    expect(sessionTimeLabel(at, new Date(2026, 8, 30, 9))).toBe("9/26 14:32");
   });
 
   it("uses compact older dates and handles year boundaries", () => {
     const at = localTime(2025, 12, 31, 23, 59);
-    expect(dateDividerLabel(at, new Date(2026, 0, 1, 9))).toBe("昨天 · 12月31日");
-    expect(sessionTimeLabel(at, new Date(2026, 0, 2, 9))).toBe("2025/12/31");
+    expect(dateDividerLabel(at, new Date(2026, 0, 1, 9))).toBe("昨天 · 2025年12月31日");
+    expect(dateDividerLabel(at, new Date(2026, 0, 2, 9))).toBe("2025年12月31日");
+    expect(sessionTimeLabel(at, new Date(2026, 0, 2, 9))).toBe("前天 23:59");
+    expect(sessionTimeLabel(at, new Date(2026, 0, 3, 9))).toBe("3天前 23:59");
+    expect(sessionTimeLabel(at, new Date(2026, 0, 4, 9))).toBe("2025/12/31");
   });
 
   it("formats elapsed work and tool duration without inventing invalid times", () => {

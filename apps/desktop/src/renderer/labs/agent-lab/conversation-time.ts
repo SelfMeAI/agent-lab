@@ -30,10 +30,11 @@ export function dateDividerLabel(value: string, now = new Date()): string | null
   const date = parseTimestamp(value);
   if (!date) return null;
   const shortDate = `${date.getMonth() + 1}月${date.getDate()}日`;
-  if (sameDay(date, now)) return `今天 · ${shortDate}`;
+  const datedLabel = date.getFullYear() === now.getFullYear() ? shortDate : `${date.getFullYear()}年${shortDate}`;
+  if (sameDay(date, now)) return `今天 · ${datedLabel}`;
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (sameDay(date, yesterday)) return `昨天 · ${shortDate}`;
-  return date.getFullYear() === now.getFullYear() ? shortDate : `${date.getFullYear()}年${shortDate}`;
+  if (sameDay(date, yesterday)) return `昨天 · ${datedLabel}`;
+  return datedLabel;
 }
 
 export function sessionTimeLabel(value: string, now = new Date()): string | null {
@@ -43,6 +44,10 @@ export function sessionTimeLabel(value: string, now = new Date()): string | null
   if (sameDay(date, now)) return time;
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   if (sameDay(date, yesterday)) return `昨天 ${time}`;
+  const beforeYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+  if (sameDay(date, beforeYesterday)) return `前天 ${time}`;
+  const threeDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3);
+  if (sameDay(date, threeDaysAgo)) return `3天前 ${time}`;
   return date.getFullYear() === now.getFullYear()
     ? `${date.getMonth() + 1}/${date.getDate()} ${time}`
     : `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;

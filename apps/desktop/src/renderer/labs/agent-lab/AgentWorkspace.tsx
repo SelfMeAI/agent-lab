@@ -75,6 +75,24 @@ function RunElapsed({ startedAt }: { startedAt: string }): JSX.Element | null {
   return elapsed ? <small className="dsh-live-status__elapsed">已运行 {elapsed}</small> : null;
 }
 
+function useCalendarToday(): Date {
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    let timer: number;
+    const schedule = (): void => {
+      const now = new Date();
+      const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      timer = window.setTimeout(() => {
+        setToday(new Date());
+        schedule();
+      }, nextDay.getTime() - now.getTime() + 100);
+    };
+    schedule();
+    return () => window.clearTimeout(timer);
+  }, []);
+  return today;
+}
+
 function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: string | null }): JSX.Element {
   const view = presentEntry(entry);
   const recordedAt = clockTime(entry.at, true);
@@ -180,6 +198,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   providerRevision?: number;
 }): JSX.Element {
   const store = agentStores[runtimeId];
+  const today = useCalendarToday();
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
   const [connectingSessionId, setConnectingSessionId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -438,7 +457,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           ) : snapshot.sessions.length ? snapshot.sessions.map((item) => (
             <div className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} key={item.id}>
               <button className="dsh-rail__session-main" disabled={anyBusy && item.id !== snapshot.selectedSessionId} onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
-                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small className="dsh-rail__session-meta"><span>{sessionStateLabel(item.phase)}</span><time dateTime={item.lastActivityAt ?? item.createdAt} title={`${item.lastActivityAt ? "最后活动" : "创建于"} ${exactTime(item.lastActivityAt ?? item.createdAt) ?? ""}`}>{sessionTimeLabel(item.lastActivityAt ?? item.createdAt)}</time></small>
+                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small className="dsh-rail__session-meta"><span>{sessionStateLabel(item.phase)}</span><time dateTime={item.lastActivityAt ?? item.createdAt} title={`${item.lastActivityAt ? "最后活动" : "创建于"} ${exactTime(item.lastActivityAt ?? item.createdAt) ?? ""}`}>{sessionTimeLabel(item.lastActivityAt ?? item.createdAt, today)}</time></small>
               </button>
               <button className="dsh-rail__session-delete" disabled={busyPhases.has(item.phase)} onClick={() => setSessionAction({ id: item.id, title: item.title, kind: "delete" })} title="移至最近删除" aria-label={`删除会话：${item.title}`} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
             </div>
@@ -456,7 +475,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
               const day = calendarDayKey(entry.at);
               const previousDay = index > 0 ? calendarDayKey(transcriptEntries[index - 1].at) : null;
               return <Fragment key={entry.id}>
-                {day && day !== previousDay && <div className="dsh-conversation__date" role="separator"><span>{dateDividerLabel(entry.at)}</span></div>}
+                {day && day !== previousDay && <div className="dsh-conversation__date" role="separator"><span>{dateDividerLabel(entry.at, today)}</span></div>}
                 <TranscriptItem entry={entry} runtimeId={runtimeId} workspace={workspace} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy} />
               </Fragment>;
             })}
