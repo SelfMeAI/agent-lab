@@ -156,6 +156,10 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const [connectingSessionId, setConnectingSessionId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [railError, setRailError] = useState<string | null>(null);
+  const [showDeletedSessions, setShowDeletedSessions] = useState(false);
+  const [sessionAction, setSessionAction] = useState<{ id: string; title: string; kind: "delete" | "purge" } | null>(null);
+  const [sessionActionBusy, setSessionActionBusy] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const session = snapshot.sessions.find((item) => item.id === snapshot.selectedSessionId) ?? null;
@@ -209,6 +213,15 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     input.style.height = `${Math.min(Math.max(input.scrollHeight, 38), 178)}px`;
     input.style.overflowY = input.scrollHeight > 178 ? "auto" : "hidden";
   }, [prompt]);
+
+  useEffect(() => {
+    if (!sessionAction) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape" && !sessionActionBusy) setSessionAction(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [sessionAction, sessionActionBusy]);
 
   function trackOutputScroll(): void {
     const output = outputRef.current;
@@ -271,6 +284,43 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
       store.loadHistory(next.id, await window.selfmeLab.getAgentSessionEvents(next.id));
       if (provider?.configured) await connect(next.id);
     } catch (error) { setLocalError(errorMessage(error)); }
+  }
+
+  async function refreshSessionCatalog(): Promise<void> {
+    if (!window.selfmeLab) return;
+    const catalog = await window.selfmeLab.getAgentSessionCatalog(runtimeId);
+    store.setCatalog(catalog);
+    setPrompt("");
+    if (catalog.selectedSessionId) {
+      store.loadHistory(catalog.selectedSessionId, await window.selfmeLab.getAgentSessionEvents(catalog.selectedSessionId));
+      if (provider?.configured) await connect(catalog.selectedSessionId);
+    }
+  }
+
+  async function confirmSessionAction(): Promise<void> {
+    if (!sessionAction || !window.selfmeLab) return;
+    setSessionActionBusy(true);
+    setRailError(null);
+    try {
+      if (sessionAction.kind === "delete") await window.selfmeLab.deleteAgentSession(sessionAction.id);
+      else await window.selfmeLab.purgeAgentSession(sessionAction.id);
+      setSessionAction(null);
+      await refreshSessionCatalog();
+    } catch (error) {
+      setRailError(errorMessage(error));
+    } finally {
+      setSessionActionBusy(false);
+    }
+  }
+
+  async function restoreSession(id: string): Promise<void> {
+    if (!window.selfmeLab) return;
+    setRailError(null);
+    try {
+      await window.selfmeLab.restoreAgentSession(id);
+      await refreshSessionCatalog();
+      setShowDeletedSessions(false);
+    } catch (error) { setRailError(errorMessage(error)); }
   }
 
   async function submit(): Promise<void> {
@@ -337,10 +387,28 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
       <div className="dsh-workspace__grid">
         <aside className="dsh-rail">
           <div className="dsh-rail__heading"><span>SESSIONS</span><button onClick={() => void newSession()} disabled={anyBusy} title="新建会话" type="button">＋</button></div>
-          <div className="dsh-rail__scroll">{snapshot.sessions.length ? snapshot.sessions.map((item) => (
-            <button className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} disabled={anyBusy && item.id !== snapshot.selectedSessionId} key={item.id} onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
-              <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small>{sessionStateLabel(item.phase)}</small>
-            </button>
+          <div className="dsh-rail__switch" role="group" aria-label="会话列表类型">
+            <button className={!showDeletedSessions ? "is-active" : ""} onClick={() => setShowDeletedSessions(false)} type="button">会话 <small>{snapshot.sessions.length}</small></button>
+            <button className={showDeletedSessions ? "is-active" : ""} onClick={() => setShowDeletedSessions(true)} type="button">最近删除 <small>{snapshot.deletedSessions.length}</small></button>
+          </div>
+          {railError && <p className="dsh-rail__error" role="alert">{railError}</p>}
+          <div className="dsh-rail__scroll">{showDeletedSessions ? (
+            snapshot.deletedSessions.length ? snapshot.deletedSessions.map((item) => (
+              <div className="dsh-rail__session is-deleted" key={item.id} title={item.workspace}>
+                <strong>{item.title}</strong><small>{item.workspace}</small>
+                <div className="dsh-rail__deleted-actions">
+                  <button type="button" onClick={() => void restoreSession(item.id)}>恢复</button>
+                  <button type="button" onClick={() => setSessionAction({ id: item.id, title: item.title, kind: "purge" })}>彻底删除</button>
+                </div>
+              </div>
+            )) : <p className="dsh-rail__empty">最近删除中没有会话</p>
+          ) : snapshot.sessions.length ? snapshot.sessions.map((item) => (
+            <div className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} key={item.id}>
+              <button className="dsh-rail__session-main" disabled={anyBusy && item.id !== snapshot.selectedSessionId} onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
+                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small>{sessionStateLabel(item.phase)}</small>
+              </button>
+              <button className="dsh-rail__session-delete" disabled={busyPhases.has(item.phase)} onClick={() => setSessionAction({ id: item.id, title: item.title, kind: "delete" })} title="移至最近删除" aria-label={`删除会话：${item.title}`} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
+            </div>
           )) : <p className="dsh-rail__empty">选择工作目录，创建第一个会话</p>}</div>
         </aside>
         <section className="dsh-conversation" aria-label={`${names[runtimeId]} 工作区`}>
@@ -364,6 +432,15 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           </div>
         </section>
       </div>
+      {sessionAction && <div className="dsh-session-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !sessionActionBusy) setSessionAction(null); }}>
+        <section className="dsh-session-modal" role="dialog" aria-modal="true" aria-labelledby="session-action-title">
+          <span>{sessionAction.kind === "purge" ? "PERMANENT DELETE" : "MOVE TO RECENTLY DELETED"}</span>
+          <h2 id="session-action-title">{sessionAction.kind === "purge" ? "彻底删除这个会话？" : "将这个会话移至最近删除？"}</h2>
+          <p className="dsh-session-modal__name">{sessionAction.title}</p>
+          <p>{sessionAction.kind === "purge" ? "对话记录及本应用保存的 Harness 上下文将无法恢复。工作目录和其中的文件不会受影响。" : "会话将从列表隐藏，内容和 Harness 上下文仍保留，可随时恢复。工作目录不会受影响。"}</p>
+          <div><button type="button" autoFocus disabled={sessionActionBusy} onClick={() => setSessionAction(null)}>取消</button><button className={sessionAction.kind === "purge" ? "is-danger" : ""} type="button" disabled={sessionActionBusy} onClick={() => void confirmSessionAction()}>{sessionActionBusy ? "处理中…" : sessionAction.kind === "purge" ? "彻底删除" : "移至最近删除"}</button></div>
+        </section>
+      </div>}
     </div>
   );
 }

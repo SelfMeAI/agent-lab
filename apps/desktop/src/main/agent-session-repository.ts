@@ -6,12 +6,13 @@ import type { AgentRuntimeId, AgentSessionEvent, AgentSessionSummary, RunEvent, 
 
 export interface StoredAgentSession extends AgentSessionSummary {
   nativeRef: string | null;
+  deletedAt: string | null;
 }
 
 const runtimeIds = new Set<AgentRuntimeId>(["dsh", "codex", "pi", "kimi-code"]);
 
 function summary(record: StoredAgentSession): AgentSessionSummary {
-  const { nativeRef: _nativeRef, ...visible } = record;
+  const { nativeRef: _nativeRef, deletedAt: _deletedAt, ...visible } = record;
   return visible;
 }
 
@@ -20,8 +21,10 @@ function fromRow(row: Record<string, unknown>): StoredAgentSession {
     id: String(row.id), runtimeId: String(row.runtime_id) as AgentRuntimeId,
     workspace: String(row.workspace), title: String(row.title),
     createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+    lastPromptAt: row.last_prompt_at === null ? null : String(row.last_prompt_at),
     phase: String(row.phase) as RuntimePhase, statusText: String(row.status_text),
     nativeRef: row.native_ref === null ? null : String(row.native_ref),
+    deletedAt: row.deleted_at === null ? null : String(row.deleted_at),
   };
 }
 
@@ -51,7 +54,9 @@ export class AgentSessionRepository {
         updated_at TEXT NOT NULL,
         phase TEXT NOT NULL,
         status_text TEXT NOT NULL,
-        native_ref TEXT
+        native_ref TEXT,
+        last_prompt_at TEXT,
+        deleted_at TEXT
       ) STRICT;
       CREATE TABLE IF NOT EXISTS agent_events (
         session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
@@ -59,22 +64,41 @@ export class AgentSessionRepository {
         payload TEXT NOT NULL,
         PRIMARY KEY (session_id, event_index)
       ) STRICT;
-      CREATE INDEX IF NOT EXISTS agent_sessions_runtime ON agent_sessions(runtime_id, created_at DESC);
     `);
+    const columns = new Set(db.prepare("PRAGMA table_info(agent_sessions)").all().map((row) => String(row.name)));
+    if (!columns.has("last_prompt_at")) db.exec("ALTER TABLE agent_sessions ADD COLUMN last_prompt_at TEXT");
+    if (!columns.has("deleted_at")) db.exec("ALTER TABLE agent_sessions ADD COLUMN deleted_at TEXT");
+    db.exec("CREATE INDEX IF NOT EXISTS agent_sessions_recent ON agent_sessions(runtime_id, deleted_at, COALESCE(last_prompt_at, created_at) DESC, created_at DESC)");
+    // Existing databases did not track prompt time separately. Recover it
+    // once from the transcript instead of mistaking later status events for work.
+    db.prepare(`UPDATE agent_sessions SET last_prompt_at = (
+      SELECT json_extract(payload, '$.at') FROM agent_events
+      WHERE session_id = agent_sessions.id AND json_extract(payload, '$.kind') = 'user'
+      ORDER BY event_index DESC LIMIT 1
+    ) WHERE last_prompt_at IS NULL AND EXISTS (
+      SELECT 1 FROM agent_events WHERE session_id = agent_sessions.id AND json_extract(payload, '$.kind') = 'user'
+    )`).run();
     db.prepare("UPDATE agent_sessions SET phase = 'idle', status_text = '上次运行已中断，可继续会话' WHERE phase IN ('starting', 'running', 'approval', 'cancelling')").run();
   }
 
   close(): void { this.db?.close(); this.db = null; }
 
   list(runtimeId: AgentRuntimeId): AgentSessionSummary[] {
-    return this.database().prepare("SELECT * FROM agent_sessions WHERE runtime_id = ? ORDER BY created_at DESC")
+    return this.database().prepare("SELECT * FROM agent_sessions WHERE runtime_id = ? AND deleted_at IS NULL ORDER BY COALESCE(last_prompt_at, created_at) DESC, created_at DESC, rowid DESC")
       .all(runtimeId).map((row) => summary(fromRow(row)));
   }
 
-  get(id: string): StoredAgentSession {
+  listDeleted(runtimeId: AgentRuntimeId): AgentSessionSummary[] {
+    return this.database().prepare("SELECT * FROM agent_sessions WHERE runtime_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC")
+      .all(runtimeId).map((row) => summary(fromRow(row)));
+  }
+
+  get(id: string, includeDeleted = false): StoredAgentSession {
     const row = this.database().prepare("SELECT * FROM agent_sessions WHERE id = ?").get(id);
     if (!row) throw new Error("会话不存在或已删除");
-    return fromRow(row);
+    const record = fromRow(row);
+    if (record.deletedAt && !includeDeleted) throw new Error("会话已移至最近删除，请先恢复");
+    return record;
   }
 
   create(runtimeId: AgentRuntimeId, workspace: string): AgentSessionSummary {
@@ -83,6 +107,7 @@ export class AgentSessionRepository {
     const record: StoredAgentSession = {
       id: randomUUID(), runtimeId, workspace, title: "新会话", createdAt: now, updatedAt: now,
       phase: "idle", statusText: "尚未连接", nativeRef: null,
+      lastPromptAt: null, deletedAt: null,
     };
     this.database().prepare(`INSERT INTO agent_sessions
       (id, runtime_id, workspace, title, created_at, updated_at, phase, status_text, native_ref)
@@ -95,6 +120,27 @@ export class AgentSessionRepository {
   setNativeRef(id: string, nativeRef: string): void {
     this.get(id);
     this.database().prepare("UPDATE agent_sessions SET native_ref = ? WHERE id = ?").run(nativeRef, id);
+  }
+
+  softDelete(id: string): StoredAgentSession {
+    const record = this.get(id);
+    this.database().prepare("UPDATE agent_sessions SET deleted_at = ? WHERE id = ?")
+      .run(new Date().toISOString(), id);
+    return record;
+  }
+
+  restore(id: string): AgentSessionSummary {
+    const record = this.get(id, true);
+    if (!record.deletedAt) throw new Error("会话未被删除");
+    this.database().prepare("UPDATE agent_sessions SET deleted_at = NULL, phase = 'idle', status_text = '已恢复，可继续会话' WHERE id = ?").run(id);
+    return summary(this.get(id));
+  }
+
+  purge(id: string): void {
+    const record = this.get(id, true);
+    if (!record.deletedAt) throw new Error("请先将会话移至最近删除");
+    this.database().prepare("DELETE FROM agent_sessions WHERE id = ? AND deleted_at IS NOT NULL").run(id);
+    this.nextEventIndex.delete(id);
   }
 
   events(id: string): AgentSessionEvent[] {
@@ -115,6 +161,7 @@ export class AgentSessionRepository {
     if (entry.kind === "user" && next.title === "新会话" && entry.text?.trim()) {
       next.title = entry.text.trim().replace(/\s+/gu, " ").slice(0, 55);
     }
+    if (entry.kind === "user") next.lastPromptAt = entry.at;
     if (entry.phase) {
       next.phase = entry.phase;
       next.statusText = entry.text ?? entry.phase;
@@ -130,8 +177,8 @@ export class AgentSessionRepository {
       db.prepare("INSERT INTO agent_events (session_id, event_index, payload) VALUES (?, ?, ?)")
         .run(id, eventIndex, JSON.stringify(entry));
       if (entry.kind === "user" || entry.phase || entry.kind === "error") {
-        db.prepare("UPDATE agent_sessions SET title = ?, updated_at = ?, phase = ?, status_text = ? WHERE id = ?")
-          .run(next.title, next.updatedAt, next.phase, next.statusText, id);
+        db.prepare("UPDATE agent_sessions SET title = ?, updated_at = ?, last_prompt_at = ?, phase = ?, status_text = ? WHERE id = ?")
+          .run(next.title, next.updatedAt, next.lastPromptAt, next.phase, next.statusText, id);
       }
       db.exec("COMMIT");
       this.nextEventIndex.set(id, eventIndex + 1);

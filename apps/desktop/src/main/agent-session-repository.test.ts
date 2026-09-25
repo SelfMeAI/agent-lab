@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RunEvent } from "../../../../packages/contracts/src/index";
 import { AgentSessionRepository } from "./agent-session-repository";
@@ -64,6 +65,73 @@ describe("agent session SQLite storage", () => {
     await reopened.init();
     expect(reopened.get("dsh").selectedSessionId).toBe("third");
     expect(reopened.get("pi").selectedSessionId).toBe("second");
+  });
+
+  it("sorts by the last user task, not later runtime status, and keeps deletion recoverable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-session-order-"));
+    roots.push(root);
+    const repo = new AgentSessionRepository(root);
+    await repo.init();
+    const first = repo.create("pi", root);
+    const second = repo.create("pi", root);
+    repo.append(first.id, { ...event("user", "first task"), at: "2026-09-26T09:00:00.000Z" });
+    repo.append(second.id, { ...event("user", "second task"), at: "2026-09-26T10:00:00.000Z" });
+    repo.append(first.id, { ...event("status", "finished", "ready"), at: "2026-09-26T11:00:00.000Z" });
+    expect(repo.list("pi").map((item) => item.id)).toEqual([second.id, first.id]);
+    expect(repo.get(first.id).lastPromptAt).toBe("2026-09-26T09:00:00.000Z");
+    repo.softDelete(second.id);
+    expect(repo.list("pi").map((item) => item.id)).toEqual([first.id]);
+    expect(repo.listDeleted("pi").map((item) => item.id)).toEqual([second.id]);
+    expect(() => repo.get(second.id)).toThrow("最近删除");
+    expect(() => repo.events(second.id)).toThrow("最近删除");
+    repo.restore(second.id);
+    expect(repo.list("pi").map((item) => item.id)).toEqual([second.id, first.id]);
+    repo.softDelete(second.id);
+    repo.purge(second.id);
+    expect(repo.listDeleted("pi")).toEqual([]);
+    expect(() => repo.get(second.id, true)).toThrow("不存在");
+    repo.close();
+  });
+
+  it("migrates an existing SQLite file and recovers last prompt time from history", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-session-migration-"));
+    roots.push(root);
+    const old = new DatabaseSync(join(root, "agent-sessions.sqlite"));
+    old.exec(`
+      CREATE TABLE agent_sessions (
+        id TEXT PRIMARY KEY, runtime_id TEXT NOT NULL, workspace TEXT NOT NULL,
+        title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        phase TEXT NOT NULL, status_text TEXT NOT NULL, native_ref TEXT
+      ) STRICT;
+      CREATE TABLE agent_events (
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        event_index INTEGER NOT NULL, payload TEXT NOT NULL,
+        PRIMARY KEY (session_id, event_index)
+      ) STRICT;
+    `);
+    old.prepare("INSERT INTO agent_sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("old-session", "pi", root, "Legacy", "2026-09-20T00:00:00Z", "2026-09-25T18:00:00Z", "ready", "已就绪", null);
+    old.prepare("INSERT INTO agent_events VALUES (?, ?, ?)").run("old-session", 1,
+      JSON.stringify({ ...event("user", "old task"), at: "2026-09-22T12:00:00Z" }));
+    old.close();
+    const repo = new AgentSessionRepository(root);
+    await repo.init();
+    expect(repo.list("pi")[0]).toMatchObject({ id: "old-session", lastPromptAt: "2026-09-22T12:00:00Z" });
+    repo.softDelete("old-session");
+    expect(repo.listDeleted("pi")).toHaveLength(1);
+    repo.close();
+  });
+
+  it("lists a large set without truncation and keeps recent work at the front", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-session-many-"));
+    roots.push(root);
+    const repo = new AgentSessionRepository(root);
+    await repo.init();
+    const sessions = Array.from({ length: 160 }, () => repo.create("dsh", root));
+    expect(repo.list("dsh")).toHaveLength(160);
+    repo.append(sessions[0].id, { ...event("user", "older session, new work"), runtimeId: "dsh", at: "2026-09-26T23:00:00Z" });
+    expect(repo.list("dsh")[0].id).toBe(sessions[0].id);
+    repo.close();
   });
 
 });

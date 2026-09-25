@@ -50,6 +50,13 @@ export class AppConfigStore {
     await this.write();
   }
 
+  async clearSelection(runtimeId: AgentRuntimeId): Promise<void> {
+    const current = this.get(runtimeId);
+    if (current.selectedSessionId === null) return;
+    this.data.agentLab[runtimeId] = { ...current, selectedSessionId: null };
+    await this.write();
+  }
+
   private path(): string { return join(this.root, "app-config.json"); }
 
   private write(): Promise<void> {

@@ -24,12 +24,21 @@ interface ConversationSnapshot {
 
 export interface AgentSnapshot extends ConversationSnapshot {
   sessions: AgentSessionSummary[];
+  deletedSessions: AgentSessionSummary[];
   selectedSessionId: string | null;
   lastWorkspace: string | null;
   loaded: boolean;
 }
 
 const emptyConversation = (): ConversationSnapshot => ({ entries: [], phase: "idle", statusText: "尚未连接", currentTask: null });
+
+/** Sort on task starts, not status/tool events, so active rows do not jump. */
+export function recentSessions(sessions: readonly AgentSessionSummary[]): AgentSessionSummary[] {
+  return [...sessions].sort((a, b) => {
+    const recent = (b.lastPromptAt ?? b.createdAt).localeCompare(a.lastPromptAt ?? a.createdAt);
+    return recent || b.createdAt.localeCompare(a.createdAt);
+  });
+}
 
 function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): ConversationSnapshot {
   if (event.kind === "user") {
@@ -74,7 +83,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
 }
 
 export function createAgentStore(runtimeId: AgentRuntimeId) {
-  let snapshot: AgentSnapshot = { ...emptyConversation(), sessions: [], selectedSessionId: null, lastWorkspace: null, loaded: false };
+  let snapshot: AgentSnapshot = { ...emptyConversation(), sessions: [], deletedSessions: [], selectedSessionId: null, lastWorkspace: null, loaded: false };
   const conversations = new Map<string, ConversationSnapshot>();
   const eventMaps = new Map<string, Map<number, AgentSessionEvent>>();
   const listeners = new Set<() => void>();
@@ -90,14 +99,19 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
       statusText: snapshot.sessions.find((item) => item.id === sessionId)?.statusText ?? "尚未连接",
     };
   };
-  const updateSession = (event: AgentSessionEvent): AgentSessionSummary[] => snapshot.sessions.map((session) => {
+  const updateSession = (event: AgentSessionEvent): AgentSessionSummary[] => {
+    const sessions = snapshot.sessions.map((session) => {
     if (session.id !== event.sessionId) return session;
     const title = event.kind === "user" && session.title === "新会话" && event.text?.trim()
       ? event.text.trim().replace(/\s+/gu, " ").slice(0, 55) : session.title;
     const phase = event.phase ?? (event.kind === "error" ? "error" : session.phase);
     const statusText = event.phase || event.kind === "error" ? event.text ?? phase : session.statusText;
-    return { ...session, title, phase, statusText, updatedAt: event.kind === "user" || event.phase || event.kind === "error" ? event.at : session.updatedAt };
-  });
+    return { ...session, title, phase, statusText,
+      lastPromptAt: event.kind === "user" ? event.at : session.lastPromptAt,
+      updatedAt: event.kind === "user" || event.phase || event.kind === "error" ? event.at : session.updatedAt };
+    });
+    return event.kind === "user" ? recentSessions(sessions) : sessions;
+  };
   return {
     getSnapshot: (): AgentSnapshot => snapshot,
     subscribe: (listener: () => void): (() => void) => { listeners.add(listener); return () => listeners.delete(listener); },
@@ -107,10 +121,10 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
       const conversation = conversations.get(selectedSessionId ?? "") ?? {
         ...emptyConversation(), phase: record?.phase ?? "idle", statusText: record?.statusText ?? "尚未连接",
       };
-      publish({ ...conversation, sessions: catalog.sessions, selectedSessionId, lastWorkspace: catalog.lastWorkspace, loaded: true });
+      publish({ ...conversation, sessions: recentSessions(catalog.sessions), deletedSessions: catalog.deletedSessions, selectedSessionId, lastWorkspace: catalog.lastWorkspace, loaded: true });
     },
     select(sessionId: string): void {
-      publish({ ...display(sessionId), sessions: snapshot.sessions, selectedSessionId: sessionId, lastWorkspace: snapshot.lastWorkspace, loaded: true });
+      publish({ ...display(sessionId), sessions: snapshot.sessions, deletedSessions: snapshot.deletedSessions, selectedSessionId: sessionId, lastWorkspace: snapshot.lastWorkspace, loaded: true });
     },
     loadHistory(sessionId: string, history: AgentSessionEvent[]): void {
       const events = eventMaps.get(sessionId) ?? new Map<number, AgentSessionEvent>();
@@ -125,8 +139,8 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
       if (snapshot.selectedSessionId === sessionId) publish({ ...snapshot, ...conversation });
     },
     addSession(session: AgentSessionSummary): void {
-      const sessions = [session, ...snapshot.sessions.filter((item) => item.id !== session.id)];
-      publish({ ...emptyConversation(), sessions, selectedSessionId: session.id, lastWorkspace: session.workspace, loaded: true });
+      const sessions = recentSessions([session, ...snapshot.sessions.filter((item) => item.id !== session.id)]);
+      publish({ ...emptyConversation(), sessions, deletedSessions: snapshot.deletedSessions, selectedSessionId: session.id, lastWorkspace: session.workspace, loaded: true });
     },
     removeApproval(sessionId: string, requestId: string | number): void {
       const conversation = conversations.get(sessionId);

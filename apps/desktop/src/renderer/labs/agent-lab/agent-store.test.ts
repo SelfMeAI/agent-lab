@@ -5,7 +5,7 @@ import { presentEntry } from "./tool-presentation";
 
 const session = (id: string): AgentSessionSummary => ({
   id, runtimeId: "dsh", workspace: "/tmp/example", title: "新会话",
-  createdAt: "2026-09-25T00:00:00Z", updatedAt: "2026-09-25T00:00:00Z", phase: "ready", statusText: "已就绪",
+  createdAt: "2026-09-25T00:00:00Z", updatedAt: "2026-09-25T00:00:00Z", lastPromptAt: null, phase: "ready", statusText: "已就绪",
 });
 
 function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessionEvent>): AgentSessionEvent {
@@ -18,7 +18,7 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 describe("agent transcript updates", () => {
   it("keeps ACP tool metadata when later updates contain a diff", () => {
     const store = createAgentStore("dsh");
-    store.setCatalog({ sessions: [session("a")], selectedSessionId: "a", lastWorkspace: "/tmp/example" });
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: "/tmp/example" });
     store.ingest(event("a", 1, { toolCallId: "edit-1", title: "edit", toolStatus: "in_progress", raw: { kind: "edit", locations: [{ path: "src/a.ts" }] } }));
     store.ingest(event("a", 2, { toolCallId: "edit-1", toolStatus: "completed", raw: { content: [{ type: "diff", path: "src/a.ts", oldText: "old\n", newText: "new\n" }] } }));
     const entries = store.getSnapshot().entries;
@@ -28,14 +28,14 @@ describe("agent transcript updates", () => {
 
   it("omits empty ACP usage updates from the conversation", () => {
     const store = createAgentStore("dsh");
-    store.setCatalog({ sessions: [session("a")], selectedSessionId: "a", lastWorkspace: null });
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
     store.ingest(event("a", 1, { kind: "status", raw: { sessionUpdate: "usage_update" } }));
     expect(store.getSnapshot().entries).toHaveLength(0);
   });
 
   it("keeps two sessions separate and merges saved history with live updates", () => {
     const store = createAgentStore("dsh");
-    store.setCatalog({ sessions: [session("b"), session("a")], selectedSessionId: "a", lastWorkspace: null });
+    store.setCatalog({ sessions: [session("b"), session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
     store.ingest(event("a", 2, { kind: "message", text: "after " }));
     store.loadHistory("a", [event("a", 1, { kind: "user", text: "first" })]);
     expect(store.getSnapshot().entries.map((entry) => entry.text)).toEqual(["first", "after "]);
@@ -44,5 +44,17 @@ describe("agent transcript updates", () => {
     expect(store.getSnapshot().entries.map((entry) => entry.text)).toEqual(["second"]);
     store.select("a");
     expect(store.getSnapshot().entries.map((entry) => entry.text)).toEqual(["first", "after "]);
+  });
+
+  it("moves a session forward only when a new task starts, not on status noise", () => {
+    const store = createAgentStore("dsh");
+    const old = { ...session("old"), createdAt: "2026-09-24T00:00:00Z" };
+    const recent = { ...session("recent"), createdAt: "2026-09-25T00:00:00Z" };
+    store.setCatalog({ sessions: [old, recent], deletedSessions: [], selectedSessionId: "recent", lastWorkspace: null });
+    expect(store.getSnapshot().sessions.map((item) => item.id)).toEqual(["recent", "old"]);
+    store.ingest(event("old", 1, { kind: "status", phase: "ready", at: "2026-09-26T09:00:00Z" }));
+    expect(store.getSnapshot().sessions.map((item) => item.id)).toEqual(["recent", "old"]);
+    store.ingest(event("old", 2, { kind: "user", text: "new work", at: "2026-09-26T10:00:00Z" }));
+    expect(store.getSnapshot().sessions.map((item) => item.id)).toEqual(["old", "recent"]);
   });
 });

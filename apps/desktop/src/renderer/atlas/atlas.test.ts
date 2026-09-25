@@ -132,6 +132,9 @@ describe("Agent Atlas knowledge base", () => {
         );
     }
     expect(capabilityState("jobs.job-start", "agent-lab")).toBe("unstarted");
+    expect(capabilityState("sessions.resume", "agent-lab")).toBe("usable");
+    expect(capabilityState("sessions.list-search", "agent-lab")).toBe("integrated");
+    expect(capabilityState("sessions.archive-delete", "agent-lab")).toBe("usable");
     expect(moduleSummary("remote-agent-lab").counts.unstarted).toBe(
       moduleSummary("remote-agent-lab").total,
     );

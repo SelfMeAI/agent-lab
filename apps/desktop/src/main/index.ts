@@ -96,7 +96,8 @@ void app.whenReady().then(async () => {
   const appConfig = new AppConfigStore(root);
   await appConfig.init();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
-    (event) => mainWindow?.webContents.send("selfme:run-event", event));
+    (event) => mainWindow?.webContents.send("selfme:run-event", event), false,
+    join(root, "runtime-homes"));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
@@ -192,6 +193,18 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:select-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.select(sessionId);
+  });
+  ipcMain.handle("selfme:delete-agent-session", async (event, sessionId: string) => {
+    assertMainWindow(event);
+    await sessions!.delete(sessionId);
+  });
+  ipcMain.handle("selfme:restore-agent-session", async (event, sessionId: string) => {
+    assertMainWindow(event);
+    await sessions!.restore(sessionId);
+  });
+  ipcMain.handle("selfme:purge-agent-session", async (event, sessionId: string) => {
+    assertMainWindow(event);
+    await sessions!.purge(sessionId);
   });
   ipcMain.handle("selfme:start-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);

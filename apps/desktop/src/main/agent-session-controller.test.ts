@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -106,6 +106,73 @@ describe("non-parallel multi-session lifecycle", () => {
     await controller.select(first.id);
     expect(controller.catalog("pi").selectedSessionId).toBe(first.id);
     await controller.stopAll();
+    repository.close();
+  });
+
+  it("blocks deletion while running, restores a deleted session, and only purges its own native home", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-controller-delete-"));
+    roots.push(root);
+    const repository = new AgentSessionRepository(root);
+    await repository.init();
+    const config = new AppConfigStore(root);
+    await config.init();
+    const nativeRoot = join(root, "runtime-homes");
+    const adapters = new Map<string, FakeAdapter>();
+    const controller = new AgentSessionController(repository, config, (runtimeId, sessionId) => {
+      const adapter = new FakeAdapter(runtimeId, sessionId);
+      adapters.set(sessionId, adapter);
+      return adapter;
+    }, () => {}, false, nativeRoot);
+    const first = await controller.create("pi", root);
+    await controller.activate(first.id);
+    await controller.send(first.id, "keep working");
+    await expect(controller.delete(first.id)).rejects.toThrow("仍在运行");
+    adapters.get(first.id)!.complete();
+    const second = await controller.create("pi", root);
+    await controller.activate(second.id);
+    const home = join(nativeRoot, "pi", second.id);
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, "native-session"), "keep until purge");
+    await writeFile(join(root, "user-workspace-file"), "never delete workspace");
+    await controller.delete(second.id);
+    expect(controller.catalog("pi").selectedSessionId).toBe(first.id);
+    expect(controller.catalog("pi").deletedSessions.map((item) => item.id)).toEqual([second.id]);
+    await access(join(home, "native-session"));
+    await controller.restore(second.id);
+    expect(controller.catalog("pi").sessions.some((item) => item.id === second.id)).toBe(true);
+    await controller.delete(second.id);
+    await controller.purge(second.id);
+    expect(controller.catalog("pi").deletedSessions).toEqual([]);
+    await expect(access(home)).rejects.toMatchObject({ code: "ENOENT" });
+    await access(join(root, "user-workspace-file"));
+    await controller.stopAll();
+    repository.close();
+  });
+
+  it("clears selection for the last deleted session and rejects symlinked runtime roots", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-controller-delete-safe-"));
+    roots.push(root);
+    const repository = new AgentSessionRepository(root);
+    await repository.init();
+    const config = new AppConfigStore(root);
+    await config.init();
+    const nativeRoot = join(root, "runtime-homes");
+    const outside = join(root, "unrelated-user-files");
+    await mkdir(nativeRoot);
+    await mkdir(outside);
+    await writeFile(join(outside, "keep.txt"), "keep");
+    await symlink(outside, join(nativeRoot, "pi"));
+    const controller = new AgentSessionController(repository, config,
+      (runtimeId, sessionId) => new FakeAdapter(runtimeId, sessionId), () => {}, false, nativeRoot);
+    const only = await controller.create("pi", root);
+    await controller.delete(only.id);
+    expect(controller.catalog("pi")).toMatchObject({ selectedSessionId: null, sessions: [] });
+    await controller.restore(only.id);
+    expect(controller.catalog("pi").selectedSessionId).toBe(only.id);
+    await controller.delete(only.id);
+    await expect(controller.purge(only.id)).rejects.toThrow("符号链接");
+    expect(controller.catalog("pi").deletedSessions).toHaveLength(1);
+    await access(join(outside, "keep.txt"));
     repository.close();
   });
 });

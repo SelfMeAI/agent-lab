@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { realpath, stat } from "node:fs/promises";
+import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { AgentSessionRepository } from "./agent-session-repository";
@@ -21,6 +22,7 @@ export class AgentSessionController {
     private readonly createAdapter: AdapterFactory,
     private readonly emit: (event: AgentSessionEvent) => void,
     private readonly allowParallel = false,
+    private readonly runtimeHomesRoot?: string,
   ) {}
 
   catalog(runtimeId: AgentRuntimeId): AgentSessionCatalog {
@@ -28,6 +30,7 @@ export class AgentSessionController {
     const preference = this.config.get(runtimeId);
     return {
       sessions,
+      deletedSessions: this.repository.listDeleted(runtimeId),
       selectedSessionId: sessions.some((item) => item.id === preference.selectedSessionId)
         ? preference.selectedSessionId : sessions[0]?.id ?? null,
       lastWorkspace: preference.lastWorkspace,
@@ -55,6 +58,64 @@ export class AgentSessionController {
   async select(id: string): Promise<void> {
     const record = this.repository.get(id);
     await this.serial(record.runtimeId, () => this.config.select(record.runtimeId, id, record.workspace));
+  }
+
+  async delete(id: string): Promise<void> {
+    const runtimeId = this.repository.get(id).runtimeId;
+    await this.serial(runtimeId, async () => {
+      const record = this.repository.get(id);
+      if (busyPhases.has(record.phase)) throw new Error("会话仍在运行，请先完成或取消任务");
+      await this.stop(id);
+      this.repository.softDelete(id);
+      if (this.config.get(runtimeId).selectedSessionId === id) {
+        const fallback = this.repository.list(runtimeId)[0];
+        if (fallback) await this.config.select(runtimeId, fallback.id, fallback.workspace);
+        else await this.config.clearSelection(runtimeId);
+      }
+    });
+  }
+
+  async restore(id: string): Promise<void> {
+    const runtimeId = this.repository.get(id, true).runtimeId;
+    await this.serial(runtimeId, async () => {
+      const restored = this.repository.restore(id);
+      if (!this.config.get(runtimeId).selectedSessionId) {
+        await this.config.select(runtimeId, restored.id, restored.workspace);
+      }
+    });
+  }
+
+  async purge(id: string): Promise<void> {
+    const runtimeId = this.repository.get(id, true).runtimeId;
+    await this.serial(runtimeId, async () => {
+      const record = this.repository.get(id, true);
+      if (!record.deletedAt) throw new Error("请先将会话移至最近删除");
+      if (this.live.has(id)) throw new Error("会话仍在运行，不能彻底删除");
+      let staged: string | null = null;
+      let home: string | null = null;
+      if (this.runtimeHomesRoot) {
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error("会话标识无效，不能清理运行目录");
+        const runtimeRoot = resolve(this.runtimeHomesRoot, record.runtimeId);
+        home = resolve(runtimeRoot, id);
+        if (!home.startsWith(runtimeRoot + sep)) throw new Error("运行目录不在受控范围内");
+        for (const parent of [this.runtimeHomesRoot, runtimeRoot]) {
+          try {
+            if ((await lstat(parent)).isSymbolicLink()) throw new Error("运行目录包含符号链接，不能自动清理");
+          } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+        }
+        const stagingRoot = resolve(this.runtimeHomesRoot, ".deleting");
+        await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+        const target = join(stagingRoot, `${id}-${randomUUID()}`);
+        try { await rename(home, target); staged = target; }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+      }
+      try { this.repository.purge(id); }
+      catch (error) {
+        if (staged && home) await rename(staged, home);
+        throw error;
+      }
+      if (staged) await rm(staged, { recursive: true, force: true });
+    });
   }
 
   private async start(id: string): Promise<void> {

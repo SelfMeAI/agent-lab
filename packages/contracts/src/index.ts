@@ -44,12 +44,14 @@ export interface AgentSessionSummary {
   title: string;
   createdAt: string;
   updatedAt: string;
+  lastPromptAt: string | null;
   phase: RuntimePhase;
   statusText: string;
 }
 
 export interface AgentSessionCatalog {
   sessions: AgentSessionSummary[];
+  deletedSessions: AgentSessionSummary[];
   selectedSessionId: string | null;
   lastWorkspace: string | null;
 }
@@ -157,6 +159,9 @@ export interface DesktopBridge {
   createAgentSession(runtimeId: AgentRuntimeId, workspace: string): Promise<AgentSessionSummary>;
   getAgentSessionEvents(sessionId: string): Promise<AgentSessionEvent[]>;
   selectAgentSession(sessionId: string): Promise<void>;
+  deleteAgentSession(sessionId: string): Promise<void>;
+  restoreAgentSession(sessionId: string): Promise<void>;
+  purgeAgentSession(sessionId: string): Promise<void>;
   startAgentSession(sessionId: string): Promise<void>;
   sendSessionPrompt(sessionId: string, prompt: string): Promise<void>;
   cancelSessionRun(sessionId: string): Promise<void>;
