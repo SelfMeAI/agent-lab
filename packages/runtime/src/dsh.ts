@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, realpath, stat } from "node:fs/promises";
+import { access, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
@@ -17,6 +17,7 @@ interface PendingRequest {
 export interface DshProvider {
   apiKey?: string;
   baseUrl: string;
+  model: string;
 }
 
 export interface DshAdapterOptions {
@@ -32,6 +33,10 @@ function object(value: unknown): JsonObject {
 
 function string(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+export function dshModelOverlay(model: string): string {
+  return `- id: acp\n  config:\n    provider: deepseek-official\n    model: ${JSON.stringify(model)}\n`;
 }
 
 export function contentText(value: unknown): string | undefined {
@@ -109,6 +114,8 @@ export class DshAdapter implements HarnessAdapter {
     await mkdir(this.options.homeDirectory, { recursive: true, mode: 0o700 });
     const provider = await this.options.provider();
     this.apiKey = provider.apiKey;
+    const modelPatchPath = join(this.options.homeDirectory, "selfme-model.patch.yml");
+    await writeFile(modelPatchPath, dshModelOverlay(provider.model), { mode: 0o600 });
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
@@ -117,7 +124,7 @@ export class DshAdapter implements HarnessAdapter {
     };
     if (provider.apiKey) env.DEEPSEEK_API_KEY = provider.apiKey;
     else delete env.DEEPSEEK_API_KEY;
-    const child = spawn(this.options.nodeExecutable, [this.options.entryPoint, "--profile", "acp"], {
+    const child = spawn(this.options.nodeExecutable, [this.options.entryPoint, "--profile", "acp", "--patch", modelPatchPath], {
       cwd: workspace,
       env,
       stdio: ["pipe", "pipe", "pipe"],

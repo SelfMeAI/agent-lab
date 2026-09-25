@@ -1,8 +1,11 @@
-import { mkdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { DshAdapter, contentText } from "./dsh";
+import { DshAdapter, contentText, dshModelOverlay } from "./dsh";
 
 describe("DSH ACP content extraction", () => {
   it("ignores events without text instead of recursively revisiting missing content", () => {
@@ -10,9 +13,30 @@ describe("DSH ACP content extraction", () => {
     expect(contentText({ type: "image", data: "..." })).toBeUndefined();
     expect(contentText({ content: [{ text: "first" }, { text: "second" }] })).toBe("first\nsecond");
   });
+
+  it("overrides the ACP profile model without YAML injection", () => {
+    expect(dshModelOverlay("gateway/model:latest")).toContain('model: "gateway/model:latest"');
+    expect(dshModelOverlay('model"with-quote')).toContain('model: "model\\"with-quote"');
+  });
 });
 
 describe("bundled DSH ACP", () => {
+  it("loads the selected model through the profile overlay", async () => {
+    const root = fileURLToPath(new URL("../../../", import.meta.url));
+    const homeDirectory = await mkdtemp(join(tmpdir(), "selfme-dsh-model-"));
+    const patchPath = join(homeDirectory, "model.patch.yml");
+    try {
+      await writeFile(patchPath, dshModelOverlay("gateway-model"));
+      const { stdout } = await promisify(execFile)(process.execPath, [
+        join(root, "runtimes", "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
+        "--profile", "acp", "--patch", patchPath, "--dump-config",
+      ], { env: { ...process.env, DSH_HOME: homeDirectory }, timeout: 30000 });
+      expect(stdout).toMatch(/id: acp[\s\S]*model: gateway-model/u);
+    } finally {
+      await rm(homeDirectory, { recursive: true, force: true });
+    }
+  }, 35000);
+
   it.skipIf(!process.env.SELFME_DSH_SMOKE)("starts a real ACP session without a global Node or DSH install", async () => {
     const root = fileURLToPath(new URL("../../../", import.meta.url));
     const homeDirectory = join(root, ".work", "dsh-acp-smoke-home");
@@ -21,7 +45,7 @@ describe("bundled DSH ACP", () => {
       entryPoint: process.env.SELFME_DSH_ENTRY_POINT ?? join(root, "runtimes", "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
       homeDirectory,
       nodeExecutable: process.env.SELFME_DSH_NODE_EXECUTABLE ?? process.execPath,
-      provider: async () => ({ baseUrl: "https://api.deepseek.com" }),
+      provider: async () => ({ baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" }),
     });
     const events: string[] = [];
     adapter.onEvent((event) => { if (event.phase) events.push(event.phase); });

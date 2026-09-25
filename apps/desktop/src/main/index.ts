@@ -10,6 +10,7 @@ import {
   getJevProviderStatus, getPiProvider, getPiProviderStatus,
   saveCodexProvider, saveDshProvider, saveJevProvider, savePiProvider,
 } from "./provider-store";
+import { discoverModels, modelListUrl } from "./model-discovery";
 import { decideJevMove } from "./jev-decision";
 
 const registry = new AdapterRegistry();
@@ -120,6 +121,19 @@ app.whenReady().then(() => {
     if (runtimeId === "pi") return getPiProviderStatus();
     if (runtimeId === "jev") return getJevProviderStatus();
     throw new Error("此运行时暂不支持模型配置");
+  });
+  ipcMain.handle("selfme:list-provider-models", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string }) => {
+    assertMainWindow(event);
+    if (!["dsh", "codex", "pi"].includes(runtimeId) || !config || typeof config.baseUrl !== "string" || (config.apiKey !== undefined && typeof config.apiKey !== "string")) {
+      throw new Error("无效的模型列表请求");
+    }
+    let apiKey = config.apiKey?.trim();
+    if (!apiKey) {
+      const saved = runtimeId === "dsh" ? await getDshProvider() : runtimeId === "codex" ? await getCodexProvider() : await getPiProvider();
+      if (modelListUrl(config.baseUrl) !== modelListUrl(saved.baseUrl)) throw new Error("API 地址已更改，请先填写该地址的 API Key");
+      apiKey = saved.apiKey;
+    }
+    return discoverModels(config.baseUrl, apiKey ?? "");
   });
   ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
     assertMainWindow(event);

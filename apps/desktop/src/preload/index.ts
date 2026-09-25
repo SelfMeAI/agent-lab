@@ -7,6 +7,7 @@ const bridge: DesktopBridge = {
   chooseWorkspace: () => ipcRenderer.invoke("selfme:choose-workspace"),
   listRuntimes: () => ipcRenderer.invoke("selfme:list-runtimes"),
   getProviderStatus: (runtimeId) => ipcRenderer.invoke("selfme:get-provider-status", runtimeId),
+  listProviderModels: (runtimeId, config) => ipcRenderer.invoke("selfme:list-provider-models", runtimeId, config),
   saveProvider: (runtimeId, config) => ipcRenderer.invoke("selfme:save-provider", runtimeId, config),
   startRuntime: (runtimeId, workspace) => ipcRenderer.invoke("selfme:start-runtime", runtimeId, workspace),
   sendPrompt: (runtimeId, prompt) => ipcRenderer.invoke("selfme:send-prompt", runtimeId, prompt),

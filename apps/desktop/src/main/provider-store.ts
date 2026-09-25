@@ -13,6 +13,7 @@ interface StoredProvider {
 }
 
 const defaultBaseUrl = "https://api.deepseek.com";
+const defaultDshModel = "deepseek-v4-flash";
 const defaultCodexBaseUrl = "https://api.openai.com/v1";
 const defaultCodexModel = "gpt-5.6";
 
@@ -28,15 +29,20 @@ function normalizeBaseUrl(value: string): string {
   return url.toString().replace(/\/+$/u, "");
 }
 
-async function readProvider(): Promise<StoredProvider> {
+interface StoredDshProvider extends StoredProvider {
+  model: string;
+}
+
+async function readProvider(): Promise<StoredDshProvider> {
   try {
-    const value = JSON.parse(await readFile(providerPath(), "utf8")) as StoredProvider;
+    const value = JSON.parse(await readFile(providerPath(), "utf8")) as StoredProvider & { model?: string };
     return {
       baseUrl: normalizeBaseUrl(value.baseUrl),
+      model: normalizeModel(value.model ?? defaultDshModel),
       encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { baseUrl: defaultBaseUrl };
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { baseUrl: defaultBaseUrl, model: defaultDshModel };
     throw error;
   }
 }
@@ -45,6 +51,7 @@ export async function getDshProviderStatus(): Promise<ProviderStatus> {
   const stored = await readProvider();
   return {
     baseUrl: stored.baseUrl,
+    model: stored.model,
     configured: Boolean(stored.encryptedApiKey || process.env.DEEPSEEK_API_KEY?.trim()),
   };
 }
@@ -52,14 +59,15 @@ export async function getDshProviderStatus(): Promise<ProviderStatus> {
 export async function getDshProvider(): Promise<DshProvider> {
   const stored = await readProvider();
   const encrypted = stored.encryptedApiKey;
-  if (!encrypted) return { baseUrl: stored.baseUrl, apiKey: process.env.DEEPSEEK_API_KEY?.trim() };
+  if (!encrypted) return { baseUrl: stored.baseUrl, model: stored.model, apiKey: process.env.DEEPSEEK_API_KEY?.trim() };
   const result = await safeStorage.decryptStringAsync(Buffer.from(encrypted, "base64"));
-  return { baseUrl: stored.baseUrl, apiKey: result.result };
+  return { baseUrl: stored.baseUrl, model: stored.model, apiKey: result.result };
 }
 
-export async function saveDshProvider(input: { baseUrl: string; apiKey?: string }): Promise<ProviderStatus> {
+export async function saveDshProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const previous = await readProvider();
+  const model = normalizeModel(input.model ?? previous.model);
   const apiKey = input.apiKey?.trim();
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
@@ -71,9 +79,9 @@ export async function saveDshProvider(input: { baseUrl: string; apiKey?: string 
   const path = providerPath();
   await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temporary, JSON.stringify({ baseUrl, encryptedApiKey } satisfies StoredProvider), { mode: 0o600 });
+  await writeFile(temporary, JSON.stringify({ baseUrl, model, encryptedApiKey } satisfies StoredDshProvider), { mode: 0o600 });
   await rename(temporary, path);
-  return { baseUrl, configured: true };
+  return { baseUrl, model, configured: true };
 }
 
 interface StoredCodexProvider extends StoredProvider {
@@ -84,9 +92,9 @@ function codexProviderPath(): string {
   return join(app.getPath("userData"), "codex-provider.json");
 }
 
-function normalizeCodexModel(value: string): string {
+function normalizeModel(value: string): string {
   const model = value.trim();
-  if (!model || model.length > 256 || /[\r\n\0]/u.test(model)) throw new Error("Codex 模型 ID 格式无效");
+  if (!model || model.length > 256 || /[\r\n\0]/u.test(model)) throw new Error("模型 ID 格式无效");
   return model;
 }
 
@@ -95,7 +103,7 @@ async function readCodexProvider(): Promise<StoredCodexProvider> {
     const value = JSON.parse(await readFile(codexProviderPath(), "utf8")) as StoredCodexProvider;
     return {
       baseUrl: normalizeBaseUrl(value.baseUrl),
-      model: normalizeCodexModel(value.model),
+      model: normalizeModel(value.model),
       encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
     };
   } catch (error) {
@@ -119,7 +127,7 @@ export async function getCodexProvider(): Promise<CodexProvider> {
 export async function saveCodexProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const previous = await readCodexProvider();
-  const model = normalizeCodexModel(input.model ?? previous.model);
+  const model = normalizeModel(input.model ?? previous.model);
   const apiKey = input.apiKey?.trim();
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
@@ -151,7 +159,7 @@ async function readPiProvider(): Promise<StoredPiProvider> {
     const value = JSON.parse(await readFile(piProviderPath(), "utf8")) as StoredPiProvider;
     return {
       baseUrl: normalizeBaseUrl(value.baseUrl),
-      model: normalizeCodexModel(value.model),
+      model: normalizeModel(value.model),
       encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
     };
   } catch (error) {
@@ -183,7 +191,7 @@ export async function getPiProvider(): Promise<PiProvider> {
 export async function savePiProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const previous = await readPiProvider();
-  const model = normalizeCodexModel(input.model ?? previous.model);
+  const model = normalizeModel(input.model ?? previous.model);
   const apiKey = input.apiKey?.trim();
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
@@ -212,7 +220,7 @@ async function readJevProvider(): Promise<StoredJevProvider> {
     const value = JSON.parse(await readFile(jevProviderPath(), "utf8")) as StoredJevProvider;
     return {
       baseUrl: normalizeBaseUrl(value.baseUrl),
-      model: normalizeCodexModel(value.model),
+      model: normalizeModel(value.model),
       encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
     };
   } catch (error) {
@@ -236,7 +244,7 @@ export async function getJevProvider(): Promise<{ baseUrl: string; model: string
 export async function saveJevProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const previous = await readJevProvider();
-  const model = normalizeCodexModel(input.model ?? previous.model);
+  const model = normalizeModel(input.model ?? previous.model);
   const apiKey = input.apiKey?.trim();
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
