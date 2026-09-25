@@ -63,7 +63,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
               <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : "JEV 决策连接"}</h3>
               {provider && <small>{provider.configured ? "已配置" : "未配置"}</small>}
             </div>
-            <p>为当前实验配置模型服务；不同实验的连接信息分别保存。</p>
+            <p>填写当前实验要使用的模型连接信息。各实验的设置互不影响。</p>
           </div>
           <form className="settings-panel__form" onSubmit={(event) => void save(event)}>
             <div className="settings-panel__field">
@@ -81,9 +81,9 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
             </div>
             <div className="settings-panel__note">
               <strong>连接说明</strong>
-              <p>{runtimeId === "dsh" ? "支持 DeepSeek 官方或兼容 DeepSeek Chat Completions 的中转根地址；不要填写 /chat/completions。" : runtimeId === "codex" ? "Codex 需要兼容 Responses API 的根地址。" : runtimeId === "pi" ? "Pi 使用兼容 DeepSeek Chat Completions 的地址与模型 ID；首次会从 DSH 复制一份独立配置。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
-              {runtimeId === "pi" && <p>Pi 的文件工具限定在工作目录；批准命令执行后，命令本身可访问目录外，请核对审批内容。</p>}
-              <p>密钥由系统凭据服务加密保存在本机，不回传给页面。{runtimeId !== "jev" && "更改配置会重启当前连接。"}</p>
+              <p>{runtimeId === "dsh" ? "支持 DeepSeek 官方或兼容 DeepSeek Chat Completions 的中转根地址；不要填写 /chat/completions。" : runtimeId === "codex" ? "Codex 需要兼容 Responses API 的根地址。" : runtimeId === "pi" ? "填写 DeepSeek 或兼容服务提供的 API 根地址、模型 ID 和 API Key；地址不要包含 /chat/completions。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
+              {runtimeId === "pi" && <p>文件操作限定在所选工作目录。执行命令前会请你确认；允许后，命令仍可能访问目录外。</p>}
+              <p>API Key 会加密保存在本机。以后修改设置时，密钥留空即可保持不变。{runtimeId !== "jev" && "保存后会重新连接。"}</p>
             </div>
             {error && <p className="settings-panel__error" role="alert">{error}</p>}
             <button className="settings-panel__save" disabled={saving} type="submit">{saving ? "保存中…" : runtimeId === "jev" ? "保存设置" : "保存并连接"}</button>

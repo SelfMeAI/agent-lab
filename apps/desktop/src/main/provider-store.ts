@@ -155,23 +155,9 @@ async function readPiProvider(): Promise<StoredPiProvider> {
       encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { baseUrl: defaultBaseUrl, model: defaultPiModel };
+    throw error;
   }
-
-  // Seed Pi once from the existing DSH connection. The two files are independent thereafter.
-  const dsh = await readProvider();
-  let encryptedApiKey = dsh.encryptedApiKey;
-  const environmentKey = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!encryptedApiKey && environmentKey && await safeStorage.isAsyncEncryptionAvailable()) {
-    encryptedApiKey = (await safeStorage.encryptStringAsync(environmentKey)).toString("base64");
-  }
-  const initial: StoredPiProvider = {
-    baseUrl: dsh.baseUrl,
-    model: defaultPiModel,
-    ...(encryptedApiKey ? { encryptedApiKey } : {}),
-  };
-  if (encryptedApiKey) await writePiProvider(initial);
-  return initial;
 }
 
 async function writePiProvider(value: StoredPiProvider): Promise<void> {
