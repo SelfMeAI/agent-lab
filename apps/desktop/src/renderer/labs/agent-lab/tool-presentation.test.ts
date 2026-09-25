@@ -65,6 +65,7 @@ describe("agent tool presentation", () => {
   it("presents commands and plans without raw JSON", () => {
     const command = presentEntry(entry({ type: "commandExecution", command: "npm test", cwd: "/work", exitCode: 0, durationMs: 1900, aggregatedOutput: "2 passed" }));
     expect(command).toMatchObject({ label: "执行命令", command: "npm test", cwd: "/work", exitCode: 0, duration: "1.9s", output: "2 passed" });
+    expect(presentEntry(entry({ type: "commandExecution", durationMs: 0 })).duration).toBe("<0.1s");
     const plan = presentEntry(entry({ plan: [{ step: "检查目录", status: "completed" }, { step: "修复样式", status: "inProgress" }] }, { kind: "status" }));
     expect(plan.plan).toHaveLength(2);
   });

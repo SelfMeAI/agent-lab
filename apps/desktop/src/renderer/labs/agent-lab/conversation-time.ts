@@ -59,9 +59,14 @@ export function elapsedTime(startedAt: string, now = Date.now()): string | null 
     : `${pad(minutes)}:${pad(seconds % 60)}`;
 }
 
+export function shortDuration(milliseconds: number): string | null {
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return null;
+  return milliseconds < 100 ? "<0.1s" : `${(milliseconds / 1000).toFixed(1)}s`;
+}
+
 export function durationBetween(startedAt: string, finishedAt: string): string | null {
   const start = parseTimestamp(startedAt)?.getTime();
   const finish = parseTimestamp(finishedAt)?.getTime();
   if (start === undefined || finish === undefined || finish < start) return null;
-  return finish - start < 100 ? "<0.1s" : `${((finish - start) / 1000).toFixed(1)}s`;
+  return shortDuration(finish - start);
 }

@@ -1,5 +1,6 @@
 import { diffLines } from "diff";
 import type { TranscriptEntry } from "./agent-store";
+import { shortDuration } from "./conversation-time";
 
 type RecordValue = Record<string, unknown>;
 
@@ -192,7 +193,7 @@ export function presentEntry(entry: TranscriptEntry): EntryPresentation {
   const command = string(raw.command) ?? string(rawInput.command);
   const cwd = string(raw.cwd);
   const exitCode = typeof raw.exitCode === "number" ? raw.exitCode : undefined;
-  const duration = typeof raw.durationMs === "number" ? `${(raw.durationMs / 1000).toFixed(1)}s` : undefined;
+  const duration = typeof raw.durationMs === "number" ? shortDuration(raw.durationMs) ?? undefined : undefined;
   if (!output && raw.rawOutput !== undefined) {
     output = string(raw.rawOutput) ?? string(record(raw.rawOutput).text);
   }
