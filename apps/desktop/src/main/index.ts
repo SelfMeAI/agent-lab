@@ -101,10 +101,6 @@ void app.whenReady().then(async () => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
   });
-  ipcMain.handle("selfme:migrate-legacy-workspaces", async (event, workspaces) => {
-    assertMainWindow(event);
-    await appConfig.migrateLegacyWorkspaces(workspaces);
-  });
   ipcMain.handle("selfme:open-external", async (event, value: string): Promise<void> => {
     assertMainWindow(event);
     const url = new URL(value);

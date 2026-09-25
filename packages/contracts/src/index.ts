@@ -147,7 +147,6 @@ export interface JevDecision {
 
 export interface DesktopBridge {
   getAppInfo(): Promise<AppInfo>;
-  migrateLegacyWorkspaces(workspaces: Partial<Record<AgentRuntimeId, string>>): Promise<void>;
   openExternal(url: string): Promise<void>;
   chooseWorkspace(): Promise<string | null>;
   listRuntimes(): Promise<RuntimeStatus[]>;

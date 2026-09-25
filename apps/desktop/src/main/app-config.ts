@@ -43,21 +43,6 @@ export class AppConfigStore {
     return { ...(this.data.agentLab[runtimeId] ?? { selectedSessionId: null, lastWorkspace: null }) };
   }
 
-  async migrateLegacyWorkspaces(workspaces: Partial<Record<AgentRuntimeId, string>>): Promise<void> {
-    if (!workspaces || typeof workspaces !== "object" || Array.isArray(workspaces)) throw new Error("旧工作目录格式无效");
-    let changed = false;
-    for (const runtimeId of ["dsh", "codex", "pi", "kimi-code"] as const) {
-      const workspace = workspaces[runtimeId];
-      if (workspace === undefined) continue;
-      if (typeof workspace !== "string" || !workspace.trim() || workspace.length > 4096 || /\0/u.test(workspace)) throw new Error("旧工作目录格式无效");
-      const current = this.data.agentLab[runtimeId];
-      if (current?.lastWorkspace) continue;
-      this.data.agentLab[runtimeId] = { selectedSessionId: current?.selectedSessionId ?? null, lastWorkspace: workspace };
-      changed = true;
-    }
-    if (changed) await this.write();
-  }
-
   async select(runtimeId: AgentRuntimeId, sessionId: string, workspace: string): Promise<void> {
     const current = this.data.agentLab[runtimeId];
     if (current?.selectedSessionId === sessionId && current.lastWorkspace === workspace) return;
