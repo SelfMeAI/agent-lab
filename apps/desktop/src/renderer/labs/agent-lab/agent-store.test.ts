@@ -48,13 +48,38 @@ describe("agent transcript updates", () => {
     ];
     store.loadHistory("a", history);
     expect(store.getSnapshot().entries.at(-1)).toMatchObject({
-      kind: "turn_end", at: "2026-09-25T00:02:30Z", startedAt: "2026-09-25T00:01:00Z",
+      kind: "turn_end", at: "2026-09-25T00:02:30Z", startedAt: "2026-09-25T00:01:00Z", hasExecutionActivity: true,
     });
     expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end")).toHaveLength(1);
     store.ingest(event("a", 8, { kind: "status", phase: "ready", at: "2026-09-25T00:03:00Z" }));
     expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end")).toHaveLength(1);
     store.loadHistory("a", history);
     expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end")).toHaveLength(1);
+  });
+
+  it("marks only turns with tools or approvals for elapsed-time display", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    store.ingest(event("a", 1, { kind: "user", text: "你好", at: "2026-09-25T00:00:00Z" }));
+    store.ingest(event("a", 2, { kind: "message", text: "你好！", at: "2026-09-25T00:00:01Z" }));
+    store.ingest(event("a", 3, { kind: "status", phase: "ready", at: "2026-09-25T00:00:02Z" }));
+
+    store.ingest(event("a", 4, { kind: "user", text: "看看目录", at: "2026-09-25T00:01:00Z" }));
+    store.ingest(event("a", 5, { kind: "tool", toolCallId: "read-1", toolStatus: "running", at: "2026-09-25T00:01:01Z" }));
+    store.ingest(event("a", 6, { kind: "tool", toolCallId: "read-1", toolStatus: "completed", at: "2026-09-25T00:01:02Z" }));
+    store.ingest(event("a", 7, { kind: "status", phase: "ready", at: "2026-09-25T00:01:03Z" }));
+
+    store.ingest(event("a", 8, { kind: "user", text: "需要确认", at: "2026-09-25T00:02:00Z" }));
+    store.ingest(event("a", 9, { kind: "approval", at: "2026-09-25T00:02:01Z" }));
+    store.removeAllApprovals("a");
+    store.ingest(event("a", 10, { kind: "status", phase: "ready", at: "2026-09-25T00:02:02Z" }));
+
+    store.ingest(event("a", 11, { kind: "user", text: "谢谢", at: "2026-09-25T00:03:00Z" }));
+    store.ingest(event("a", 12, { kind: "message", text: "不客气", at: "2026-09-25T00:03:01Z" }));
+    store.ingest(event("a", 13, { kind: "status", phase: "ready", at: "2026-09-25T00:03:02Z" }));
+
+    expect(store.getSnapshot().entries.filter((entry) => entry.kind === "turn_end").map((entry) => entry.hasExecutionActivity))
+      .toEqual([false, true, true, false]);
   });
 
   it("does not invent a finished turn when an interrupted session reconnects", () => {

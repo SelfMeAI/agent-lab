@@ -127,6 +127,7 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
   const time = clockTime(entry.at);
   const exact = exactTime(entry.at);
   if (entry.kind === "turn_end") {
+    if (!entry.hasExecutionActivity) return <></>;
     const duration = entry.startedAt ? turnDuration(entry.startedAt, entry.at) : null;
     return duration ? <div className="dsh-turn-duration" title={`${exactTime(entry.startedAt!)} → ${exact}`}><span>本轮用时</span><strong>{duration}</strong></div> : <></>;
   }
@@ -402,7 +403,9 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
   const activeTool = [...activeEntries].reverse().find((entry) => entry.kind === "tool" && ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? ""));
   const liveStatus = snapshot.phase === "approval" ? "等待审批后继续" : activeTool ? `${presentEntry(activeTool).label} · ${presentEntry(activeTool).summary}` : snapshot.statusText;
-  const transcriptEntries = visibleTranscriptEntries(snapshot.entries).filter((entry) => entry.kind !== "thought");
+  const transcriptEntries = visibleTranscriptEntries(snapshot.entries).filter((entry) =>
+    entry.kind !== "thought" && (entry.kind !== "turn_end" || entry.hasExecutionActivity),
+  );
   const runningSince = ["running", "approval", "cancelling"].includes(snapshot.phase) ? snapshot.entries[lastPromptIndex]?.at : undefined;
 
   return (

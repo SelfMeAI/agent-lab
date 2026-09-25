@@ -15,6 +15,7 @@ export interface TranscriptEntry {
   at: string;
   startedAt?: string;
   finishedAt?: string;
+  hasExecutionActivity?: boolean;
 }
 
 interface ConversationSnapshot {
@@ -22,6 +23,7 @@ interface ConversationSnapshot {
   phase: RuntimePhase;
   statusText: string;
   currentTask: string | null;
+  hasExecutionActivity: boolean;
 }
 
 export interface AgentSnapshot extends ConversationSnapshot {
@@ -32,7 +34,7 @@ export interface AgentSnapshot extends ConversationSnapshot {
   loaded: boolean;
 }
 
-const emptyConversation = (): ConversationSnapshot => ({ entries: [], phase: "idle", statusText: "尚未连接", currentTask: null });
+const emptyConversation = (): ConversationSnapshot => ({ entries: [], phase: "idle", statusText: "尚未连接", currentTask: null, hasExecutionActivity: false });
 const activityKinds = new Set(["user", "message", "tool", "approval", "artifact", "error"]);
 
 /** Sort on task starts, not status/tool events, so active rows do not jump. */
@@ -47,7 +49,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
   if (event.kind === "user") {
     const text = event.text?.trim() ?? "";
     return {
-      ...snapshot, currentTask: text, phase: "running", statusText: "正在执行任务",
+      ...snapshot, currentTask: text, phase: "running", statusText: "正在执行任务", hasExecutionActivity: false,
       entries: [...snapshot.entries, { id: `${event.sessionId}:${event.eventIndex}`, kind: "user", runId: event.runId, text, at: event.at }],
     };
   }
@@ -62,6 +64,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
         entries = [...entries, {
           id: `${event.sessionId}:${event.eventIndex}`, kind: "turn_end", runId: user.runId,
           text: event.text ?? "", at: event.at, startedAt: user.at,
+          hasExecutionActivity: snapshot.hasExecutionActivity,
         }];
       }
     }
@@ -90,7 +93,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
           && entries[index].raw && typeof entries[index].raw === "object" && !Array.isArray(entries[index].raw)
           ? { ...entries[index].raw, ...event.raw } : event.raw ?? entries[index].raw,
       };
-      return { ...snapshot, entries };
+      return { ...snapshot, entries, hasExecutionActivity: true };
     }
   }
   entries.push({
@@ -98,7 +101,11 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
     text: event.text ?? "", title: event.title, toolCallId: event.toolCallId,
     toolStatus: event.toolStatus, approval: event.approval, raw: event.raw, at: event.at,
   });
-  return { ...snapshot, entries, phase: kind === "approval" ? "approval" : kind === "error" ? "error" : snapshot.phase };
+  return {
+    ...snapshot, entries,
+    hasExecutionActivity: snapshot.hasExecutionActivity || kind === "tool" || kind === "approval",
+    phase: kind === "approval" ? "approval" : kind === "error" ? "error" : snapshot.phase,
+  };
 }
 
 export function createAgentStore(runtimeId: AgentRuntimeId) {
