@@ -5,7 +5,7 @@ import { LabIcon } from "../shell/LabIcon";
 
 export function LabPage({ lab, viewId, onOpenSettings, providerRevision }: LabPageProps): JSX.Element {
   const Content = lab.Page ?? PendingLabPage;
-  if (lab.id === "agent-lab" || lab.id === "jev-lab") return <main className={lab.id === "jev-lab" ? `jev-lab-page${viewId === "xiangqi" ? " jev-lab-page--workspace" : ""}` : `agent-lab-page${viewId === "dsh" || viewId === "codex" || viewId === "pi" ? " agent-lab-page--workspace" : ""}`}><Content lab={lab} viewId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} /></main>;
+  if (lab.id === "agent-lab" || lab.id === "jev-lab") return <main className={lab.id === "jev-lab" ? `jev-lab-page${viewId === "xiangqi" ? " jev-lab-page--workspace" : ""}` : `agent-lab-page${viewId === "dsh" || viewId === "codex" || viewId === "pi" || viewId === "kimi-code" ? " agent-lab-page--workspace" : ""}`}><Content lab={lab} viewId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} /></main>;
   return (
     <main className="lab-content" style={{ "--accent": lab.accent } as CSSProperties}>
       <div className="lab-heading">

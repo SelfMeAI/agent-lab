@@ -6,7 +6,7 @@ import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
-const names = { dsh: "DSH", codex: "CODEX", pi: "PI" } as const;
+const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE" } as const;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

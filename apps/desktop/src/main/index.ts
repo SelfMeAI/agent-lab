@@ -4,11 +4,12 @@ import type { AppInfo } from "../../../../packages/contracts/src/index";
 import { AdapterRegistry } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
+import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
 import { PiAdapter } from "../../../../packages/runtime/src/pi";
 import {
   getCodexProvider, getCodexProviderStatus, getDshProvider, getDshProviderStatus,
-  getJevProviderStatus, getPiProvider, getPiProviderStatus,
-  saveCodexProvider, saveDshProvider, saveJevProvider, savePiProvider,
+  getJevProviderStatus, getKimiProvider, getKimiProviderStatus, getPiProvider, getPiProviderStatus,
+  saveCodexProvider, saveDshProvider, saveJevProvider, saveKimiProvider, savePiProvider,
 } from "./provider-store";
 import { discoverModels, modelListUrl } from "./model-discovery";
 import { decideJevMove } from "./jev-decision";
@@ -18,6 +19,7 @@ let mainWindow: BrowserWindow | null = null;
 let dsh: DshAdapter;
 let codex: CodexAdapter;
 let pi: PiAdapter;
+let kimi: KimiAdapter;
 
 app.setName("SelfMe Lab");
 
@@ -88,9 +90,18 @@ app.whenReady().then(() => {
     provider: getPiProvider,
   });
   registry.register(pi);
+  kimi = new KimiAdapter({
+    executable: app.isPackaged
+      ? join(process.resourcesPath, "kimi-code", "bin", "kimi")
+      : join(__dirname, "../../../../runtimes/kimi-code/bin/kimi"),
+    homeDirectory: join(app.getPath("userData"), "kimi-home"),
+    provider: getKimiProvider,
+  });
+  registry.register(kimi);
   dsh.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
   codex.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
   pi.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
+  kimi.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
@@ -119,17 +130,20 @@ app.whenReady().then(() => {
     if (runtimeId === "dsh") return getDshProviderStatus();
     if (runtimeId === "codex") return getCodexProviderStatus();
     if (runtimeId === "pi") return getPiProviderStatus();
+    if (runtimeId === "kimi-code") return getKimiProviderStatus();
     if (runtimeId === "jev") return getJevProviderStatus();
     throw new Error("此运行时暂不支持模型配置");
   });
   ipcMain.handle("selfme:list-provider-models", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string }) => {
     assertMainWindow(event);
-    if (!["dsh", "codex", "pi"].includes(runtimeId) || !config || typeof config.baseUrl !== "string" || (config.apiKey !== undefined && typeof config.apiKey !== "string")) {
+    if (!["dsh", "codex", "pi", "kimi-code"].includes(runtimeId) || !config || typeof config.baseUrl !== "string" || (config.apiKey !== undefined && typeof config.apiKey !== "string")) {
       throw new Error("无效的模型列表请求");
     }
     let apiKey = config.apiKey?.trim();
     if (!apiKey) {
-      const saved = runtimeId === "dsh" ? await getDshProvider() : runtimeId === "codex" ? await getCodexProvider() : await getPiProvider();
+      const saved = runtimeId === "dsh" ? await getDshProvider()
+        : runtimeId === "codex" ? await getCodexProvider()
+          : runtimeId === "pi" ? await getPiProvider() : await getKimiProvider();
       if (modelListUrl(config.baseUrl) !== modelListUrl(saved.baseUrl)) throw new Error("API 地址已更改，请先填写该地址的 API Key");
       apiKey = saved.apiKey;
     }
@@ -153,6 +167,12 @@ app.whenReady().then(() => {
       if (pi.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
       const status = await savePiProvider(config);
       await pi.stop();
+      return status;
+    }
+    if (runtimeId === "kimi-code") {
+      if (kimi.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      const status = await saveKimiProvider(config);
+      await kimi.stop();
       return status;
     }
     if (runtimeId === "jev") return saveJevProvider(config);
@@ -201,9 +221,9 @@ app.whenReady().then(() => {
 
 let quitAfterCleanup = false;
 app.on("before-quit", (event) => {
-  if (!dsh || !codex || !pi || quitAfterCleanup) return;
+  if (!dsh || !codex || !pi || !kimi || quitAfterCleanup) return;
   event.preventDefault();
-  void Promise.allSettled([dsh.stop(), codex.stop(), pi.stop()]).finally(() => {
+  void Promise.allSettled([dsh.stop(), codex.stop(), pi.stop(), kimi.stop()]).finally(() => {
     quitAfterCleanup = true;
     app.quit();
   });

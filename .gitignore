@@ -2,6 +2,7 @@ node_modules/
 runtimes/codex/bin/
 runtimes/codex/codex-resources/
 runtimes/codex/codex-path/
+runtimes/kimi-code/bin/
 .cache/
 .work/
 design/review/

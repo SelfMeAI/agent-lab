@@ -14,6 +14,10 @@ extraResources:
     to: codex
     filter:
       - "**/*"
+  - from: ../../runtimes/kimi-code
+    to: kimi-code
+    filter:
+      - "**/*"
 asar: true
 mac:
   category: public.app-category.developer-tools

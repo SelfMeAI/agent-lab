@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ProviderStatus } from "../../../../packages/contracts/src/index";
 import type { CodexProvider } from "../../../../packages/runtime/src/codex";
 import type { DshProvider } from "../../../../packages/runtime/src/dsh";
+import type { KimiProvider } from "../../../../packages/runtime/src/kimi";
 import type { PiProvider } from "../../../../packages/runtime/src/pi";
 
 interface StoredProvider {
@@ -144,7 +145,7 @@ export async function saveCodexProvider(input: { baseUrl: string; model?: string
   return { baseUrl, model, configured: true };
 }
 
-interface StoredPiProvider extends StoredProvider {
+interface StoredModelProvider extends StoredProvider {
   model: string;
 }
 
@@ -154,9 +155,9 @@ function piProviderPath(): string {
   return join(app.getPath("userData"), "pi-provider.json");
 }
 
-async function readPiProvider(): Promise<StoredPiProvider> {
+async function readPiProvider(): Promise<StoredModelProvider> {
   try {
-    const value = JSON.parse(await readFile(piProviderPath(), "utf8")) as StoredPiProvider;
+    const value = JSON.parse(await readFile(piProviderPath(), "utf8")) as StoredModelProvider;
     return {
       baseUrl: normalizeBaseUrl(value.baseUrl),
       model: normalizeModel(value.model),
@@ -168,7 +169,7 @@ async function readPiProvider(): Promise<StoredPiProvider> {
   }
 }
 
-async function writePiProvider(value: StoredPiProvider): Promise<void> {
+async function writePiProvider(value: StoredModelProvider): Promise<void> {
   const path = piProviderPath();
   await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -201,6 +202,63 @@ export async function savePiProvider(input: { baseUrl: string; model?: string; a
   }
   if (!encryptedApiKey) throw new Error("请填写 Pi API Key");
   await writePiProvider({ baseUrl, model, encryptedApiKey });
+  return { baseUrl, model, configured: true };
+}
+
+const defaultKimiBaseUrl = "https://api.kimi.com/coding/v1";
+const defaultKimiModel = "kimi-for-coding";
+
+function kimiProviderPath(): string {
+  return join(app.getPath("userData"), "kimi-provider.json");
+}
+
+async function readKimiProvider(): Promise<StoredModelProvider> {
+  try {
+    const value = JSON.parse(await readFile(kimiProviderPath(), "utf8")) as StoredModelProvider;
+    return {
+      baseUrl: normalizeBaseUrl(value.baseUrl),
+      model: normalizeModel(value.model),
+      encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      const dsh = await readProvider();
+      if (dsh.encryptedApiKey) return dsh;
+      return { baseUrl: defaultKimiBaseUrl, model: defaultKimiModel };
+    }
+    throw error;
+  }
+}
+
+export async function getKimiProviderStatus(): Promise<ProviderStatus> {
+  const stored = await readKimiProvider();
+  return { baseUrl: stored.baseUrl, model: stored.model, configured: Boolean(stored.encryptedApiKey) };
+}
+
+export async function getKimiProvider(): Promise<KimiProvider> {
+  const stored = await readKimiProvider();
+  if (!stored.encryptedApiKey) throw new Error("请先配置 Kimi Code 模型 API Key");
+  const result = await safeStorage.decryptStringAsync(Buffer.from(stored.encryptedApiKey, "base64"));
+  return { baseUrl: stored.baseUrl, model: stored.model, apiKey: result.result };
+}
+
+export async function saveKimiProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
+  const baseUrl = normalizeBaseUrl(input.baseUrl);
+  const previous = await readKimiProvider();
+  const model = normalizeModel(input.model ?? previous.model);
+  const apiKey = input.apiKey?.trim();
+  let encryptedApiKey = previous.encryptedApiKey;
+  if (apiKey) {
+    if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
+    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+  }
+  if (!encryptedApiKey) throw new Error("请填写 Kimi Code API Key");
+  const path = kimiProviderPath();
+  await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify({ baseUrl, model, encryptedApiKey } satisfies StoredModelProvider), { mode: 0o600 });
+  await rename(temporary, path);
   return { baseUrl, model, configured: true };
 }
 

@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/MoonshotAI/kimi-code",
+  "version": "2.1.1",
+  "releaseTag": "@moonshot-ai/kimi-code@2.1.1",
+  "target": "darwin-arm64",
+  "archive": "kimi-code-darwin-arm64.tar.gz",
+  "archiveSha256": "8c3bad99571b16abd113ab5d511a98a36b852c0d5493991842a67b8c2bc4ecd0",
+  "binarySha256": "4bab6f96c2c289368b7f05a04f66737c53a59ce740f932d8f149240584758efb"
+}
