@@ -6,7 +6,7 @@ import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
-const names = { dsh: "DSH", codex: "CODEX" } as const;
+const names = { dsh: "DSH", codex: "CODEX", pi: "PI" } as const;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -85,7 +85,7 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
             disabled={approvalBusy}
             key={option.optionId}
             onClick={() => onApprove(entry.approval!.requestId, option.optionId)}
-            title={option.kind === "allow_session" ? "仅当前 Codex 会话有效，新会话会重新询问" : undefined}
+            title={option.kind === "allow_session" ? "仅当前会话有效，新会话会重新询问" : undefined}
             type="button"
           >{option.name}</button>
         ))}
@@ -272,7 +272,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           <div className="dsh-conversation__scroll" ref={outputRef} onScroll={trackOutputScroll}>
             {snapshot.entries.length === 0 && <div className="dsh-conversation__empty">
               <LabIcon runtimeId={runtimeId} /><h2>准备好让 {names[runtimeId]} 开始工作</h2>
-              <p>{!workspace ? "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
+              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
               {!workspace && <button onClick={() => void chooseWorkspace()} type="button">选择工作目录</button>}
               {workspace && !provider?.configured && <button onClick={onOpenSettings} type="button">配置模型</button>}
             </div>}

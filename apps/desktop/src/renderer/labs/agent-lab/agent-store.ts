@@ -1,6 +1,6 @@
 import type { ApprovalRequest, RunEvent, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 
-export type AgentRuntimeId = "dsh" | "codex";
+export type AgentRuntimeId = "dsh" | "codex" | "pi";
 
 export interface TranscriptEntry {
   id: string;
@@ -110,6 +110,7 @@ function createAgentStore(runtimeId: AgentRuntimeId) {
 export const agentStores = {
   dsh: createAgentStore("dsh"),
   codex: createAgentStore("codex"),
+  pi: createAgentStore("pi"),
 };
 
 let unsubscribeBridge: (() => void) | null = null;
@@ -117,7 +118,7 @@ let unsubscribeBridge: (() => void) | null = null;
 export function attachAgentEvents(): () => void {
   if (!unsubscribeBridge && window.selfmeLab) {
     unsubscribeBridge = window.selfmeLab.onRunEvent((event) => {
-      if (event.runtimeId === "dsh" || event.runtimeId === "codex") agentStores[event.runtimeId].ingest(event);
+      if (event.runtimeId === "dsh" || event.runtimeId === "codex" || event.runtimeId === "pi") agentStores[event.runtimeId].ingest(event);
     });
   }
   return () => { unsubscribeBridge?.(); unsubscribeBridge = null; };

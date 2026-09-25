@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ProviderStatus } from "../../../../packages/contracts/src/index";
 import type { CodexProvider } from "../../../../packages/runtime/src/codex";
 import type { DshProvider } from "../../../../packages/runtime/src/dsh";
+import type { PiProvider } from "../../../../packages/runtime/src/pi";
 
 interface StoredProvider {
   baseUrl: string;
@@ -132,6 +133,80 @@ export async function saveCodexProvider(input: { baseUrl: string; model?: string
   const temporary = `${path}.${randomUUID()}.tmp`;
   await writeFile(temporary, JSON.stringify({ baseUrl, model, encryptedApiKey } satisfies StoredCodexProvider), { mode: 0o600 });
   await rename(temporary, path);
+  return { baseUrl, model, configured: true };
+}
+
+interface StoredPiProvider extends StoredProvider {
+  model: string;
+}
+
+const defaultPiModel = "deepseek-v4-pro";
+
+function piProviderPath(): string {
+  return join(app.getPath("userData"), "pi-provider.json");
+}
+
+async function readPiProvider(): Promise<StoredPiProvider> {
+  try {
+    const value = JSON.parse(await readFile(piProviderPath(), "utf8")) as StoredPiProvider;
+    return {
+      baseUrl: normalizeBaseUrl(value.baseUrl),
+      model: normalizeCodexModel(value.model),
+      encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  // Seed Pi once from the existing DSH connection. The two files are independent thereafter.
+  const dsh = await readProvider();
+  let encryptedApiKey = dsh.encryptedApiKey;
+  const environmentKey = process.env.DEEPSEEK_API_KEY?.trim();
+  if (!encryptedApiKey && environmentKey && await safeStorage.isAsyncEncryptionAvailable()) {
+    encryptedApiKey = (await safeStorage.encryptStringAsync(environmentKey)).toString("base64");
+  }
+  const initial: StoredPiProvider = {
+    baseUrl: dsh.baseUrl,
+    model: defaultPiModel,
+    ...(encryptedApiKey ? { encryptedApiKey } : {}),
+  };
+  if (encryptedApiKey) await writePiProvider(initial);
+  return initial;
+}
+
+async function writePiProvider(value: StoredPiProvider): Promise<void> {
+  const path = piProviderPath();
+  await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+export async function getPiProviderStatus(): Promise<ProviderStatus> {
+  const stored = await readPiProvider();
+  return { baseUrl: stored.baseUrl, model: stored.model, configured: Boolean(stored.encryptedApiKey) };
+}
+
+export async function getPiProvider(): Promise<PiProvider> {
+  const stored = await readPiProvider();
+  if (!stored.encryptedApiKey) throw new Error("请先配置 Pi 模型 API Key");
+  const result = await safeStorage.decryptStringAsync(Buffer.from(stored.encryptedApiKey, "base64"));
+  return { baseUrl: stored.baseUrl, model: stored.model, apiKey: result.result };
+}
+
+export async function savePiProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
+  const baseUrl = normalizeBaseUrl(input.baseUrl);
+  const previous = await readPiProvider();
+  const model = normalizeCodexModel(input.model ?? previous.model);
+  const apiKey = input.apiKey?.trim();
+  let encryptedApiKey = previous.encryptedApiKey;
+  if (apiKey) {
+    if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
+    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+  }
+  if (!encryptedApiKey) throw new Error("请填写 Pi API Key");
+  await writePiProvider({ baseUrl, model, encryptedApiKey });
   return { baseUrl, model, configured: true };
 }
 

@@ -16,7 +16,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if ((runtimeId !== "dsh" && runtimeId !== "codex" && runtimeId !== "jev") || !window.selfmeLab) return;
+    if ((runtimeId !== "dsh" && runtimeId !== "codex" && runtimeId !== "pi" && runtimeId !== "jev") || !window.selfmeLab) return;
     void window.selfmeLab.getProviderStatus(runtimeId).then((status) => {
       setProvider(status);
       setBaseUrl(status.baseUrl);
@@ -36,7 +36,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
     setSaving(true);
     setError(null);
     try {
-      const status = await window.selfmeLab.saveProvider(runtimeId ?? "", { baseUrl, model: runtimeId === "codex" || runtimeId === "jev" ? model : undefined, apiKey: apiKey.trim() || undefined });
+      const status = await window.selfmeLab.saveProvider(runtimeId ?? "", { baseUrl, model: runtimeId === "codex" || runtimeId === "pi" || runtimeId === "jev" ? model : undefined, apiKey: apiKey.trim() || undefined });
       setProvider(status);
       setApiKey("");
       onProviderSaved();
@@ -56,11 +56,11 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
           <button onClick={onClose} type="button" aria-label="关闭设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg></button>
         </div>
         <div className="settings-panel__body">
-        {runtimeId === "dsh" || runtimeId === "codex" || runtimeId === "jev" ? <>
+        {runtimeId === "dsh" || runtimeId === "codex" || runtimeId === "pi" || runtimeId === "jev" ? <>
           <div className="settings-panel__intro">
             <span>LOCAL CONFIGURATION</span>
             <div className="settings-panel__title-row">
-              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : "JEV 决策连接"}</h3>
+              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : "JEV 决策连接"}</h3>
               {provider && <small>{provider.configured ? "已配置" : "未配置"}</small>}
             </div>
             <p>为当前实验配置模型服务；不同实验的连接信息分别保存。</p>
@@ -70,7 +70,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
               <label htmlFor="provider-base-url">API BASE URL</label>
               <input id="provider-base-url" onChange={(event) => setBaseUrl(event.target.value)} type="url" value={baseUrl} required spellCheck={false} />
             </div>
-            {(runtimeId === "codex" || runtimeId === "jev") && <div className="settings-panel__field">
+            {(runtimeId === "codex" || runtimeId === "pi" || runtimeId === "jev") && <div className="settings-panel__field">
               <label htmlFor="provider-model">MODEL ID</label>
               <input id="provider-model" onChange={(event) => setModel(event.target.value)} type="text" value={model} required spellCheck={false} />
             </div>}
@@ -81,7 +81,8 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
             </div>
             <div className="settings-panel__note">
               <strong>连接说明</strong>
-              <p>{runtimeId === "dsh" ? "支持 DeepSeek 官方或兼容 DeepSeek Chat Completions 的中转根地址；不要填写 /chat/completions。" : runtimeId === "codex" ? "Codex 需要兼容 Responses API 的根地址。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
+              <p>{runtimeId === "dsh" ? "支持 DeepSeek 官方或兼容 DeepSeek Chat Completions 的中转根地址；不要填写 /chat/completions。" : runtimeId === "codex" ? "Codex 需要兼容 Responses API 的根地址。" : runtimeId === "pi" ? "Pi 使用兼容 DeepSeek Chat Completions 的地址与模型 ID；首次会从 DSH 复制一份独立配置。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
+              {runtimeId === "pi" && <p>Pi 的文件工具限定在工作目录；批准命令执行后，命令本身可访问目录外，请核对审批内容。</p>}
               <p>密钥由系统凭据服务加密保存在本机，不回传给页面。{runtimeId !== "jev" && "更改配置会重启当前连接。"}</p>
             </div>
             {error && <p className="settings-panel__error" role="alert">{error}</p>}

@@ -14,7 +14,7 @@ export const atlasModules: readonly AtlasModule[] = [
   {
     id: "agent-lab",
     title: "Agent Lab",
-    description: "DSH / Codex 本地工作区",
+    description: "DSH / Codex / Pi 本地工作区",
     domainIds: [
       "providers",
       "reasoning",
@@ -41,7 +41,7 @@ export const atlasModules: readonly AtlasModule[] = [
       "resilience",
       "channels",
     ],
-    note: "当前代码有 DSH 与 Codex 的本地对话和工具事件；原生能力未自动算作桌面产品能力。",
+    note: "当前代码有 DSH、Codex 与 Pi 的本地对话和工具事件；原生能力未自动算作桌面产品能力。",
   },
   {
     id: "remote-agent-lab",
@@ -156,7 +156,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "providers.provider-accounts",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "usable",
     upstream: "unknown",
@@ -171,7 +171,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "sessions.create",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "integrated",
     upstream: "unknown",
@@ -180,6 +180,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
       "apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx",
       "packages/runtime/src/dsh.ts",
       "packages/runtime/src/codex.ts",
+      "packages/runtime/src/pi.ts",
     ],
     checkedAt: "2026-09-25",
     note: "能创建运行会话；列表、恢复和跨端接续未在桌面产品中建立。",
@@ -187,7 +188,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "files.workspace-select",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "usable",
     upstream: "unknown",
@@ -199,7 +200,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "shell.foreground",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "integrated",
     upstream: "unknown",
@@ -207,6 +208,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     evidence: [
       "packages/runtime/src/dsh.ts",
       "packages/runtime/src/codex.ts",
+      "packages/runtime/src/pi.ts",
       "apps/desktop/src/renderer/labs/agent-lab/tool-presentation.ts",
     ],
     checkedAt: "2026-09-25",
@@ -215,13 +217,14 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "files.file-diff",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "usable",
     upstream: "unknown",
     passedChecks: [0],
     evidence: [
       "packages/runtime/src/file-change-tracker.ts",
+      "packages/runtime/src/pi.ts",
       "apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx",
       "packages/runtime/src/file-change-tracker.test.ts",
     ],
@@ -231,7 +234,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "approvals.allow-once",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "integrated",
     upstream: "unknown",
@@ -240,6 +243,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
       "apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx",
       "packages/runtime/src/dsh.ts",
       "packages/runtime/src/codex.ts",
+      "packages/runtime/src/pi.ts",
     ],
     checkedAt: "2026-09-25",
     note: "能渲染并响应运行时提供的审批选项；超时恢复和范围审计另算。",
@@ -247,7 +251,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "composer.multiline",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "usable",
     upstream: "unknown",
@@ -259,7 +263,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "live-experience.action-stream",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "usable",
     upstream: "unknown",
@@ -274,7 +278,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "live-experience.live-status",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "usable",
     upstream: "unknown",
@@ -286,7 +290,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "consent-experience.approval-card",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "integrated",
     upstream: "unknown",
@@ -298,7 +302,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "visual-system.scroll",
     moduleId: "agent-lab",
-    harnessId: "DSH / Codex",
+    harnessId: "DSH / Codex / Pi",
     platform: "desktop",
     state: "integrated",
     upstream: "unknown",

@@ -4,10 +4,11 @@ import type { AppInfo } from "../../../../packages/contracts/src/index";
 import { AdapterRegistry } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
+import { PiAdapter } from "../../../../packages/runtime/src/pi";
 import {
   getCodexProvider, getCodexProviderStatus, getDshProvider, getDshProviderStatus,
-  getJevProviderStatus,
-  saveCodexProvider, saveDshProvider, saveJevProvider,
+  getJevProviderStatus, getPiProvider, getPiProviderStatus,
+  saveCodexProvider, saveDshProvider, saveJevProvider, savePiProvider,
 } from "./provider-store";
 import { decideJevMove } from "./jev-decision";
 
@@ -15,6 +16,7 @@ const registry = new AdapterRegistry();
 let mainWindow: BrowserWindow | null = null;
 let dsh: DshAdapter;
 let codex: CodexAdapter;
+let pi: PiAdapter;
 
 app.setName("SelfMe Lab");
 
@@ -80,8 +82,14 @@ app.whenReady().then(() => {
     provider: getCodexProvider,
   });
   registry.register(codex);
+  pi = new PiAdapter({
+    homeDirectory: join(app.getPath("userData"), "pi-home"),
+    provider: getPiProvider,
+  });
+  registry.register(pi);
   dsh.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
   codex.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
+  pi.onEvent((event) => mainWindow?.webContents.send("selfme:run-event", event));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
@@ -109,6 +117,7 @@ app.whenReady().then(() => {
     assertMainWindow(event);
     if (runtimeId === "dsh") return getDshProviderStatus();
     if (runtimeId === "codex") return getCodexProviderStatus();
+    if (runtimeId === "pi") return getPiProviderStatus();
     if (runtimeId === "jev") return getJevProviderStatus();
     throw new Error("此运行时暂不支持模型配置");
   });
@@ -124,6 +133,12 @@ app.whenReady().then(() => {
       if (codex.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
       const status = await saveCodexProvider(config);
       await codex.stop();
+      return status;
+    }
+    if (runtimeId === "pi") {
+      if (pi.isBusy()) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
+      const status = await savePiProvider(config);
+      await pi.stop();
       return status;
     }
     if (runtimeId === "jev") return saveJevProvider(config);
@@ -172,9 +187,9 @@ app.whenReady().then(() => {
 
 let quitAfterCleanup = false;
 app.on("before-quit", (event) => {
-  if (!dsh || !codex || quitAfterCleanup) return;
+  if (!dsh || !codex || !pi || quitAfterCleanup) return;
   event.preventDefault();
-  void Promise.allSettled([dsh.stop(), codex.stop()]).finally(() => {
+  void Promise.allSettled([dsh.stop(), codex.stop(), pi.stop()]).finally(() => {
     quitAfterCleanup = true;
     app.quit();
   });
