@@ -8,6 +8,39 @@ import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
 const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE" } as const;
 
+const approvalOptionLabels: Record<string, string> = {
+  approve: "同意",
+  "approve once": "允许一次",
+  "allow once": "允许一次",
+  "approve for this session": "本会话允许同类操作",
+  "allow for this session": "本会话允许同类操作",
+  "always allow": "始终允许",
+  "allow always": "始终允许",
+  "reject once": "仅拒绝本次",
+  "deny once": "仅拒绝本次",
+  "reject always": "始终拒绝",
+  "deny always": "始终拒绝",
+  revise: "修改计划",
+  "reject and exit": "拒绝并退出",
+  reject: "拒绝",
+  deny: "拒绝",
+};
+
+const kimiApprovalTitles: Record<string, string> = {
+  Bash: "请求执行命令",
+  Write: "请求写入文件",
+  Edit: "请求修改文件",
+  ExitPlanMode: "请求确认计划",
+};
+
+function approvalOptionLabel(name: string): string {
+  return approvalOptionLabels[name.trim().toLowerCase()] ?? name;
+}
+
+function approvalActionLabel(runtimeId: AgentRuntimeId, title: string): string {
+  return runtimeId === "kimi-code" ? kimiApprovalTitles[title.trim()] ?? title : title;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -74,9 +107,9 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
     <article className="dsh-approval">
       <span className="dsh-approval__mark" aria-hidden="true">!</span>
       <div className="dsh-approval__content">
-        <strong>APPROVAL REQUIRED</strong>
-        <p>{entry.text || entry.approval.title}</p>
-        {entry.approval.toolCallId && <small>TOOL CALL · {entry.approval.toolCallId}</small>}
+        <strong>需要你确认</strong>
+        <p>{approvalActionLabel(runtimeId, entry.text || entry.approval.title)}</p>
+        {entry.approval.toolCallId && <small>工具调用 · {entry.approval.toolCallId}</small>}
       </div>
       <div className="dsh-approval__actions">
         {entry.approval.options.map((option) => (
@@ -87,7 +120,7 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
             onClick={() => onApprove(entry.approval!.requestId, option.optionId)}
             title={option.kind === "allow_session" ? "仅当前会话有效，新会话会重新询问" : undefined}
             type="button"
-          >{option.name}</button>
+          >{approvalOptionLabel(option.name)}</button>
         ))}
       </div>
     </article>
