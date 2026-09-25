@@ -61,7 +61,12 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
 }): JSX.Element {
   if (entry.kind === "user") return (
     <article className="dsh-entry dsh-entry--user">
-      <div className="dsh-entry__avatar dsh-entry__avatar--user" aria-hidden="true">◯</div>
+      <div className="dsh-entry__avatar dsh-entry__avatar--user" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="3.1" />
+          <path d="M5.4 19c.6-3.4 2.9-5.1 6.6-5.1s6 1.7 6.6 5.1" />
+        </svg>
+      </div>
       <div className="dsh-entry__body"><span className="dsh-entry__label">YOU</span><p>{entry.text}</p></div>
     </article>
   );

@@ -56,7 +56,8 @@
 .dsh-conversation__empty button:hover { background: #d3fb521a; }
 .dsh-entry { display: flex; gap: 19px; padding: 4px 0 22px; margin-bottom: 20px; border-bottom: 1px solid #7b8e893d; }
 .dsh-entry__avatar { width: 42px; height: 42px; flex: 0 0 42px; color: #d3fb52; }
-.dsh-entry__avatar--user { display: grid; place-items: center; border: 1px solid #d7e2df; border-radius: 50%; color: #eaf2ef; font-size: 30px; line-height: 1; }
+.dsh-entry__avatar--user { display: grid; place-items: center; color: #b9c9c5; }
+.dsh-entry__avatar--user svg { width: 36px; height: 36px; padding: 6px; border-radius: 50%; background: #233238; }
 .dsh-entry__body { min-width: 0; flex: 1; }
 .dsh-entry__label { font-size: 13px; color: #d3fb52; letter-spacing: .08em; }
 .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
