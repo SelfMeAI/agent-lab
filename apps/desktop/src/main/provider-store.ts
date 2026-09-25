@@ -223,11 +223,24 @@ async function readKimiProvider(): Promise<StoredModelProvider> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       const dsh = await readProvider();
-      if (dsh.encryptedApiKey) return dsh;
-      return { baseUrl: defaultKimiBaseUrl, model: defaultKimiModel };
+      const initial = dsh.encryptedApiKey
+        ? dsh
+        : { baseUrl: defaultKimiBaseUrl, model: defaultKimiModel };
+      // Copy the initial connection once. Future DSH edits must not silently
+      // change Kimi's provider settings.
+      await writeKimiProvider(initial);
+      return initial;
     }
     throw error;
   }
+}
+
+async function writeKimiProvider(value: StoredModelProvider): Promise<void> {
+  const path = kimiProviderPath();
+  await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+  await rename(temporary, path);
 }
 
 export async function getKimiProviderStatus(): Promise<ProviderStatus> {
@@ -254,11 +267,7 @@ export async function saveKimiProvider(input: { baseUrl: string; model?: string;
     encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 Kimi Code API Key");
-  const path = kimiProviderPath();
-  await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temporary, JSON.stringify({ baseUrl, model, encryptedApiKey } satisfies StoredModelProvider), { mode: 0o600 });
-  await rename(temporary, path);
+  await writeKimiProvider({ baseUrl, model, encryptedApiKey });
   return { baseUrl, model, configured: true };
 }
 

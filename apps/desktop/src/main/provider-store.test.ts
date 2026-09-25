@@ -15,8 +15,8 @@ vi.mock("electron", () => ({
 }));
 
 import {
-  getDshProvider, getDshProviderStatus, getPiProvider, getPiProviderStatus,
-  saveDshProvider, savePiProvider,
+  getDshProvider, getDshProviderStatus, getKimiProvider, getKimiProviderStatus, getPiProvider, getPiProviderStatus,
+  saveDshProvider, saveKimiProvider, savePiProvider,
 } from "./provider-store";
 
 afterEach(async () => {
@@ -48,5 +48,27 @@ describe("Pi provider configuration", () => {
     state.userData = await mkdtemp(join(tmpdir(), "selfme-dsh-provider-"));
     await writeFile(join(state.userData, "dsh-provider.json"), JSON.stringify({ baseUrl: "https://api.deepseek.com" }));
     expect(await getDshProviderStatus()).toEqual({ baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash", configured: false });
+  });
+});
+
+describe("Kimi provider configuration", () => {
+  it("copies an existing DSH connection only on first use and then remains independent", async () => {
+    state.userData = await mkdtemp(join(tmpdir(), "selfme-kimi-provider-"));
+    await saveDshProvider({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", apiKey: "dsh-original" });
+
+    expect(await getKimiProvider()).toEqual({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", apiKey: "dsh-original" });
+    await saveDshProvider({ baseUrl: "https://second.example/v1", model: "new-model", apiKey: "dsh-updated" });
+    expect(await getKimiProvider()).toEqual({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", apiKey: "dsh-original" });
+
+    await saveKimiProvider({ baseUrl: "https://third.example/v1", model: "kimi-model", apiKey: "kimi-key" });
+    expect(await getKimiProvider()).toEqual({ baseUrl: "https://third.example/v1", model: "kimi-model", apiKey: "kimi-key" });
+    expect(await getDshProvider()).toEqual({ baseUrl: "https://second.example/v1", model: "new-model", apiKey: "dsh-updated" });
+  });
+
+  it("starts with Kimi defaults when no DSH key exists", async () => {
+    state.userData = await mkdtemp(join(tmpdir(), "selfme-kimi-provider-"));
+    expect(await getKimiProviderStatus()).toEqual({ baseUrl: "https://api.kimi.com/coding/v1", model: "kimi-for-coding", configured: false });
+    await saveDshProvider({ baseUrl: "https://later.example/v1", apiKey: "later-dsh-key" });
+    expect(await getKimiProviderStatus()).toEqual({ baseUrl: "https://api.kimi.com/coding/v1", model: "kimi-for-coding", configured: false });
   });
 });

@@ -102,9 +102,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
               <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : runtimeId === "kimi-code" ? "Kimi Code 模型连接" : "JEV 决策连接"}</h3>
               {provider && <small>{provider.configured ? "已配置" : "未配置"}</small>}
             </div>
-            <p>{runtimeId === "kimi-code"
-              ? "尚未单独配置时，沿用 DSH 已保存的连接；在此保存后独立使用。"
-              : "填写当前实验要使用的模型连接信息。各实验的设置互不影响。"}</p>
+            <p>填写当前实验要使用的模型连接信息。各实验的设置互不影响。</p>
           </div>
           <form className="settings-panel__form" onSubmit={(event) => void save(event)}>
             <div className="settings-panel__field">

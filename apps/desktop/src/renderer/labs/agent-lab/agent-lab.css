@@ -54,7 +54,7 @@
 .dsh-conversation__empty h2 { margin: 16px 0 7px; font-size: 19px; font-weight: 400; }
 .dsh-conversation__empty p { color: #a0b2af; font-size: 13px; line-height: 1.75; }
 .dsh-conversation__empty button { padding: 9px 16px; margin-top: 13px; border: 1px solid #d3fb52; color: #d3fb52; background: transparent; }
-.dsh-conversation__empty button:hover { background: #d3fb521a; }
+.dsh-conversation__empty button:hover { background: color-mix(in srgb, var(--agent-accent, #d3fb52) 10%, transparent); }
 .dsh-entry { display: flex; gap: 19px; padding: 4px 0 22px; margin-bottom: 20px; border-bottom: 1px solid #7b8e893d; }
 .dsh-entry__avatar { width: 42px; height: 42px; flex: 0 0 42px; color: #d3fb52; }
 .dsh-entry__avatar--user { display: grid; place-items: center; color: #b9c9c5; }
@@ -152,22 +152,24 @@
 .agent-workspace--dsh { --agent-accent: #d3fb52; }
 .agent-workspace--codex { --agent-accent: #40dbe7; }
 .agent-workspace--pi { --agent-accent: #b9ddf0; }
+.agent-workspace--kimi-code { --agent-accent: #f38f8e; }
 
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-workspace__identity svg,
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-conversation__empty svg,
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-entry__avatar,
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-entry__label { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-workspace__path:hover,
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-conversation__empty button { border-color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-rail__heading button:hover:not(:disabled) { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-entry__avatar--user { color: #b9c9c5; }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-conversation__empty button { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-rail__task { border-color: var(--agent-accent); background: #10252b; }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-rail__task i,
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-activity__dots i { background: var(--agent-accent); box-shadow: 0 0 7px var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-activity { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi) .dsh-scroll-jump:hover { border-color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-workspace__identity svg,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-conversation__empty svg,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-entry__avatar,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-entry__label { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-workspace__path:hover,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-conversation__empty button { border-color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-rail__heading button:hover:not(:disabled) { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-entry__avatar--user { color: #b9c9c5; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-conversation__empty button { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-rail__task { border-color: var(--agent-accent); background: #10252b; }
+.agent-workspace--kimi-code .dsh-rail__task { background: #251b21; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-rail__task i,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-activity__dots i { background: var(--agent-accent); box-shadow: 0 0 7px var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-activity { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code) .dsh-scroll-jump:hover { border-color: var(--agent-accent); }
 
 @media (max-width: 1150px) {
   .agent-grid { gap: 17px; }
