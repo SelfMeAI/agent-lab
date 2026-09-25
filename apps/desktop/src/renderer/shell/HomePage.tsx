@@ -1,7 +1,18 @@
 import type { CSSProperties, JSX } from "react";
+import type { LabId } from "../../../../../packages/contracts/src/index";
 import { goToAtlas, goToLab } from "../app/navigation";
 import { labGroups, labs } from "../labs/registry";
 import { LabIcon } from "./LabIcon";
+
+const homeSubtitles: Record<LabId, string> = {
+  "agent-lab": "本地 Harness 实验",
+  "remote-agent-lab": "远程 Agent 实验",
+  "local-model-lab": "本地模型实验",
+  "jev-lab": "决策模型实验",
+  "harness-forge": "自研 Harness 实验",
+  "rsi-lab": "Harness 自我改进",
+  "founder-studio": "业务方向与想法验证",
+};
 
 export function HomePage(): JSX.Element {
   return (
@@ -17,7 +28,7 @@ export function HomePage(): JSX.Element {
           </button>
           <button className="home-overview-card home-overview-card--founder" type="button" onClick={() => goToLab("founder-studio")}>
             <LabIcon className="home-overview-card__icon" labId="founder-studio" />
-            <span className="home-overview-card__copy"><strong>FOUNDER STUDIO</strong><small>业务方向与想法验证</small></span>
+            <span className="home-overview-card__copy"><strong>FOUNDER STUDIO</strong><small>{homeSubtitles["founder-studio"]}</small></span>
             <span className="home-overview-card__arrow" aria-hidden="true">↗</span>
           </button>
         </div>
@@ -36,7 +47,7 @@ export function HomePage(): JSX.Element {
                 type="button"
               >
                 <LabIcon className="lab-card__symbol" labId={lab.id} />
-                <span className="lab-card__title">{lab.title}</span>
+                <span className="lab-card__copy"><strong>{lab.title}</strong><small>{homeSubtitles[lab.id]}</small></span>
                 <svg className="lab-card__arrow" viewBox="0 0 48 32" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M2 16h42m-13-13 13 13-13 13" /></svg>
               </button>
             ))}

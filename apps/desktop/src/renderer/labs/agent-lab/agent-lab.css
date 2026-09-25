@@ -11,9 +11,10 @@
 .agent-tile { height: 118px; display: flex; align-items: center; gap: 20px; padding: 20px 25px; text-align: left; color: #f6f7f3; border: 1px solid var(--tile-accent); border-radius: 2px; background: rgba(4, 11, 14, .92); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-accent) 10%, transparent), 0 0 14px color-mix(in srgb, var(--tile-accent) 7%, transparent); transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
 .agent-tile:hover { transform: translateY(-3px); background: color-mix(in srgb, var(--tile-accent) 7%, #061014); box-shadow: 0 0 24px color-mix(in srgb, var(--tile-accent) 25%, transparent); }
 .agent-tile__icon { width: 58px; height: 58px; flex: 0 0 58px; color: var(--tile-accent); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--tile-accent) 22%, transparent)); }
-.agent-tile__text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 7px; }
+.agent-tile__text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
 .agent-tile__text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(17px, 1.35vw, 21px); font-weight: 400; }
-.agent-tile__text small { color: var(--tile-accent); font-size: 13px; }
+.agent-tile__text small { color: #acbfbb; font: 11px/1.35 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-tile__text em { color: var(--tile-accent); font-size: 10px; font-style: normal; letter-spacing: .08em; }
 .agent-tile__arrow { width: 29px; height: 22px; flex: 0 0 29px; }
 
 .agent-pending { width: min(100%, 1500px); margin: 0 auto; padding: 28px 15px; }

@@ -13,5 +13,10 @@ const targets = phase === "before"
   : ["mac-arm64.tmp", ".icon-icns", "builder-debug.yml"];
 
 for (const target of targets) {
-  await rm(join(release, target), { recursive: true, force: true });
+  await rm(join(release, target), {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100,
+  });
 }

@@ -1066,6 +1066,41 @@
   border: 1px solid #3b5250;
   background: #081417e9;
 }
+.atlas-page--coverage .atlas-coverage-layout {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+.atlas-page--coverage .atlas-module-rail {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.atlas-page--coverage .atlas-coverage-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.atlas-page--coverage .atlas-coverage-hero,
+.atlas-page--coverage .atlas-state-strip,
+.atlas-page--coverage .atlas-coverage-note,
+.atlas-page--coverage .atlas-search--coverage {
+  flex: 0 0 auto;
+}
+.atlas-page--coverage .atlas-coverage-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.atlas-page--coverage .atlas-list-caption {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #081417;
+}
 .atlas-coverage-row {
   border-top: 1px solid #304746;
 }
@@ -1260,6 +1295,21 @@
   color: #78958e;
   font-size: 9px;
 }
+@media (max-height: 760px) and (min-width: 761px) {
+  .atlas-page.atlas-page--coverage { padding-top: 10px; padding-bottom: 10px; }
+  .atlas-page--coverage .atlas-heading { margin-bottom: 8px; }
+  .atlas-page--coverage .atlas-heading h1 { font-size: 27px; }
+  .atlas-page--coverage .atlas-tabs { margin-bottom: 8px; }
+  .atlas-page--coverage .atlas-tabs button { min-height: 38px; }
+  .atlas-page--coverage .atlas-workspace__heading { padding-bottom: 8px; }
+  .atlas-page--coverage .atlas-workspace__heading p { display: none; }
+  .atlas-page--coverage .atlas-coverage-hero { min-height: 112px; padding: 11px 17px; }
+  .atlas-page--coverage .atlas-coverage-hero h3 { margin: 4px 0; }
+  .atlas-page--coverage .atlas-coverage-hero p { margin-bottom: 4px; }
+  .atlas-page--coverage .atlas-state-strip { margin: 6px 0; }
+  .atlas-page--coverage .atlas-state-strip button { min-height: 52px; padding: 6px 10px; }
+  .atlas-page--coverage .atlas-search--coverage { margin: 6px 0; }
+}
 @media (max-width: 1280px) {
   .atlas-page {
     padding: 30px 27px;
@@ -1280,6 +1330,9 @@
   .atlas-page--explorer .atlas-explorer { min-height: 630px; overflow: visible; }
   .atlas-page--explorer .atlas-experience-grid { min-height: 650px; overflow: visible; }
   .atlas-page--explorer .atlas-footer { display: flex; }
+  .atlas-page--coverage { height: 100%; min-height: 0; display: flex; }
+  .atlas-page--coverage .atlas-workspace { display: flex; }
+  .atlas-page--coverage .atlas-footer { display: none; }
   .atlas-family-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1305,6 +1358,13 @@
   }
 }
 @media (max-width: 760px) {
+  .atlas-page--coverage { height: auto; min-height: 100%; display: block; }
+  .atlas-page--coverage .atlas-workspace { display: block; }
+  .atlas-page--coverage .atlas-coverage-layout { display: grid; overflow: visible; }
+  .atlas-page--coverage .atlas-module-rail { overflow: visible; }
+  .atlas-page--coverage .atlas-coverage-main { display: block; overflow: visible; }
+  .atlas-page--coverage .atlas-coverage-list { overflow: visible; }
+  .atlas-page--coverage .atlas-footer { display: flex; }
   .atlas-heading__edition,
   .atlas-intro__signal {
     display: none;

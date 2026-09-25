@@ -258,6 +258,7 @@ export function AtlasPage(): JSX.Element {
   const [coverageQuery, setCoverageQuery] = useState("");
   const resultsRef = useRef<HTMLDivElement>(null);
   const patternsRef = useRef<HTMLDivElement>(null);
+  const coverageListRef = useRef<HTMLDivElement>(null);
   const counts = useMemo(domainCounts, []);
 
   useEffect(() => {
@@ -271,6 +272,10 @@ export function AtlasPage(): JSX.Element {
   useEffect(() => {
     patternsRef.current?.scrollTo({ top: 0 });
   }, [phase, surface]);
+
+  useEffect(() => {
+    coverageListRef.current?.scrollTo({ top: 0 });
+  }, [moduleId, coverageFilter, coverageQuery]);
 
   const filteredCapabilities = useMemo(
     () =>
@@ -369,7 +374,7 @@ export function AtlasPage(): JSX.Element {
   };
 
   return (
-    <main className={`atlas-page${view === "capabilities" || view === "experience" ? " atlas-page--explorer" : ""}`}>
+    <main className={`atlas-page${view === "capabilities" || view === "experience" || view === "coverage" ? " atlas-page--explorer" : ""}${view === "coverage" ? " atlas-page--coverage" : ""}`}>
       <header className="atlas-heading">
         <div>
           <span className="atlas-overline">
@@ -903,7 +908,7 @@ export function AtlasPage(): JSX.Element {
                   onChange={(event) => setCoverageQuery(event.target.value)}
                 />
               </label>
-              <div className="atlas-coverage-list">
+              <div className="atlas-coverage-list" ref={coverageListRef}>
                 <div className="atlas-list-caption">
                   <span>OBSERVATION SCOPE</span>
                   <span>{moduleCapabilities.length} ITEMS</span>
