@@ -16,6 +16,7 @@ export class AgentSessionController {
   private readonly live = new Map<string, LiveSession>();
   private readonly operations = new Map<AgentRuntimeId, Promise<void>>();
   private readonly draining = new Set<string>();
+  private readonly cancellations = new Map<string, Promise<void>>();
 
   constructor(
     private readonly repository: AgentSessionRepository,
@@ -147,6 +148,7 @@ export class AgentSessionController {
   }
 
   async send(id: string, prompt: string): Promise<void> {
+    this.assertNotStopping(id);
     const text = this.promptText(prompt);
     const runtimeId = this.repository.get(id).runtimeId;
     await this.serial(runtimeId, () => {
@@ -159,6 +161,7 @@ export class AgentSessionController {
     const runtimeId = this.repository.get(id).runtimeId;
     try {
       await this.start(id);
+      this.assertNotStopping(id);
       const record = this.repository.get(id);
       if (record.phase !== "ready") throw new Error("当前会话尚未就绪，或仍在执行上一轮任务");
       if (!this.repository.queue(id).messages.length) this.repository.pauseQueue(id, false);
@@ -198,20 +201,32 @@ export class AgentSessionController {
   }
 
   async cancel(id: string): Promise<void> {
-    this.repository.pauseQueue(id, true);
-    this.queueChanged(id);
+    const existing = this.cancellations.get(id);
+    if (existing) return existing;
     const live = this.live.get(id);
     if (!live) throw new Error("会话未在运行");
-    await live.adapter.cancel();
+    // Lock immediately, before a harness acknowledges cancellation or emits
+    // its cancelling phase. A second click shares this request, not a new one.
+    const cancellation = Promise.resolve().then(() => live.adapter.cancel());
+    this.cancellations.set(id, cancellation);
+    try {
+      this.repository.pauseQueue(id, true);
+      this.queueChanged(id);
+      await cancellation;
+    } finally {
+      if (this.cancellations.get(id) === cancellation) this.cancellations.delete(id);
+    }
   }
 
   async steer(id: string, prompt: string): Promise<void> {
+    this.assertNotStopping(id);
     const text = this.promptText(prompt);
     const runtimeId = this.repository.get(id).runtimeId;
     await this.serial(runtimeId, () => this.submitSteer(id, text));
   }
 
   private async submitSteer(id: string, text: string, pending?: PendingAgentMessage): Promise<void> {
+      this.assertNotStopping(id);
       const live = this.live.get(id);
       const record = this.repository.get(id);
       // Explicit steering never falls back to start()/send() after a finish race.
@@ -273,6 +288,7 @@ export class AgentSessionController {
   }
 
   async steerQueued(id: string, messageId: string): Promise<void> {
+    this.assertNotStopping(id);
     await this.serial(this.repository.get(id).runtimeId, async () => {
       const item = this.repository.queueMessage(id, messageId);
       if (!item || item.state !== "queued") throw new Error("消息已提交或已删除");
@@ -288,7 +304,9 @@ export class AgentSessionController {
   }
 
   async resumeQueue(id: string): Promise<void> {
+    this.assertNotStopping(id);
     await this.serial(this.repository.get(id).runtimeId, async () => {
+      this.assertNotStopping(id);
       if (this.repository.queue(id).messages.some((item) => item.state === "unconfirmed")) throw new Error("请先处理发送未确认的消息");
       if (!busyPhases.has(this.repository.get(id).phase)) await this.start(id);
       this.repository.pauseQueue(id, false);
@@ -372,6 +390,12 @@ export class AgentSessionController {
 
   private queueChanged(id: string): void { this.emitQueue(id, this.repository.queue(id)); }
 
+  private assertNotStopping(id: string): void {
+    if (this.cancellations.has(id) || this.repository.get(id).phase === "cancelling") {
+      throw new Error("当前轮正在停止，请稍候");
+    }
+  }
+
   private scheduleDrain(id: string): void {
     if (this.draining.has(id) || !this.live.has(id)) return;
     const runtimeId = this.repository.get(id).runtimeId;
@@ -379,7 +403,7 @@ export class AgentSessionController {
     void this.serial(runtimeId, async () => {
       if (!this.live.has(id)) return;
       const queue = this.repository.queue(id);
-      if (queue.paused || this.repository.get(id).phase !== "ready") return;
+      if (queue.paused || this.cancellations.has(id) || this.repository.get(id).phase !== "ready") return;
       const item = queue.messages.find((message) => message.state !== "awaiting");
       if (item?.state === "queued") await this.dispatchPrompt(id, item.text, item);
     }).catch(() => {
@@ -391,7 +415,7 @@ export class AgentSessionController {
       this.draining.delete(id);
       if (!this.live.has(id)) return;
       const queue = this.repository.queue(id);
-      if (!queue.paused && this.repository.get(id).phase === "ready" && queue.messages.find((item) => item.state !== "awaiting")?.state === "queued") this.scheduleDrain(id);
+      if (!queue.paused && !this.cancellations.has(id) && this.repository.get(id).phase === "ready" && queue.messages.find((item) => item.state !== "awaiting")?.state === "queued") this.scheduleDrain(id);
     });
   }
 }

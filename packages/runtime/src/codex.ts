@@ -196,10 +196,19 @@ export class CodexAdapter implements HarnessAdapter {
 
   async cancel(): Promise<void> {
     if (!this.threadId || !this.turnId || !["running", "approval"].includes(this.phase)) return;
+    const threadId = this.threadId, turnId = this.turnId;
     for (const approval of this.approvals.values()) this.write({ id: approval.requestId, result: { decision: "cancel" } });
     this.approvals.clear();
-    await this.request("turn/interrupt", { threadId: this.threadId, turnId: this.turnId }, 15000);
     this.emitStatus("cancelling", "正在取消 Codex 任务");
+    try {
+      await this.request("turn/interrupt", { threadId, turnId }, 15000);
+      // turn/completed can precede the RPC reply; never overwrite its ready state.
+    } catch (error) {
+      if (this.turnId === turnId && this.phase === "cancelling") {
+        this.emitStatus("running", "停止请求未确认，请检查当前任务");
+      }
+      throw error;
+    }
   }
 
   async steer(prompt: string, messageId: string): Promise<void> {

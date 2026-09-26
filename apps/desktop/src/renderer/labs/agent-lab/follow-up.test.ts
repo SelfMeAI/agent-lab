@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentSessionQueue, AgentSessionSummary, AgentSessionEvent } from "../../../../../../packages/contracts/src/index";
-import { composerAction } from "./follow-up";
+import { composerAction, followUpAvailability } from "./follow-up";
 import { createAgentStore, isTranscriptInput } from "./agent-store";
 
 const queue: AgentSessionQueue = { paused: false, messages: [{ id: "queued", text: "later", createdAt: "2026-09-26T10:00:00Z", mode: "queue", state: "queued" }] };
@@ -11,9 +11,35 @@ describe("follow-up composer and transcript", () => {
   it("keeps queue and Steer as distinct choices and never bypasses a paused backlog", () => {
     expect(composerAction("running", empty, "queue")).toBe("queue"); expect(composerAction("running", queue, "steer")).toBe("steer");
     expect(composerAction("approval", empty, "steer")).toBe("steer"); expect(composerAction("starting", empty, "steer")).toBe("wait");
-    expect(composerAction("cancelling", empty, "queue")).toBe("queue"); expect(composerAction("ready", empty, "steer")).toBe("send");
+    expect(composerAction("starting", empty, "queue")).toBe("wait"); expect(composerAction("cancelling", empty, "queue")).toBe("wait");
+    expect(composerAction("cancelling", queue, "steer")).toBe("wait"); expect(composerAction("ready", empty, "steer")).toBe("send");
     expect(composerAction("ready", { ...queue, paused: true }, "steer")).toBe("queue"); expect(composerAction("error", queue, "queue")).toBe("queue");
     expect(composerAction("error", empty, "queue")).toBe("wait");
+  });
+
+  it("locks conflicting actions during startup, stop requests and message handoffs", () => {
+    const locked = { canSubmit: false, canChooseMode: false, canSteer: false, canResumeQueue: false };
+    expect(followUpAvailability("starting")).toEqual(locked);
+    expect(followUpAvailability("cancelling")).toEqual(locked);
+    // The native phase can still be running, or already ready, while cancel RPC is in flight.
+    expect(followUpAvailability("running", { stopping: true })).toEqual(locked);
+    expect(followUpAvailability("ready", { stopping: true })).toEqual(locked);
+    expect(followUpAvailability("ready", { connecting: true })).toEqual(locked);
+    expect(followUpAvailability("running", { submitting: true })).toEqual(locked);
+    expect(followUpAvailability("approval", { changingMode: true })).toEqual(locked);
+    expect(followUpAvailability("ready")).toEqual({ ...locked, canSubmit: true, canChooseMode: true, canResumeQueue: true });
+  });
+
+  it("allows changing future preference and steering an active task independently of queue pause", () => {
+    const paused = { ...queue, paused: true };
+    expect(composerAction("running", paused, "queue")).toBe("queue");
+    expect(composerAction("running", paused, "steer")).toBe("steer");
+    expect(composerAction("approval", paused, "steer")).toBe("steer");
+    expect(followUpAvailability("approval")).toEqual({ canSubmit: true, canChooseMode: true, canSteer: true, canResumeQueue: true });
+    // Presetting Steer while idle cannot bypass existing queued work.
+    expect(composerAction("ready", paused, "steer")).toBe("queue");
+    expect(paused.messages).toEqual(queue.messages);
+    expect(paused.paused).toBe(true);
   });
 
   it("preserves queue snapshots through history loads and session switches, without resetting a running task", () => {

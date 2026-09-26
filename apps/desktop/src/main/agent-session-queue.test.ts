@@ -101,6 +101,59 @@ describe("durable follow-up queue and native steering", () => {
     await c.resumeQueue(s.id); await vi.waitFor(() => expect(a.prompts).toEqual(["original", "retained"]));
   });
 
+  it("locks from the stop click through acknowledgement, including late ready and duplicate clicks", async () => {
+    const { controller: c, repository: r, session: s, adapter: a } = await fixture();
+    await c.enqueue(s.id, "retained");
+    const id = r.queue(s.id).messages[0].id;
+    let release!: () => void;
+    const acknowledgement = new Promise<void>(resolve => { release = resolve; });
+    a.cancel = vi.fn(async () => { await acknowledgement; });
+    // A resume already queued in the serial executor must also recheck the lock.
+    const prematureResume = c.resumeQueue(s.id);
+    const cancellation = c.cancel(s.id), duplicate = c.cancel(s.id);
+    await expect(prematureResume).rejects.toThrow(/正在停止/);
+    expect(r.get(s.id).phase).toBe("running");
+    expect(r.queue(s.id).paused).toBe(true);
+    await expect(c.resumeQueue(s.id)).rejects.toThrow(/正在停止/);
+    await expect(c.steer(s.id, "do not admit")).rejects.toThrow(/正在停止/);
+    await expect(c.steerQueued(s.id, id)).rejects.toThrow(/正在停止/);
+    await expect(c.send(s.id, "do not restart")).rejects.toThrow(/正在停止/);
+    a.complete();
+    await expect(c.resumeQueue(s.id)).rejects.toThrow(/正在停止/);
+    expect(a.prompts).toEqual(["original"]);
+    expect(a.supplements).toEqual([]);
+    release(); await Promise.all([cancellation, duplicate]);
+    expect(a.cancel).toHaveBeenCalledTimes(1);
+    expect(r.queue(s.id).messages[0].id).toBe(id);
+    await c.resumeQueue(s.id);
+    await vi.waitFor(() => expect(a.prompts).toEqual(["original", "retained"]));
+  });
+
+  it("keeps the stop lock after acknowledgement until the native cancelling phase ends", async () => {
+    const { controller: c, repository: r, session: s, adapter: a } = await fixture();
+    await c.enqueue(s.id, "retained");
+    a.cancel = async () => { a.emit({ phase: "cancelling" }); };
+    await c.cancel(s.id);
+    await expect(c.resumeQueue(s.id)).rejects.toThrow(/正在停止/);
+    await expect(c.steer(s.id, "not yet")).rejects.toThrow(/正在停止/);
+    a.complete();
+    expect(r.queue(s.id).paused).toBe(true);
+    expect(a.prompts).toEqual(["original"]);
+    await c.resumeQueue(s.id);
+    await vi.waitFor(() => expect(a.prompts).toEqual(["original", "retained"]));
+  });
+
+  it("releases a failed cancel request without discarding or automatically dispatching the queue", async () => {
+    const { controller: c, repository: r, session: s, adapter: a } = await fixture();
+    await c.enqueue(s.id, "retained");
+    a.cancel = async () => { throw new Error("cancel transport failed"); };
+    await expect(c.cancel(s.id)).rejects.toThrow(/transport/);
+    expect(r.queue(s.id)).toMatchObject({ paused: true, messages: [{ text: "retained" }] });
+    await c.steer(s.id, "task still running");
+    expect(a.supplements[0].text).toBe("task still running");
+    expect(a.prompts).toEqual(["original"]);
+  });
+
   it("pauses on task error even if a ready event follows; does not bypass a saved backlog", async () => {
     const { controller: c, repository: r, session: s, adapter: a } = await fixture();
     await c.enqueue(s.id, "retained"); a.emit({ kind: "error", text: "failed" }); a.complete();

@@ -3,6 +3,35 @@ import type { RunEvent } from "../../contracts/src/index";
 import { CodexAdapter } from "./codex";
 
 describe("Codex diff notifications", () => {
+  it("does not overwrite a completed cancellation with the later interrupt RPC reply", async () => {
+    const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
+    const internals = adapter as unknown as {
+      phase: string; threadId: string; turnId: string | null;
+      request(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
+      handleNotification(method: string, params: Record<string, unknown>): void;
+    };
+    internals.phase = "running"; internals.threadId = "thread"; internals.turnId = "turn";
+    const events: RunEvent[] = []; adapter.onEvent(event => events.push(event));
+    internals.request = async (method, params) => {
+      expect(method).toBe("turn/interrupt"); expect(params).toEqual({ threadId: "thread", turnId: "turn" });
+      expect(internals.phase).toBe("cancelling");
+      internals.handleNotification("turn/completed", { turn: { id: "turn", status: "interrupted" } });
+      return {};
+    };
+    await adapter.cancel();
+    expect(events.map(event => event.phase)).toEqual(["cancelling", "ready"]);
+    expect(internals.phase).toBe("ready"); expect(internals.turnId).toBeNull();
+  });
+
+  it("does not leave an active task stuck in cancelling when the interrupt request fails", async () => {
+    const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
+    const internals = adapter as unknown as { phase: string; threadId: string; turnId: string; request(): Promise<Record<string, unknown>> };
+    internals.phase = "running"; internals.threadId = "thread"; internals.turnId = "turn";
+    internals.request = async () => { throw new Error("interrupt timeout"); };
+    await expect(adapter.cancel()).rejects.toThrow(/timeout/);
+    expect(internals.phase).toBe("running");
+  });
+
   it("does not consume duplicate supplements twice for started/completed of the same native item", async () => {
     const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
     const internals = adapter as unknown as {
