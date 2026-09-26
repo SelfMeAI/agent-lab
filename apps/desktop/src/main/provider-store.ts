@@ -7,6 +7,7 @@ import type { CodexProvider } from "../../../../packages/runtime/src/codex";
 import type { DshProvider } from "../../../../packages/runtime/src/dsh";
 import type { KimiProvider } from "../../../../packages/runtime/src/kimi";
 import type { PiProvider } from "../../../../packages/runtime/src/pi";
+import type { QwenProvider } from "../../../../packages/runtime/src/qwen";
 
 interface StoredProvider {
   baseUrl: string;
@@ -268,6 +269,59 @@ export async function saveKimiProvider(input: { baseUrl: string; model?: string;
   }
   if (!encryptedApiKey) throw new Error("请填写 Kimi Code API Key");
   await writeKimiProvider({ baseUrl, model, encryptedApiKey });
+  return { baseUrl, model, configured: true };
+}
+
+function qwenProviderPath(): string { return join(app.getPath("userData"), "qwen-provider.json"); }
+
+async function writeQwenProvider(value: StoredModelProvider): Promise<void> {
+  await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
+  const path = qwenProviderPath();
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+let qwenInitialRead: Promise<StoredModelProvider> | undefined;
+async function readQwenProvider(): Promise<StoredModelProvider> {
+  try {
+    const value = JSON.parse(await readFile(qwenProviderPath(), "utf8")) as StoredModelProvider;
+    return { baseUrl: normalizeBaseUrl(value.baseUrl), model: normalizeModel(value.model),
+      encryptedApiKey: typeof value.encryptedApiKey === "string" ? value.encryptedApiKey : undefined };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    // Single initialization even if probe/settings/save arrive concurrently.
+    qwenInitialRead ??= readProvider().then(async (initial) => { await writeQwenProvider(initial); return initial; })
+      .finally(() => { qwenInitialRead = undefined; });
+    return qwenInitialRead;
+  }
+}
+
+export async function getQwenProviderStatus(): Promise<ProviderStatus> {
+  const stored = await readQwenProvider();
+  return { baseUrl: stored.baseUrl, model: stored.model, configured: Boolean(stored.encryptedApiKey) };
+}
+
+export async function getQwenProvider(): Promise<QwenProvider> {
+  const stored = await readQwenProvider();
+  if (!stored.encryptedApiKey) throw new Error("请先配置 Qwen Code 模型 API Key");
+  const decrypted = await safeStorage.decryptStringAsync(Buffer.from(stored.encryptedApiKey, "base64"));
+  return { baseUrl: stored.baseUrl, model: stored.model, apiKey: decrypted.result };
+}
+
+export async function saveQwenProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
+  const baseUrl = normalizeBaseUrl(input.baseUrl);
+  const previous = await readQwenProvider();
+  const model = normalizeModel(input.model ?? previous.model);
+  const apiKey = input.apiKey?.trim();
+  let encryptedApiKey = previous.encryptedApiKey;
+  if (apiKey) {
+    if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
+    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+  }
+  if (!encryptedApiKey) throw new Error("请填写 Qwen Code API Key");
+  await writeQwenProvider({ baseUrl, model, encryptedApiKey });
   return { baseUrl, model, configured: true };
 }
 

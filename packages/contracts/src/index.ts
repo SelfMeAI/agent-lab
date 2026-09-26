@@ -35,7 +35,11 @@ export interface RuntimeStatus {
 
 export type RuntimePhase = "idle" | "starting" | "ready" | "running" | "approval" | "cancelling" | "error";
 
-export type AgentRuntimeId = "dsh" | "codex" | "pi" | "kimi-code";
+export const agentRuntimeIds = ["dsh", "codex", "pi", "kimi-code", "qwen-code"] as const;
+export type AgentRuntimeId = typeof agentRuntimeIds[number];
+export function isAgentRuntimeId(value: unknown): value is AgentRuntimeId {
+  return typeof value === "string" && (agentRuntimeIds as readonly string[]).includes(value);
+}
 
 export type FollowUpMode = "queue" | "steer";
 

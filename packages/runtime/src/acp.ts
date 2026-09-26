@@ -27,6 +27,10 @@ export interface AcpAdapterOptions {
   probePath: string;
   readyDetail: string;
   missingDetail: string;
+  /** Official ACP client extension called at the harness's tool boundary. */
+  steeringDrainMethod?: string;
+  closeSession?: boolean;
+  promptMeta?(text: string): JsonObject;
   launch(workspace: string): Promise<AcpLaunch>;
 }
 
@@ -72,6 +76,7 @@ export class AcpAdapter implements HarnessAdapter {
   private secret: string | undefined;
   private fileTracker: FileChangeTracker | null = null;
   private readonly steering = new SteeringTracker((extra) => this.emit("delivery", extra));
+  private readonly nativeSteering = new Map<string, string>();
 
   constructor(private readonly options: AcpAdapterOptions) {
     this.id = options.id;
@@ -171,6 +176,7 @@ export class AcpAdapter implements HarnessAdapter {
     void this.request("session/prompt", {
       sessionId: this.sessionId,
       prompt: [{ type: "text", text }],
+      ...(this.options.promptMeta ? { _meta: this.options.promptMeta(text) } : {}),
     }).then((result) => {
       this.emitStatus("ready", `本轮已结束 · ${string(result.stopReason) ?? "完成"}`);
     }).catch((error: unknown) => {
@@ -184,6 +190,7 @@ export class AcpAdapter implements HarnessAdapter {
       this.write({ jsonrpc: "2.0", id: approval.requestId, result: { outcome: { outcome: "cancelled" } } });
     }
     this.approvals.clear();
+    this.nativeSteering.clear();
     this.notify("session/cancel", { sessionId: this.sessionId });
     this.emitStatus("cancelling", "正在取消任务");
   }
@@ -191,6 +198,11 @@ export class AcpAdapter implements HarnessAdapter {
   async steer(prompt: string, messageId: string): Promise<void> {
     if (!this.sessionId || !["running", "approval"].includes(this.phase)) throw new Error("本轮已结束，补充指令未提交");
     const text = this.steering.begin(messageId, prompt);
+    if (this.options.steeringDrainMethod) {
+      this.nativeSteering.set(messageId, text);
+      this.steering.accepted(messageId);
+      return;
+    }
     try {
       await this.request("_selfme/steer", { sessionId: this.sessionId, text, messageId }, 15000);
       this.steering.accepted(messageId);
@@ -209,7 +221,7 @@ export class AcpAdapter implements HarnessAdapter {
   async stop(): Promise<void> {
     const child = this.child;
     const sessionId = this.sessionId;
-    if (child && sessionId && this.phase === "ready") {
+    if (child && sessionId && this.phase === "ready" && this.options.closeSession !== false) {
       try { await this.request("session/close", { sessionId }, 5000); }
       catch (error) { console.warn(`${this.label} session/close failed:`, error); }
     }
@@ -280,6 +292,18 @@ export class AcpAdapter implements HarnessAdapter {
     const method = string(message.method);
     if (method === "session/update") { this.handleUpdate(object(message.params)); return; }
     if (method === "session/request_permission") { this.handleApproval(message); return; }
+    if (method && (typeof message.id === "number" || typeof message.id === "string")) {
+      if (method === this.options.steeringDrainMethod && object(message.params).sessionId === this.sessionId) {
+        // Queue stays app-owned and starts after end_turn. Only explicit Steer
+        // inputs are handed to Qwen's existing mid-turn drain; no prompt restart.
+        const messages = ["running", "approval"].includes(this.phase) ? [...this.nativeSteering.entries()] : [];
+        this.write({ jsonrpc: "2.0", id: message.id, result: { messages: messages.map(([, text]) => text), hasQueuedPrompt: false } });
+        for (const [id] of messages) { this.nativeSteering.delete(id); this.steering.incorporated(id); }
+      } else {
+        this.write({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not supported by this client" } });
+      }
+      return;
+    }
     const id = message.id;
     if (typeof id !== "number") return;
     const pending = this.pending.get(id);
@@ -312,8 +336,8 @@ export class AcpAdapter implements HarnessAdapter {
       toolStatus: string(update.status),
       raw,
     };
-    if (kind === "agent_message_chunk") this.emit("message", common);
-    else if (kind === "agent_thought_chunk") this.emit("thought", common);
+    if (kind === "agent_message_chunk") { if (common.text) this.emit("message", common); }
+    else if (kind === "agent_thought_chunk") { if (common.text) this.emit("thought", common); }
     else if (kind === "tool_call" || kind === "tool_call_update") this.emit("tool", common);
     else if (kind === "plan" || kind === "plan_update") this.emit("status", { ...common, title: "执行计划" });
     else if (kind === "usage_update") this.emit("status", { ...common, title: "用量" });
@@ -359,13 +383,14 @@ export class AcpAdapter implements HarnessAdapter {
   }
 
   private emitStatus(phase: RuntimePhase, text: string): void {
-    if (["idle", "ready", "error"].includes(phase)) this.steering.finish();
+    if (["idle", "ready", "error"].includes(phase)) { this.steering.finish(); this.nativeSteering.clear(); }
     this.phase = phase;
     this.emit("status", { phase, text });
   }
 
   private emitError(text: string): void {
     this.steering.finish("运行出错，未确认补充指令是否接入");
+    this.nativeSteering.clear();
     this.phase = "error";
     this.emit("error", { phase: "error", text: this.secret ? text.replaceAll(this.secret, "[redacted]") : text });
   }

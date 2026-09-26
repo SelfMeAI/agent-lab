@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type JSX } from "react";
 import type { AppInfo, ProviderStatus } from "../../../../../packages/contracts/src/index";
+import { isAgentRuntimeId } from "../../../../../packages/contracts/src/index";
 
 interface SettingsPanelProps {
   info: AppInfo | null;
@@ -21,11 +22,11 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelLookupMessage, setModelLookupMessage] = useState<string | null>(null);
   const modelLookupRevision = useRef(0);
-  const hasModelField = runtimeId === "dsh" || runtimeId === "codex" || runtimeId === "pi" || runtimeId === "kimi-code" || runtimeId === "jev";
-  const canDiscoverModels = runtimeId === "dsh" || runtimeId === "codex" || runtimeId === "pi" || runtimeId === "kimi-code";
+  const hasModelField = isAgentRuntimeId(runtimeId) || runtimeId === "jev";
+  const canDiscoverModels = isAgentRuntimeId(runtimeId);
   const matchingModels = models.filter((id) => id.toLowerCase().includes(modelSearch.trim().toLowerCase()));
   useEffect(() => {
-    if ((runtimeId !== "dsh" && runtimeId !== "codex" && runtimeId !== "pi" && runtimeId !== "kimi-code" && runtimeId !== "jev") || !window.selfmeLab) return;
+    if ((!isAgentRuntimeId(runtimeId) && runtimeId !== "jev") || !window.selfmeLab) return;
     void window.selfmeLab.getProviderStatus(runtimeId).then((status) => {
       setProvider(status);
       setBaseUrl(status.baseUrl);
@@ -95,11 +96,11 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
           <button onClick={onClose} type="button" aria-label="关闭设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg></button>
         </div>
         <div className="settings-panel__body">
-        {runtimeId === "dsh" || runtimeId === "codex" || runtimeId === "pi" || runtimeId === "kimi-code" || runtimeId === "jev" ? <>
+        {hasModelField ? <>
           <div className="settings-panel__intro">
             <span>LOCAL CONFIGURATION</span>
             <div className="settings-panel__title-row">
-              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : runtimeId === "kimi-code" ? "Kimi Code 模型连接" : "JEV 决策连接"}</h3>
+              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : runtimeId === "kimi-code" ? "Kimi Code 模型连接" : runtimeId === "qwen-code" ? "Qwen Code 模型连接" : "JEV 决策连接"}</h3>
               {provider && <small>{provider.configured ? "已配置" : "未配置"}</small>}
             </div>
             <p>填写当前实验要使用的模型连接信息。各实验的设置互不影响。</p>
@@ -135,7 +136,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
             </div>
             <div className="settings-panel__note">
               <strong>连接说明</strong>
-              <p>{runtimeId === "dsh" || runtimeId === "pi" || runtimeId === "kimi-code" ? "填写支持 OpenAI Chat Completions 的 API 根地址、模型 ID 和 API Key。" : runtimeId === "codex" ? "填写支持 OpenAI Responses 的 API 根地址、模型 ID 和 API Key。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
+              <p>{canDiscoverModels && runtimeId !== "codex" ? "填写支持 OpenAI Chat Completions 的 API 根地址、模型 ID 和 API Key。" : runtimeId === "codex" ? "填写支持 OpenAI Responses 的 API 根地址、模型 ID 和 API Key。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
               {canDiscoverModels && <p>API 根地址不要包含 /chat/completions 或 /responses。模型列表仅供选择，能否运行以实际调用为准。</p>}
               <p>API Key 会加密保存在本机。以后修改设置时，密钥留空即可保持不变。{runtimeId !== "jev" && "保存后会重新连接。"}</p>
             </div>

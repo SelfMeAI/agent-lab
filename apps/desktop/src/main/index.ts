@@ -1,15 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
-import type { AgentRuntimeId, AppInfo, FollowUpMode } from "../../../../packages/contracts/src/index";
+import { agentRuntimeIds, isAgentRuntimeId, type AgentRuntimeId, type AppInfo, type FollowUpMode } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
 import { PiAdapter } from "../../../../packages/runtime/src/pi";
+import { QwenAdapter } from "../../../../packages/runtime/src/qwen";
 import {
   getCodexProvider, getCodexProviderStatus, getDshProvider, getDshProviderStatus,
   getJevProviderStatus, getKimiProvider, getKimiProviderStatus, getPiProvider, getPiProviderStatus,
   saveCodexProvider, saveDshProvider, saveJevProvider, saveKimiProvider, savePiProvider,
+  getQwenProvider, getQwenProviderStatus, saveQwenProvider,
 } from "./provider-store";
 import { discoverModels, modelListUrl } from "./model-discovery";
 import { decideJevMove } from "./jev-decision";
@@ -83,6 +85,10 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
     homeDirectory, provider: getCodexProvider,
   });
   if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider });
+  if (runtimeId === "qwen-code") return new QwenAdapter({
+    entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js"),
+    nodeExecutable: process.execPath, homeDirectory, provider: getQwenProvider,
+  });
   return new KimiAdapter({
     entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"),
     nodeExecutable: process.execPath,
@@ -122,7 +128,7 @@ void app.whenReady().then(async () => {
   });
   ipcMain.handle("selfme:list-runtimes", async (event) => {
     assertMainWindow(event);
-    return Promise.all((["dsh", "codex", "pi", "kimi-code"] as const).map((runtimeId) => makeAdapter(runtimeId, "probe").probe()));
+    return Promise.all(agentRuntimeIds.map((runtimeId) => makeAdapter(runtimeId, "probe").probe()));
   });
   ipcMain.handle("selfme:get-provider-status", async (event, runtimeId: string) => {
     assertMainWindow(event);
@@ -130,19 +136,21 @@ void app.whenReady().then(async () => {
     if (runtimeId === "codex") return getCodexProviderStatus();
     if (runtimeId === "pi") return getPiProviderStatus();
     if (runtimeId === "kimi-code") return getKimiProviderStatus();
+    if (runtimeId === "qwen-code") return getQwenProviderStatus();
     if (runtimeId === "jev") return getJevProviderStatus();
     throw new Error("此运行时暂不支持模型配置");
   });
   ipcMain.handle("selfme:list-provider-models", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string }) => {
     assertMainWindow(event);
-    if (!["dsh", "codex", "pi", "kimi-code"].includes(runtimeId) || !config || typeof config.baseUrl !== "string" || (config.apiKey !== undefined && typeof config.apiKey !== "string")) {
+    if (!isAgentRuntimeId(runtimeId) || !config || typeof config.baseUrl !== "string" || (config.apiKey !== undefined && typeof config.apiKey !== "string")) {
       throw new Error("无效的模型列表请求");
     }
     let apiKey = config.apiKey?.trim();
     if (!apiKey) {
       const saved = runtimeId === "dsh" ? await getDshProvider()
         : runtimeId === "codex" ? await getCodexProvider()
-          : runtimeId === "pi" ? await getPiProvider() : await getKimiProvider();
+          : runtimeId === "pi" ? await getPiProvider()
+            : runtimeId === "qwen-code" ? await getQwenProvider() : await getKimiProvider();
       if (modelListUrl(config.baseUrl) !== modelListUrl(saved.baseUrl)) throw new Error("API 地址已更改，请先填写该地址的 API Key");
       apiKey = saved.apiKey;
     }
@@ -161,6 +169,9 @@ void app.whenReady().then(async () => {
     }
     if (runtimeId === "kimi-code") {
       return sessions!.reconfigure("kimi-code", () => saveKimiProvider(config));
+    }
+    if (runtimeId === "qwen-code") {
+      return sessions!.reconfigure("qwen-code", () => saveQwenProvider(config));
     }
     if (runtimeId === "jev") return saveJevProvider(config);
     throw new Error("此运行时暂不支持模型配置");

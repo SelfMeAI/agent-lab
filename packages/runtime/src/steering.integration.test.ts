@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { chat, responses, shellTool, type Obj } from "./test-support/mock-model";
+import { chat, responses, shellTool, prepareQwenTestHome, type Obj } from "./test-support/mock-model";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,7 @@ import { CodexAdapter } from "./codex";
 import { DshAdapter } from "./dsh";
 import { PiAdapter } from "./pi";
 import { KimiAdapter } from "./kimi";
+import { QwenAdapter } from "./qwen";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
@@ -19,7 +20,7 @@ const secondMarker = "SELFME_SECOND_REQUIREMENT_942";
 
 describe("real bundled harnesses: mid-turn steering", () => {
   // Native file watchers/process sandboxes need the normal host environment.
-  const cases = (["codex", "dsh", "pi", "kimi-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
+  const cases = (["codex", "dsh", "pi", "kimi-code", "qwen-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
   it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(cases)("$id mid-turn supplements (cancel=$cancel)", async ({ id, cancel }) => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/steering-check-"));
@@ -55,6 +56,7 @@ describe("real bundled harnesses: mid-turn steering", () => {
     if (id === "codex") adapter = new CodexAdapter({ homeDirectory, executable: join(runtimeRoot, "codex/bin/codex"), provider });
     else if (id === "pi") adapter = new PiAdapter({ homeDirectory, provider });
     else if (id === "dsh") adapter = new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
+    else if (id === "qwen-code") adapter = new QwenAdapter({ homeDirectory: prepareQwenTestHome(homeDirectory), provider, nodeExecutable, entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js") });
     else adapter = new KimiAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"), steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs") });
     const events: RunEvent[] = [];
     let steered = false;
@@ -90,7 +92,7 @@ describe("real bundled harnesses: mid-turn steering", () => {
       expect(steered).toBe(true);
       expect(new Set(events.filter(e => e.phase === "running").map(e => e.runId)).size).toBe(1);
       if (!cancel) {
-        expect(receivedInOriginalRun).toBe(true);
+        expect(receivedInOriginalRun, JSON.stringify(events.map(e => ({ kind: e.kind, title: e.title, text: e.text?.slice(0, 350), delivery: e.deliveryState })))).toBe(true);
         expect(requests.length).toBeGreaterThanOrEqual(2);
         expect(new Set(events.filter(e => e.kind === "delivery" && e.deliveryState === "incorporated").map(e => e.messageId)).size).toBe(2);
         expect(events.filter(e => e.kind === "message").map(e => e.text).join("")).toContain(marker);

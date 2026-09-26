@@ -3,13 +3,14 @@ import { chmod, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { AgentRuntimeId, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
+import { agentRuntimeIds } from "../../../../packages/contracts/src/index";
 
 export interface StoredAgentSession extends AgentSessionSummary {
   nativeRef: string | null;
   deletedAt: string | null;
 }
 
-const runtimeIds = new Set<AgentRuntimeId>(["dsh", "codex", "pi", "kimi-code"]);
+const runtimeIds = new Set<AgentRuntimeId>(agentRuntimeIds);
 // Connection/status events can occur without user-visible work, so they do not
 // count as conversation activity in the session rail.
 const lastActivitySql = `(

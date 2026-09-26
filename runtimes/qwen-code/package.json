@@ -1,0 +1,8 @@
+{
+  "name": "selfme-lab-qwen-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "dependencies": {
+    "@qwen-code/qwen-code": "0.24.6"
+  }
+}

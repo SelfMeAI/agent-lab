@@ -77,7 +77,7 @@ describe("parallel multi-session lifecycle", () => {
     await controller.stopAll(); repository.close();
   });
 
-  it("does not resume an empty Codex thread before its first turn creates a rollout", async () => {
+  it.each(["codex", "qwen-code"] as const)("does not resume an empty %s session before its first input persists native history", async runtimeId => {
     const root = await testRoot("controller-codex-empty-");
     const repository = new AgentSessionRepository(root);
     await repository.init();
@@ -90,10 +90,10 @@ describe("parallel multi-session lifecycle", () => {
       return adapter;
     }, () => {});
 
-    const session = await controller.create("codex", root);
+    const session = await controller.create(runtimeId, root);
     await controller.activate(session.id);
     expect(repository.get(session.id).nativeRef).toBeNull();
-    await controller.stopRuntime("codex");
+    await controller.stopRuntime(runtimeId);
 
     // Older builds saved this id immediately, although Codex had no rollout yet.
     repository.setNativeRef(session.id, "old-empty-thread");
@@ -102,7 +102,7 @@ describe("parallel multi-session lifecycle", () => {
     await controller.send(session.id, "第一轮任务");
     expect(repository.get(session.id).nativeRef).toBe(`native-${session.id}`);
     adapters[1].complete();
-    await controller.stopRuntime("codex");
+    await controller.stopRuntime(runtimeId);
     await controller.activate(session.id);
     expect(adapters[2].starts[0].resumeRef).toBe(`native-${session.id}`);
 

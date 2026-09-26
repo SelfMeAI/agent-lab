@@ -1,4 +1,5 @@
 import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, ApprovalRequest, FollowUpMode, RuntimePhase } from "../../../../../../packages/contracts/src/index";
+import { isAgentRuntimeId } from "../../../../../../packages/contracts/src/index";
 
 export type { AgentRuntimeId } from "../../../../../../packages/contracts/src/index";
 
@@ -232,6 +233,7 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
 export const agentStores = {
   dsh: createAgentStore("dsh"), codex: createAgentStore("codex"),
   pi: createAgentStore("pi"), "kimi-code": createAgentStore("kimi-code"),
+  "qwen-code": createAgentStore("qwen-code"),
 };
 
 let unsubscribeBridge: (() => void) | null = null;
@@ -239,7 +241,7 @@ let unsubscribeBridge: (() => void) | null = null;
 export function attachAgentEvents(): () => void {
   if (!unsubscribeBridge && window.selfmeLab) {
     const unsubscribeRun = window.selfmeLab.onRunEvent((event) => {
-      if (event.runtimeId === "dsh" || event.runtimeId === "codex" || event.runtimeId === "pi" || event.runtimeId === "kimi-code") agentStores[event.runtimeId].ingest(event);
+      if (isAgentRuntimeId(event.runtimeId)) agentStores[event.runtimeId].ingest(event);
     });
     const unsubscribeQueue = window.selfmeLab.onAgentQueueChange(({ sessionId, queue }) => {
       for (const store of Object.values(agentStores)) store.setQueue(sessionId, queue);

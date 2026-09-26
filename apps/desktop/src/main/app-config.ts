@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentRuntimeId, FollowUpMode } from "../../../../packages/contracts/src/index";
+import { agentRuntimeIds } from "../../../../packages/contracts/src/index";
 
 export interface AgentViewPreference {
   selectedSessionId: string | null;
@@ -26,7 +27,7 @@ export class AppConfigStore {
       // Kept only until existing sessions have adopted the former global value.
       if ("followUpMode" in parsed) this.data.followUpMode = (parsed as { followUpMode?: unknown }).followUpMode === "steer" ? "steer" : "queue";
       if (!agentLab || typeof agentLab !== "object" || Array.isArray(agentLab)) throw new Error("应用配置文件格式无效");
-      for (const runtimeId of ["dsh", "codex", "pi", "kimi-code"] as const) {
+      for (const runtimeId of agentRuntimeIds) {
         const value = (agentLab as Record<string, unknown>)[runtimeId];
         if (!value || typeof value !== "object") continue;
         const preference = value as Partial<AgentViewPreference>;

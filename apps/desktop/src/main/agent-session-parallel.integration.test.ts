@@ -8,7 +8,8 @@ import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import { PiAdapter } from "../../../../packages/runtime/src/pi";
 import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
-import { chat, responses, shellTool, type Obj } from "../../../../packages/runtime/src/test-support/mock-model";
+import { QwenAdapter } from "../../../../packages/runtime/src/qwen";
+import { chat, responses, shellTool, prepareQwenTestHome, type Obj } from "../../../../packages/runtime/src/test-support/mock-model";
 import { AgentSessionController } from "./agent-session-controller";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
@@ -18,7 +19,7 @@ const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runt
 const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
 
 describe("real bundled harnesses: independent concurrent sessions", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(["codex", "dsh", "pi", "kimi-code"] as const)("%s runs two sessions, cancels only one, and drains the other in background", async id => {
+  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(["codex", "dsh", "pi", "kimi-code", "qwen-code"] as const)("%s runs two sessions, cancels only one, and drains the other in background", async id => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/parallel-native-"));
     const workspaces = { A: join(scratch, "workspace-a"), B: join(scratch, "workspace-b") };
@@ -37,7 +38,7 @@ describe("real bundled harnesses: independent concurrent sessions", () => {
         if (!key) throw new Error("Missing session marker");
         if (input.includes(markers[key === "A" ? "B" : "A"])) throw new Error("Cross-session model context");
         const count = requests[key].push(body);
-        if (count > 3) throw new Error("Unexpected model request loop");
+        if (count > 3) throw new Error(`Unexpected model request loop: ${JSON.stringify((body.messages ?? body.input)?.at(-1)).slice(0, 900)}`);
         const respond = req.url?.includes("responses") ? responses : chat;
         if (count === 1) {
           const tool = shellTool(body);
@@ -64,6 +65,7 @@ describe("real bundled harnesses: independent concurrent sessions", () => {
       if (id === "codex") return new CodexAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "codex/bin/codex") });
       if (id === "pi") return new PiAdapter({ homeDirectory, provider });
       if (id === "dsh") return new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
+      if (id === "qwen-code") return new QwenAdapter({ homeDirectory: prepareQwenTestHome(homeDirectory), provider, nodeExecutable, entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js") });
       return new KimiAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"), steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs") });
     }, event => {
       events.push(event);

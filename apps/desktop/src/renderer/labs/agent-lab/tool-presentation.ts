@@ -191,8 +191,11 @@ export function presentEntry(entry: TranscriptEntry): EntryPresentation {
 
   const command = string(raw.command) ?? string(rawInput.command);
   const cwd = string(raw.cwd);
-  const exitCode = typeof raw.exitCode === "number" ? raw.exitCode : undefined;
-  const durationMs = typeof raw.durationMs === "number" && Number.isFinite(raw.durationMs) && raw.durationMs >= 0 ? raw.durationMs : undefined;
+  const nativeOutput = record(raw.rawOutput);
+  const exitCode = typeof raw.exitCode === "number" ? raw.exitCode
+    : typeof nativeOutput.exitCode === "number" ? nativeOutput.exitCode : undefined;
+  const measured = raw.durationMs ?? record(raw._meta).durationMs;
+  const durationMs = typeof measured === "number" && Number.isFinite(measured) && measured >= 0 ? measured : undefined;
   if (!output && raw.rawOutput !== undefined) {
     output = string(raw.rawOutput) ?? string(record(raw.rawOutput).text);
   }

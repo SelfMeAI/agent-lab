@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "postinstall": "node scripts/ensure-dsh-runtime.mjs",
-    "predev": "node scripts/ensure-dsh-runtime.mjs && node scripts/ensure-kimi-runtime.mjs",
+    "predev": "node scripts/ensure-dsh-runtime.mjs && node scripts/ensure-kimi-runtime.mjs && node scripts/ensure-qwen-runtime.mjs",
     "dev": "npm run dev --workspace @selfme-lab/desktop",
     "build": "npm run build --workspace @selfme-lab/desktop",
     "typecheck": "npm run typecheck --workspace @selfme-lab/desktop",
@@ -16,7 +16,8 @@
     "verify:codex": "node scripts/verify-codex-runtime.mjs",
     "build:codex": "node scripts/build-codex-runtime.mjs",
     "ensure:kimi": "node scripts/ensure-kimi-runtime.mjs",
-    "prepackage:mac": "node scripts/ensure-dsh-runtime.mjs && node scripts/verify-codex-runtime.mjs && node scripts/ensure-kimi-runtime.mjs",
+    "ensure:qwen": "node scripts/ensure-qwen-runtime.mjs",
+    "prepackage:mac": "node scripts/ensure-dsh-runtime.mjs && node scripts/verify-codex-runtime.mjs && node scripts/ensure-kimi-runtime.mjs && node scripts/ensure-qwen-runtime.mjs",
     "package:mac": "npm run package:mac --workspace @selfme-lab/desktop"
   },
   "engines": {

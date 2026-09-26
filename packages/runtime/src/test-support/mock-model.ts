@@ -1,12 +1,22 @@
 import type { ServerResponse } from "node:http";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 export type Obj = Record<string, any>;
+
+/** Keep deterministic tests focused on the active turn, not hidden memory jobs. */
+export function prepareQwenTestHome(homeDirectory: string): string {
+  mkdirSync(homeDirectory, { recursive: true });
+  const path = join(homeDirectory, "settings.json");
+  if (!existsSync(path)) writeFileSync(path, JSON.stringify({ memory: { enableManagedAutoMemory: false, enableManagedAutoDream: false } }));
+  return homeDirectory;
+}
 
 export function chat(res: ServerResponse, tool?: { name: string; args: Obj }, text?: string) {
   const id = `chatcmpl-${Date.now()}`;
   const chunk = (delta: Obj, reason: string | null = null) => res.write(`data: ${JSON.stringify({ id, object: "chat.completion.chunk", model: "deepseek-v4-flash", choices: [{ index: 0, delta, finish_reason: reason }] })}\n\n`);
   res.writeHead(200, { "content-type": "text/event-stream" });
   chunk({ role: "assistant" });
-  if (tool) chunk({ tool_calls: [{ index: 0, id: "call_sleep", type: "function", function: { name: tool.name, arguments: JSON.stringify(tool.args) } }] });
+  if (tool) chunk({ tool_calls: [{ index: 0, id: `call-${id}`, type: "function", function: { name: tool.name, arguments: JSON.stringify(tool.args) } }] });
   else chunk({ content: text ?? "done" });
   chunk({}, tool ? "tool_calls" : "stop");
   res.end("data: [DONE]\n\n");
@@ -43,6 +53,9 @@ export function shellTool(body: Obj): { name: string; args: Obj } {
   if (props.cmd) args.cmd = "sleep 2";
   else if (props.command?.type === "array") args.command = ["/bin/sleep", "2"];
   else args.command = "sleep 2";
+  // Qwen correctly rejects purposeless sleeps. Here pacing is intentional:
+  // hold the real tool boundary open so we can exercise mid-turn admission.
+  if (tool.name === "run_shell_command") args.command = "sleep 2 # intentional-sleep: exercise ACP mid-turn input boundary";
   if (props.description) args.description = "Steering integration check";
   return { name: tool.name, args };
 }

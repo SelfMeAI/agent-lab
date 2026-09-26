@@ -7,6 +7,10 @@ function entry(raw: unknown, overrides: Partial<TranscriptEntry> = {}): Transcri
 }
 
 describe("agent tool presentation", () => {
+  it("uses Qwen's native ACP timing and shell exit code without losing command details", () => {
+    expect(presentEntry(entry({ kind: "execute", rawInput: { command: "pwd" }, rawOutput: { exitCode: 0 }, _meta: { durationMs: 24 } })))
+      .toMatchObject({ label: "执行命令", command: "pwd", durationMs: 24, exitCode: 0 });
+  });
   it("shows Codex file changes with truthful add/remove counts", () => {
     const view = presentEntry(entry({ type: "fileChange", changes: [{
       path: "src/app.ts", kind: { type: "update" },

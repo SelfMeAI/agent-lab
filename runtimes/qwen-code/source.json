@@ -1,0 +1,8 @@
+{
+  "name": "Qwen Code",
+  "version": "0.24.6",
+  "source": "https://github.com/QwenLM/qwen-code",
+  "package": "@qwen-code/qwen-code",
+  "integration": "Official npm release, native ACP and craft/drainMidTurnQueue client extension",
+  "license": "Apache-2.0; bundled upstream LICENSE and third-party notices remain in node_modules"
+}

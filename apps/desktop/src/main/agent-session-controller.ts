@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
+import { agentRuntimeIds } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
@@ -133,14 +134,14 @@ export class AgentSessionController {
       const unsubscribe = adapter.onEvent((event) => this.forward(id, event));
       this.live.set(id, { adapter, unsubscribe });
       try {
-        // Codex does not write a resumable rollout until the first turn starts.
-        // An empty thread may have an id but thread/resume cannot load it later.
-        const resumeRef = record.runtimeId === "codex" && record.lastPromptAt === null
+        // Codex and Qwen do not persist empty sessions until the first input.
+        // An allocated native id alone is not a recoverable conversation.
+        const resumeRef = ["codex", "qwen-code"].includes(record.runtimeId) && record.lastPromptAt === null
           ? undefined : record.nativeRef ?? undefined;
         await adapter.start(record.workspace, resumeRef);
         const nativeRef = adapter.getResumeRef();
         if (!nativeRef) throw new Error("运行时未返回可恢复的会话标识");
-        if (record.runtimeId !== "codex") this.repository.setNativeRef(id, nativeRef);
+        if (!["codex", "qwen-code"].includes(record.runtimeId)) this.repository.setNativeRef(id, nativeRef);
       } catch (error) {
         await this.stop(id);
         throw error;
@@ -176,9 +177,9 @@ export class AgentSessionController {
       });
       const adapter = this.live.get(id)!.adapter;
       await adapter.send(text);
-      if (runtimeId === "codex") {
+      if (["codex", "qwen-code"].includes(runtimeId)) {
         const nativeRef = adapter.getResumeRef();
-        if (!nativeRef) throw new Error("Codex 首轮任务未返回可恢复的会话标识");
+        if (!nativeRef) throw new Error(`${adapter.label} 首轮任务未返回可恢复的会话标识`);
         this.repository.setNativeRef(id, nativeRef);
       }
       if (pending) {
@@ -371,7 +372,7 @@ export class AgentSessionController {
 
   async stopAll(): Promise<void> {
     this.closing = true;
-    const results = await Promise.allSettled((["dsh", "codex", "pi", "kimi-code"] as const).map((runtimeId) => this.stopRuntime(runtimeId)));
+    const results = await Promise.allSettled(agentRuntimeIds.map((runtimeId) => this.stopRuntime(runtimeId)));
     const failed = results.find(result => result.status === "rejected");
     if (failed?.status === "rejected") throw failed.reason;
   }

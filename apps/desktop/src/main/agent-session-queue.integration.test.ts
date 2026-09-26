@@ -8,7 +8,8 @@ import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import { PiAdapter } from "../../../../packages/runtime/src/pi";
 import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
-import { chat, responses, shellTool, type Obj } from "../../../../packages/runtime/src/test-support/mock-model";
+import { QwenAdapter } from "../../../../packages/runtime/src/qwen";
+import { chat, responses, shellTool, prepareQwenTestHome, type Obj } from "../../../../packages/runtime/src/test-support/mock-model";
 import { AgentSessionController } from "./agent-session-controller";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
@@ -20,7 +21,7 @@ const queueMarker = "SELFME_FOLLOW_UP_QUEUE_826";
 const steerMarker = "SELFME_STEER_CURRENT_TURN_973";
 
 describe("real bundled harnesses: queued turn versus mid-turn Steer", () => {
-  const cases = (["codex", "dsh", "pi", "kimi-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
+  const cases = (["codex", "dsh", "pi", "kimi-code", "qwen-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
   it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(cases)("$id queue and Steer (cancel=$cancel)", async ({ id, cancel }) => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/queue-native-"));
@@ -49,6 +50,7 @@ describe("real bundled harnesses: queued turn versus mid-turn Steer", () => {
       if (id === "codex") return new CodexAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "codex/bin/codex") });
       if (id === "pi") return new PiAdapter({ homeDirectory, provider });
       if (id === "dsh") return new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
+      if (id === "qwen-code") return new QwenAdapter({ homeDirectory: prepareQwenTestHome(homeDirectory), provider, nodeExecutable, entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js") });
       return new KimiAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"), steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs") });
     }, event => {
       events.push(event);
@@ -81,7 +83,7 @@ describe("real bundled harnesses: queued turn versus mid-turn Steer", () => {
       }, { timeout: 25000, interval: 50 });
       await submitted; expect(providerError).toBeUndefined();
       if (!cancel) {
-        expect(requests).toHaveLength(3);
+        expect(requests, JSON.stringify(requests.map(r => ({ ended: r.originalEnded, model: r.body.model, last: JSON.stringify((r.body.messages ?? r.body.input)?.at(-1)).slice(0, 900) })))).toHaveLength(3);
         const secondInput = JSON.stringify(requests[1].body.messages ?? requests[1].body.input);
         expect(secondInput).toContain(steerMarker); expect(secondInput).not.toContain(queueMarker);
         expect(requests[1].originalEnded).toBe(false);

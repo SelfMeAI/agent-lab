@@ -28,6 +28,15 @@ extraResources:
     to: kimi-code/node_modules
     filter:
       - "**/*"
+  - from: ../../runtimes/qwen-code
+    to: qwen-code
+    filter:
+      - "**/*"
+      - "!node_modules/**/*"
+  - from: ../../runtimes/qwen-code/node_modules
+    to: qwen-code/node_modules
+    filter:
+      - "**/*"
 asar: true
 mac:
   category: public.app-category.developer-tools

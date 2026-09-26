@@ -46,7 +46,7 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
     );
   }
 
-  if (viewId === "dsh" || viewId === "codex" || viewId === "pi" || viewId === "kimi-code") return <AgentWorkspace runtimeId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
+  if (viewId === "dsh" || viewId === "codex" || viewId === "pi" || viewId === "kimi-code" || viewId === "qwen-code") return <AgentWorkspace runtimeId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
 
   return (
     <div className="agent-pending">
