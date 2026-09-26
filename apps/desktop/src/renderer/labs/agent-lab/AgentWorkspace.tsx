@@ -477,7 +477,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const busy = connecting || stopping || busyPhases.has(snapshot.phase);
   const anyBusy = connectingSessionId !== null || stopping || snapshot.sessions.some((item) => busyPhases.has(item.phase));
   const sendAction = composerAction(snapshot.phase, snapshot.queue, followUpMode);
-  const sendLabel = sendAction === "queue" ? "排队" : sendAction === "steer" ? "Steer" : "发送";
+  const sendLabel = sendAction === "queue" ? "Queue" : sendAction === "steer" ? "Steer" : "发送";
   const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : stopping ? "正在停止，下一条消息可以先写在这里" : connecting || snapshot.phase === "starting" ? "正在连接，任务内容可以先写在这里" : sendAction === "queue" ? "添加消息，按队列顺序发送" : sendAction === "steer" ? "补充要求或纠正当前工作的方向" : "描述任务或提出问题";
   const lastPromptIndex = snapshot.entries.reduce((index, entry, current) => entry.kind === "user" && entry.deliveryMode !== "steer" ? current : index, -1);
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
@@ -553,7 +553,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
               {(["running", "approval", "cancelling"].includes(snapshot.phase) || stopping) && <button className="dsh-composer__cancel" disabled={stopping} onClick={() => void cancel()} type="button" title={stopping ? "正在停止，队列消息会保留" : "停止当前轮，同时暂停队列"} aria-label={stopping ? "正在停止当前轮" : "停止当前轮"}>{stopping ? <span className="agent-queue__spinner" aria-hidden="true" /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>}</button>}
               <div className="dsh-send-control" ref={sendMenuRef}>
                 <button className="dsh-composer__send" disabled={!prompt.trim() || !availability.canSubmit || sendAction === "wait"} onClick={() => void submit()} type="button" title={stopping ? "当前轮正在停止，输入内容会保留" : connecting || snapshot.phase === "starting" ? "连接完成后即可发送" : sendAction === "steer" ? "补充当前正在执行的工作" : sendAction === "queue" ? snapshot.queue.paused ? "加入已暂停的队列，不会自动发送" : "加入队列，当前轮结束后依次发送" : "发送任务"} aria-label={sendLabel}>{submitting ? <span className="agent-queue__spinner" aria-hidden="true" /> : <>{sendLabel}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 14 0m-6-6 6 6-6 6" /></svg></>}</button>
-                <button ref={sendMenuButtonRef} className="dsh-send-control__toggle" disabled={!availability.canChooseMode} type="button" aria-label="工作中发送方式" aria-haspopup="menu" aria-expanded={showSendMenu} title={stopping ? "停止完成后可切换发送方式" : connecting || snapshot.phase === "starting" ? "连接完成后可切换发送方式" : `工作中默认：${followUpMode === "queue" ? "Queue · 排队" : "Steer · 补充本轮"}`} onClick={() => setShowSendMenu(!showSendMenu)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 6 3 3 3-3" /></svg></button>
+                <button ref={sendMenuButtonRef} className="dsh-send-control__toggle" disabled={!availability.canChooseMode} type="button" aria-label="工作中发送方式" aria-haspopup="menu" aria-expanded={showSendMenu} title={stopping ? "停止完成后可切换发送方式" : connecting || snapshot.phase === "starting" ? "连接完成后可切换发送方式" : `工作中默认：${followUpMode === "queue" ? "Queue · 排队发送" : "Steer · 补充本轮"}`} onClick={() => setShowSendMenu(!showSendMenu)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 6 3 3 3-3" /></svg></button>
                 {showSendMenu && <div className="dsh-send-menu" role="menu" aria-label="工作中发送方式" onKeyDown={(event) => {
                   if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
                     event.preventDefault(); const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitemradio"]')];
@@ -561,7 +561,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
                     buttons[event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length]?.focus();
                   }
                 }}><span>工作中默认发送方式</span>
-                  <button type="button" role="menuitemradio" aria-checked={followUpMode === "queue"} onClick={() => void chooseFollowUpMode("queue")}><strong>Queue <span>·</span> 排队</strong><small>当前轮结束后依次发送</small><i aria-hidden="true">{followUpMode === "queue" ? "✓" : ""}</i></button>
+                  <button type="button" role="menuitemradio" aria-checked={followUpMode === "queue"} onClick={() => void chooseFollowUpMode("queue")}><strong>Queue <span>·</span> 排队发送</strong><small>当前轮结束后依次发送</small><i aria-hidden="true">{followUpMode === "queue" ? "✓" : ""}</i></button>
                   <button type="button" role="menuitemradio" aria-checked={followUpMode === "steer"} onClick={() => void chooseFollowUpMode("steer")}><strong>Steer <span>·</span> 补充本轮</strong><small>补充当前正在执行的工作</small><i aria-hidden="true">{followUpMode === "steer" ? "✓" : ""}</i></button>
                 </div>}
               </div>
