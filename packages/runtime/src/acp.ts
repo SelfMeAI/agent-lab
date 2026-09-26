@@ -6,7 +6,7 @@ import type { AgentQuestion, AgentQuestionAnswers, ApprovalOption, RunEvent, Run
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
 import { SteeringTracker, steeringError } from "./steering";
-import { kimiFormQuestions, qwenQuestions, validateQuestionAnswers } from "./user-questions";
+import { kimiFormAnswerContent, kimiFormCustomFields, kimiFormQuestions, qwenQuestions, validateQuestionAnswers, type KimiCustomFields } from "./user-questions";
 
 type JsonObject = Record<string, unknown>;
 
@@ -64,7 +64,7 @@ export class AcpAdapter implements HarnessAdapter {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly listeners = new Set<(event: RunEvent) => void>();
   private readonly pending = new Map<number, PendingRequest>();
-  private readonly approvals = new Map<string, { requestId: string | number; options: ApprovalOption[]; questions?: AgentQuestion[]; form?: boolean }>();
+  private readonly approvals = new Map<string, { requestId: string | number; options: ApprovalOption[]; questions?: AgentQuestion[]; form?: KimiCustomFields }>();
   private readonly toolTitles = new Map<string, string>();
   private nextRequestId = 0;
   private sequence = 0;
@@ -220,7 +220,7 @@ export class AcpAdapter implements HarnessAdapter {
       if (allow) {
         const checked = validateQuestionAnswers(approval.questions, answers);
         result = approval.form
-          ? { action: "accept", content: Object.fromEntries(approval.questions.map(q => [q.id, q.multiSelect ? checked[q.id] : checked[q.id][0]])) }
+          ? { action: "accept", content: kimiFormAnswerContent(approval.questions, checked, approval.form) }
           : { ...result, answers: Object.fromEntries(Object.entries(checked).map(([id, values]) => [id, values.join(", ")])) };
       } else if (approval.form) result = { action: "cancel" };
     } else if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
@@ -403,7 +403,7 @@ export class AcpAdapter implements HarnessAdapter {
       { optionId: "submit", name: "提交答案", kind: "allow_once" },
       { optionId: "cancel", name: "取消回答", kind: "reject_once" },
     ];
-    this.approvals.set(String(requestId), { requestId, options, questions, form: true });
+    this.approvals.set(String(requestId), { requestId, options, questions, form: kimiFormCustomFields(params) ?? {} });
     this.emitStatus("approval", "等待你回答问题");
     this.emit("approval", { title: "需要你回答", text: string(params.message),
       approval: { requestId, title: "需要你回答", options, questions, toolCallId: string(params.toolCallId) }, raw: params });

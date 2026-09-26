@@ -47,11 +47,36 @@ export function dshQuestions(value: unknown): AgentQuestion[] {
   return result;
 }
 
-/** Kimi's native ACP form preserves all questions and multi-select. */
+export type KimiCustomFields = Record<string, { fieldId: string; value: string }>;
+
+/** Only the version-pinned Kimi bridge may add custom-input companion fields. */
+export function kimiFormCustomFields(params: Obj): KimiCustomFields | null {
+  const metadata = object(params._meta).selfmeKimiOther;
+  if (metadata === undefined) return {};
+  const bridge = object(metadata), properties = object(object(params.requestedSchema).properties);
+  if (bridge.version !== 1 || !Array.isArray(bridge.fields) || !bridge.fields.length || bridge.fields.length > 16) return null;
+  const fields: KimiCustomFields = Object.create(null);
+  const companionIds = new Set<string>();
+  for (const entry of bridge.fields) {
+    const field = object(entry), id = text(field.id), fieldId = text(field.fieldId), value = text(field.value);
+    const primary = object(properties[id]), companion = object(properties[fieldId]);
+    const options = primary.type === "array" ? object(primary.items).anyOf : primary.oneOf;
+    if (!/^q\d+$/.test(id) || fieldId !== `${id}_other` || !value || fields[id] || companionIds.has(fieldId)
+      || !["string", "array"].includes(text(primary.type)) || companion.type !== "string"
+      || !Array.isArray(options) || options.filter(option => object(option).const === value).length !== 1) return null;
+    fields[id] = { fieldId, value }; companionIds.add(fieldId);
+  }
+  return fields;
+}
+
+/** Kimi's native ACP form, plus the bridge's enum + optional Other text pair. */
 export function kimiFormQuestions(params: Obj): AgentQuestion[] {
   if (params.mode !== "form") return [];
   const schema = object(params.requestedSchema), properties = object(schema.properties);
-  const fields = Object.entries(properties);
+  const customFields = kimiFormCustomFields(params);
+  if (!customFields) return [];
+  const companions = new Set(Object.values(customFields).map(field => field.fieldId));
+  const fields = Object.entries(properties).filter(([id]) => !companions.has(id));
   if (schema.type !== "object" || !fields.length || fields.length > 16) return [];
   const messages = text(params.message).split("\n");
   const result: AgentQuestion[] = [];
@@ -59,13 +84,30 @@ export function kimiFormQuestions(params: Obj): AgentQuestion[] {
     const field = object(value), multiSelect = field.type === "array";
     if (!multiSelect && field.type !== "string") return [];
     const nativeOptions = multiSelect ? object(field.items).anyOf : field.oneOf;
-    const options = choices(Array.isArray(nativeOptions) ? nativeOptions.map(value => {
+    const options = choices(Array.isArray(nativeOptions) ? nativeOptions.filter(value => !customFields[id] || object(value).const !== customFields[id].value).map(value => {
       const option = object(value); return { label: option.const, description: option.description };
     }) : undefined);
     if (!options?.length) return [];
-    result.push({ id, header: text(field.title), question: messages[index] || text(field.title), detail: text(field.description) || undefined, options, multiSelect, allowCustom: false });
+    result.push({ id, header: text(field.title), question: messages[index] || text(field.title), detail: text(field.description) || undefined, options, multiSelect, allowCustom: customFields[id] !== undefined });
   }
   return result;
+}
+
+/** Serialize Other as a valid enum selection AND its companion text field. */
+export function kimiFormAnswerContent(questions: AgentQuestion[], answers: AgentQuestionAnswers, customFields: KimiCustomFields): Obj {
+  const content: Obj = Object.create(null);
+  for (const q of questions) {
+    const custom = answers[q.id].filter(value => !q.options.some(option => option.label === value));
+    const values = answers[q.id].filter(value => q.options.some(option => option.label === value));
+    if (custom.length) {
+      const field = customFields[q.id];
+      if (!field || custom.length > 1) throw new Error("每个问题只能填写一个自定义答案");
+      values.push(field.value);
+      content[field.fieldId] = custom[0];
+    }
+    content[q.id] = q.multiSelect ? values : values[0];
+  }
+  return content;
 }
 
 /** Validate in the runtime too: renderer/IPC payloads are not trusted. */

@@ -1,9 +1,14 @@
 import { registerHooks } from "node:module";
 import { replaceOnce, parseSteeringSource } from "../steering-bridge.mjs";
+import { kimiQuestionBridgeSource } from "./questions-bridge.mjs";
 
-// Official npm @moonshot-ai/kimi-code 2.1.1. Keep ACP, approvals and native loop unchanged.
+// Official npm @moonshot-ai/kimi-code 2.1.1. Extend ACP edges, not approvals or the native loop.
 export function transformKimi(source) {
-  source = parseSteeringSource + source.replace(/^#![^\n]*\n/u, "");
+  source = replaceOnce(source, "function questionRequestToElicitationParams(questions, sessionId, toolCallId) {",
+    "function selfmeOriginalKimiQuestionForm(questions, sessionId, toolCallId) {");
+  source = replaceOnce(source, "function elicitationResponseToQuestionAnswers(questions, response) {",
+    "function selfmeOriginalKimiQuestionAnswers(questions, response) {");
+  source = parseSteeringSource + kimiQuestionBridgeSource + source.replace(/^#![^\n]*\n/u, "");
   const head = '\t\tasync submitSteer(payload) {\n\t\t\tthis.telemetry.track2("input_steer", { parts: payload.input.length });\n\t\t\tawait this.updateMetadata(promptMetadataTextFromContentParts(payload.input));\n\t\t\tconst status = this.loop.snapshot();';
   source = replaceOnce(source, head, head + `
     // Normal native steer also starts a turn when idle. This ACP-only process

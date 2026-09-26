@@ -22,7 +22,7 @@ describe("real native human-question round trips", () => {
     const scratch = await mkdtemp(join(root, ".work/question-native-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);
     const events: RunEvent[] = [], errors: string[] = [], requests: Obj[] = [];
-    let receivedAnswers = false, receivedCustom = false, nextQuestion = true, turn = 1;
+    let receivedAnswers = false, receivedCustom = false, receivedCancellation = false, nextQuestion = true, turn = 1;
     const server = createServer(async (req, res) => {
       try {
         let raw = ""; for await (const chunk of req) raw += String(chunk);
@@ -47,8 +47,12 @@ describe("real native human-question round trips", () => {
             receivedAnswers = context.includes("扫雷") && (id === "codex" || context.includes("电脑") && context.includes("手机"));
             if (context.includes("No valid answers were provided")) throw new Error("Native question lost its answers");
           }
-          if (turn === 4) receivedCustom = context.includes("CUSTOM_ANSWER_947");
-          respond(res, undefined, turn === 1 ? "已收到你的选择" : "已尊重取消回答");
+          if (turn === 4) {
+            receivedCustom = context.includes("CUSTOM_ANSWER_947") && (id !== "kimi-code" || context.includes("CUSTOM_PLATFORM_948"));
+            if (id === "kimi-code" && context.includes("__selfme_kimi_other__")) throw new Error("Synthetic Other marker leaked into Kimi's tool result");
+          }
+          if (turn === 2 && id === "kimi-code") receivedCancellation = context.includes("User dismissed the question without answering.");
+          respond(res, undefined, turn === 1 ? "已收到你的选择" : turn === 4 ? "已收到你的自定义答案" : "已尊重取消回答");
         }
       } catch (error) { errors.push(String(error)); res.writeHead(500); res.end(JSON.stringify({ error: { message: String(error) } })); }
     });
@@ -73,16 +77,17 @@ describe("real native human-question round trips", () => {
       const first = events.length; await adapter.send("先问我选择什么游戏和支持哪些平台，再根据答案继续。不要操作文件。");
       const asked = (await question(first)).approval!;
       expect(asked.questions).toHaveLength(id === "codex" ? 1 : 2);
+      if (id === "kimi-code") expect(asked.questions!.every(q => q.allowCustom)).toBe(true);
       const submit = asked.options.find(o => o.kind.includes("allow"))!;
       await expect(adapter.respondApproval(asked.requestId, submit.optionId, {})).rejects.toThrow(/回答/);
       const answers = Object.fromEntries(asked.questions!.map((q, i) => [q.id, i === 0 ? ["扫雷"] : ["电脑", "手机"]]));
       await adapter.respondApproval(asked.requestId, submit.optionId, answers); await end(first);
       expect(receivedAnswers).toBe(true);
       await expect(adapter.respondApproval(asked.requestId, submit.optionId, answers)).rejects.toThrow(/失效/);
-      if (id !== "kimi-code") {
+      {
         const customStart = events.length; nextQuestion = true; turn = 4; await adapter.send("再问我一次，我会填写自己的答案。");
         const custom = (await question(customStart)).approval!;
-        const customAnswers = Object.fromEntries(custom.questions!.map((q, index) => [q.id, index === 0 ? ["CUSTOM_ANSWER_947"] : ["电脑"]]));
+        const customAnswers = Object.fromEntries(custom.questions!.map((q, index) => [q.id, index === 0 ? ["CUSTOM_ANSWER_947"] : id === "kimi-code" ? ["电脑", "CUSTOM_PLATFORM_948"] : ["电脑"]]));
         await adapter.respondApproval(custom.requestId, custom.options.find(o => o.kind.includes("allow"))!.optionId, customAnswers);
         await end(customStart); expect(receivedCustom).toBe(true);
       }
@@ -90,6 +95,7 @@ describe("real native human-question round trips", () => {
       const cancelled = (await question(second)).approval!;
       await adapter.respondApproval(cancelled.requestId, cancelled.options.find(o => o.kind.includes("reject"))!.optionId);
       await end(second);
+      if (id === "kimi-code") expect(receivedCancellation).toBe(true);
       const third = events.length; nextQuestion = true; turn = 3; await adapter.send("再问我一次，测试停止整个任务。");
       const stopping = (await question(third)).approval!;
       await adapter.cancel(); await end(third);

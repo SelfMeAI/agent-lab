@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { AgentQuestion, ApprovalRequest } from "../../../../../../packages/contracts/src/index";
+import { kimiFormQuestions } from "../../../../../../packages/runtime/src/user-questions";
 import { TranscriptItem } from "./AgentWorkspace";
 import { emptyQuestionDraft, questionDraftAnswers, toggleQuestionChoice } from "./question-drafts";
 import { createSessionInteractions } from "./session-interactions";
@@ -42,5 +43,23 @@ describe("user question card", () => {
       entry: { id: "question", kind: "approval", runId: "run", at: "2026-09-27T00:00:00Z", text: "", approval: { ...approval, questions: [{ ...question, allowCustom: false }] } } }));
     expect(markup).not.toContain("其他"); expect(markup).toContain('<fieldset class="agent-question__field" disabled=""');
     expect(markup).toContain("正在提交…");
+  });
+  it("renders bridged Kimi Other as one choice with a required text draft, not a separate question", () => {
+    const questions = kimiFormQuestions({ mode: "form", message: "游戏？", requestedSchema: { type: "object", properties: {
+      q0: { type: "string", title: "类型", oneOf: [{ const: "2048" }, { const: "扫雷" }, { const: "other-marker", title: "Other" }] },
+      q0_other: { type: "string", title: "Other" },
+    } }, _meta: { selfmeKimiOther: { version: 1, fields: [{ id: "q0", fieldId: "q0_other", value: "other-marker" }] } } });
+    const draft = toggleQuestionChoice(emptyQuestionDraft, questions[0], questions[0].options.length);
+    const render = (questionDraft: typeof draft): string => renderToStaticMarkup(createElement(TranscriptItem, {
+      runtimeId: "kimi-code", workspace: "/workspace", onApprove: () => {}, approvalBusy: false, questionDraft,
+      entry: { id: "question", kind: "approval", runId: "run", at: "2026-09-27T00:00:00Z", text: "", approval: { ...approval, questions } },
+    }));
+    const empty = render(draft);
+    expect(empty.match(/<fieldset /g)).toHaveLength(1);
+    expect(empty).toContain("其他"); expect(empty).toContain("<textarea");
+    expect(empty).toContain('type="submit" disabled=""'); expect(empty).not.toContain("other-marker");
+    const filled = { ...draft, customText: { q0: "象棋" } };
+    expect(render(filled)).not.toContain('type="submit" disabled=""');
+    expect(questionDraftAnswers(questions, filled)).toEqual({ q0: ["象棋"] });
   });
 });
