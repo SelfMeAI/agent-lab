@@ -14,7 +14,9 @@ const busyPhases = new Set<RuntimePhase>(["starting", "running", "approval", "ca
 /** Owns app sessions independently of each harness's native session identity. */
 export class AgentSessionController {
   private readonly live = new Map<string, LiveSession>();
-  private readonly operations = new Map<AgentRuntimeId, Promise<void>>();
+  private readonly operations = new Map<string, { runtimeId: AgentRuntimeId; settled: Promise<void> }>();
+  private readonly stoppingRuntimes = new Map<AgentRuntimeId, Promise<void>>();
+  private closing = false;
   private readonly draining = new Set<string>();
   private readonly cancellations = new Map<string, Promise<void>>();
 
@@ -23,7 +25,6 @@ export class AgentSessionController {
     private readonly config: AppConfigStore,
     private readonly createAdapter: AdapterFactory,
     private readonly emit: (event: AgentSessionEvent) => void,
-    private readonly allowParallel = false,
     private readonly runtimeHomesRoot?: string,
     private readonly emitQueue: (id: string, queue: AgentSessionQueue) => void = () => {},
   ) {}
@@ -46,29 +47,30 @@ export class AgentSessionController {
   setFollowUpMode(id: string, mode: FollowUpMode): void { this.repository.setFollowUpMode(id, mode); }
 
   async create(runtimeId: AgentRuntimeId, workspace: string): Promise<AgentSessionSummary> {
+    this.assertRuntimeAvailable(runtimeId);
     const canonical = await realpath(workspace);
     if (!(await stat(canonical)).isDirectory()) throw new Error("工作目录必须是文件夹");
-    return this.serial(runtimeId, async () => {
-      if (!this.allowParallel) await this.stopOtherSessions(runtimeId);
-      const session = this.repository.create(runtimeId, canonical);
-      await this.config.select(runtimeId, session.id, canonical);
-      return session;
-    });
+    this.assertRuntimeAvailable(runtimeId);
+    const session = this.repository.create(runtimeId, canonical);
+    await this.config.select(runtimeId, session.id, canonical);
+    return session;
   }
 
   async activate(id: string): Promise<void> {
-    const runtimeId = this.repository.get(id).runtimeId;
-    await this.serial(runtimeId, () => this.start(id));
+    await this.serial(id, () => this.start(id));
   }
 
   async select(id: string): Promise<void> {
     const record = this.repository.get(id);
-    await this.serial(record.runtimeId, () => this.config.select(record.runtimeId, id, record.workspace));
+    // Selection is a UI preference, not a runtime operation. A slow connection
+    // must not delay switching, and background starts must never change it.
+    this.assertRuntimeAvailable(record.runtimeId);
+    await this.config.select(record.runtimeId, id, record.workspace);
   }
 
   async delete(id: string): Promise<void> {
     const runtimeId = this.repository.get(id).runtimeId;
-    await this.serial(runtimeId, async () => {
+    await this.serial(id, async () => {
       const record = this.repository.get(id);
       if (busyPhases.has(record.phase)) throw new Error("会话仍在运行，请先完成或取消任务");
       await this.stop(id);
@@ -83,7 +85,7 @@ export class AgentSessionController {
 
   async restore(id: string): Promise<void> {
     const runtimeId = this.repository.get(id, true).runtimeId;
-    await this.serial(runtimeId, async () => {
+    await this.serial(id, async () => {
       const restored = this.repository.restore(id);
       if (!this.config.get(runtimeId).selectedSessionId) {
         await this.config.select(runtimeId, restored.id, restored.workspace);
@@ -92,8 +94,7 @@ export class AgentSessionController {
   }
 
   async purge(id: string): Promise<void> {
-    const runtimeId = this.repository.get(id, true).runtimeId;
-    await this.serial(runtimeId, async () => {
+    await this.serial(id, async () => {
       const record = this.repository.get(id, true);
       if (!record.deletedAt) throw new Error("请先将会话移至最近删除");
       if (this.live.has(id)) throw new Error("会话仍在运行，不能彻底删除");
@@ -128,7 +129,6 @@ export class AgentSessionController {
     const record = this.repository.get(id);
     if (this.live.has(id) && (record.phase === "error" || record.phase === "idle")) await this.stop(id);
     if (!this.live.has(id)) {
-      if (!this.allowParallel) await this.stopOtherSessions(record.runtimeId);
       const adapter = this.createAdapter(record.runtimeId, id);
       const unsubscribe = adapter.onEvent((event) => this.forward(id, event));
       this.live.set(id, { adapter, unsubscribe });
@@ -146,14 +146,12 @@ export class AgentSessionController {
         throw error;
       }
     }
-    await this.config.select(record.runtimeId, id, record.workspace);
   }
 
   async send(id: string, prompt: string): Promise<void> {
     this.assertNotStopping(id);
     const text = this.promptText(prompt);
-    const runtimeId = this.repository.get(id).runtimeId;
-    await this.serial(runtimeId, () => {
+    await this.serial(id, () => {
       if (this.repository.queue(id).messages.some((item) => item.state !== "awaiting")) throw new Error("已有待发送消息，请先处理或继续队列");
       return this.dispatchPrompt(id, text);
     });
@@ -223,8 +221,7 @@ export class AgentSessionController {
   async steer(id: string, prompt: string): Promise<void> {
     this.assertNotStopping(id);
     const text = this.promptText(prompt);
-    const runtimeId = this.repository.get(id).runtimeId;
-    await this.serial(runtimeId, () => this.submitSteer(id, text));
+    await this.serial(id, () => this.submitSteer(id, text));
   }
 
   private async submitSteer(id: string, text: string, pending?: PendingAgentMessage): Promise<void> {
@@ -252,8 +249,8 @@ export class AgentSessionController {
   }
 
   async enqueue(id: string, prompt: string): Promise<void> {
-    const text = this.promptText(prompt), runtimeId = this.repository.get(id).runtimeId;
-    await this.serial(runtimeId, async () => {
+    const text = this.promptText(prompt);
+    await this.serial(id, async () => {
       const phase = this.repository.get(id).phase;
       this.repository.addQueueMessage(id, { id: randomUUID(), text, createdAt: new Date().toISOString(), mode: "queue", state: "queued" });
       if (["cancelling", "error", "idle"].includes(phase)) this.repository.pauseQueue(id, true);
@@ -264,7 +261,7 @@ export class AgentSessionController {
 
   async editQueued(id: string, messageId: string, prompt: string): Promise<void> {
     const text = this.promptText(prompt);
-    await this.serial(this.repository.get(id).runtimeId, async () => {
+    await this.serial(id, async () => {
       if (this.repository.queueMessage(id, messageId)?.state !== "queued") throw new Error("消息已提交，不能再编辑");
       this.repository.updateQueueMessage(id, messageId, { text });
       this.queueChanged(id);
@@ -272,7 +269,7 @@ export class AgentSessionController {
   }
 
   async deleteQueued(id: string, messageId: string): Promise<void> {
-    await this.serial(this.repository.get(id).runtimeId, async () => {
+    await this.serial(id, async () => {
       const item = this.repository.queueMessage(id, messageId);
       if (!item) return;
       if (!["queued", "unconfirmed"].includes(item.state)) throw new Error("消息已提交，不能撤回");
@@ -283,7 +280,7 @@ export class AgentSessionController {
   }
 
   async moveQueued(id: string, messageId: string, direction: "up" | "down"): Promise<void> {
-    await this.serial(this.repository.get(id).runtimeId, async () => {
+    await this.serial(id, async () => {
       this.repository.moveQueueMessage(id, messageId, direction);
       this.queueChanged(id);
     });
@@ -291,7 +288,7 @@ export class AgentSessionController {
 
   async steerQueued(id: string, messageId: string): Promise<void> {
     this.assertNotStopping(id);
-    await this.serial(this.repository.get(id).runtimeId, async () => {
+    await this.serial(id, async () => {
       const item = this.repository.queueMessage(id, messageId);
       if (!item || item.state !== "queued") throw new Error("消息已提交或已删除");
       await this.submitSteer(id, item.text, item);
@@ -299,7 +296,7 @@ export class AgentSessionController {
   }
 
   async retryQueued(id: string, messageId: string): Promise<void> {
-    await this.serial(this.repository.get(id).runtimeId, async () => {
+    await this.serial(id, async () => {
       this.repository.retryQueueMessage(id, messageId);
       this.queueChanged(id);
     });
@@ -307,7 +304,7 @@ export class AgentSessionController {
 
   async resumeQueue(id: string): Promise<void> {
     this.assertNotStopping(id);
-    await this.serial(this.repository.get(id).runtimeId, async () => {
+    await this.serial(id, async () => {
       this.assertNotStopping(id);
       if (this.repository.queue(id).messages.some((item) => item.state === "unconfirmed")) throw new Error("请先处理发送未确认的消息");
       if (!busyPhases.has(this.repository.get(id).phase)) await this.start(id);
@@ -329,37 +326,72 @@ export class AgentSessionController {
   }
 
   isBusy(runtimeId: AgentRuntimeId): boolean {
-    return [...this.live.keys()].some((id) => {
+    return this.stoppingRuntimes.has(runtimeId) || [...this.operations.values()].some(op => op.runtimeId === runtimeId) || [...this.live.keys()].some((id) => {
       const record = this.repository.get(id);
       return record.runtimeId === runtimeId && busyPhases.has(record.phase);
     });
   }
 
   async stopRuntime(runtimeId: AgentRuntimeId): Promise<void> {
-    await this.serial(runtimeId, () => Promise.all([...this.live.keys()]
-      .filter((id) => this.repository.get(id).runtimeId === runtimeId).map((id) => this.stop(id))).then(() => {}));
+    const existing = this.stoppingRuntimes.get(runtimeId);
+    if (existing) return existing;
+    const stopping = Promise.resolve().then(() => this.stopInstances(runtimeId));
+    this.stoppingRuntimes.set(runtimeId, stopping);
+    try { await stopping; }
+    finally { if (this.stoppingRuntimes.get(runtimeId) === stopping) this.stoppingRuntimes.delete(runtimeId); }
+  }
+
+  async reconfigure<T>(runtimeId: AgentRuntimeId, save: () => Promise<T>): Promise<T> {
+    this.assertRuntimeAvailable(runtimeId);
+    if (this.isBusy(runtimeId)) throw new Error("此 Harness 仍有会话在运行，请先完成或取消后修改模型配置");
+    // A shared provider cannot change while a new sibling session is starting.
+    // Reserve the runtime before the asynchronous credential write begins.
+    const updating = Promise.resolve().then(async () => {
+      const result = await save();
+      await this.stopInstances(runtimeId);
+      return result;
+    });
+    const barrier = updating.then(() => {}, () => {});
+    this.stoppingRuntimes.set(runtimeId, barrier);
+    try { return await updating; }
+    finally { if (this.stoppingRuntimes.get(runtimeId) === barrier) this.stoppingRuntimes.delete(runtimeId); }
+  }
+
+  private async stopInstances(runtimeId: AgentRuntimeId): Promise<void> {
+    // Block new work first, settle admitted RPCs, then stop all instances.
+    await Promise.all([...this.operations.values()].filter(op => op.runtimeId === runtimeId).map(op => op.settled));
+    const results = await Promise.allSettled([...this.live.keys()]
+      .filter(id => this.repository.get(id).runtimeId === runtimeId).map(async id => {
+        await this.cancellations.get(id)?.catch(() => {});
+        await this.stop(id);
+      }));
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 
   async stopAll(): Promise<void> {
-    await Promise.all((["dsh", "codex", "pi", "kimi-code"] as const).map((runtimeId) => this.stopRuntime(runtimeId)));
+    this.closing = true;
+    const results = await Promise.allSettled((["dsh", "codex", "pi", "kimi-code"] as const).map((runtimeId) => this.stopRuntime(runtimeId)));
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 
-  private async serial<T>(runtimeId: AgentRuntimeId, action: () => Promise<T>): Promise<T> {
-    const previous = this.operations.get(runtimeId);
-    const current = (previous ?? Promise.resolve()).catch(() => {}).then(action);
+  private async serial<T>(id: string, action: () => Promise<T>): Promise<T> {
+    const runtimeId = this.repository.get(id, true).runtimeId;
+    this.assertRuntimeAvailable(runtimeId);
+    const previous = this.operations.get(id)?.settled;
+    const current = (previous ?? Promise.resolve()).then(() => {
+      this.assertRuntimeAvailable(runtimeId);
+      return action();
+    });
     const settled = current.then(() => {}, () => {});
-    this.operations.set(runtimeId, settled);
+    this.operations.set(id, { runtimeId, settled });
     try { return await current; }
-    finally { if (this.operations.get(runtimeId) === settled) this.operations.delete(runtimeId); }
+    finally { if (this.operations.get(id)?.settled === settled) this.operations.delete(id); }
   }
 
-  private async stopOtherSessions(runtimeId: AgentRuntimeId): Promise<void> {
-    for (const id of this.live.keys()) {
-      const record = this.repository.get(id);
-      if (record.runtimeId !== runtimeId) continue;
-      if (busyPhases.has(record.phase)) throw new Error("当前任务仍在运行，请先完成或取消后切换会话");
-      await this.stop(id);
-    }
+  private assertRuntimeAvailable(runtimeId: AgentRuntimeId): void {
+    if (this.closing || this.stoppingRuntimes.has(runtimeId)) throw new Error("运行时正在关闭，请稍后再试");
   }
 
   private async stop(id: string): Promise<void> {
@@ -399,10 +431,11 @@ export class AgentSessionController {
   }
 
   private scheduleDrain(id: string): void {
-    if (this.draining.has(id) || !this.live.has(id)) return;
+    if (this.draining.has(id) || !this.live.has(id) || this.closing) return;
     const runtimeId = this.repository.get(id).runtimeId;
+    if (this.stoppingRuntimes.has(runtimeId)) return;
     this.draining.add(id);
-    void this.serial(runtimeId, async () => {
+    void this.serial(id, async () => {
       if (!this.live.has(id)) return;
       const queue = this.repository.queue(id);
       if (queue.paused || this.cancellations.has(id) || this.repository.get(id).phase !== "ready") return;

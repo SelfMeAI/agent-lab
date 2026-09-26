@@ -7,6 +7,7 @@ import { agentStores, isTranscriptInput, type AgentRuntimeId, type TranscriptEnt
 import { PendingMessageQueue } from "./PendingMessageQueue";
 import { composerAction, followUpAvailability } from "./follow-up";
 import { observeTranscriptLayout } from "./transcript-layout";
+import { sessionInteractions } from "./session-interactions";
 import "./follow-up.css";
 import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, toolDuration, turnDuration } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
@@ -202,49 +203,47 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   providerRevision?: number;
 }): JSX.Element {
   const store = agentStores[runtimeId];
+  const interactions = sessionInteractions[runtimeId];
   const today = useCalendarToday();
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [connectingSessionId, setConnectingSessionId] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [creatingSession, setCreatingSession] = useState(false);
+  const creatingRef = useRef(false);
   const [railError, setRailError] = useState<string | null>(null);
   const [showDeletedSessions, setShowDeletedSessions] = useState(false);
   const [sessionAction, setSessionAction] = useState<{ id: string; title: string; kind: "delete" | "purge" } | null>(null);
   const [sessionActionBusy, setSessionActionBusy] = useState(false);
-  const [approvalBusy, setApprovalBusy] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [stoppingRequest, setStoppingRequest] = useState(false);
-  const [changingMode, setChangingMode] = useState(false);
   const [showSendMenu, setShowSendMenu] = useState(false);
   const sendMenuRef = useRef<HTMLDivElement>(null);
   const sendMenuButtonRef = useRef<HTMLButtonElement>(null);
-  const submittingRef = useRef(false);
-  const stoppingRef = useRef(false);
-  const changingModeRef = useRef(false);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  useSyncExternalStore(interactions.subscribe, interactions.getSnapshot);
+  const interaction = interactions.get(snapshot.selectedSessionId);
+  const { prompt, error: localError, connecting, submitting, changingMode, approvalBusy } = interaction;
+  const setPrompt = (value: string): void => interactions.update(snapshot.selectedSessionId, { prompt: value });
   const session = snapshot.sessions.find((item) => item.id === snapshot.selectedSessionId) ?? null;
   const followUpMode = session?.followUpMode ?? "queue";
   const workspace = session?.workspace ?? null;
   const outputRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const followOutputRef = useRef(true);
+  const scrollPositions = useRef(new Map<string, { top: number; following: boolean }>());
   const [showLatest, setShowLatest] = useState(false);
-  const connecting = connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId;
-  const stopping = stoppingRequest || snapshot.phase === "cancelling";
+  const stopping = interaction.stopping || snapshot.phase === "cancelling";
   const availability = followUpAvailability(snapshot.phase, { connecting, stopping, submitting, changingMode });
 
   const connect = useCallback(async (sessionId: string): Promise<void> => {
     if (!window.selfmeLab) return;
-    setConnectingSessionId(sessionId);
-    setLocalError(null);
+    const phase = store.getSnapshot().sessions.find(item => item.id === sessionId)?.phase;
+    if (interactions.get(sessionId).connecting || (phase && phase !== "idle" && phase !== "error")) return;
+    interactions.update(sessionId, { connecting: true, error: null });
     try {
       await window.selfmeLab.startAgentSession(sessionId);
     } catch (error) {
-      setLocalError(errorMessage(error));
+      interactions.update(sessionId, { error: errorMessage(error) });
     } finally {
-      setConnectingSessionId((current) => current === sessionId ? null : current);
+      interactions.update(sessionId, { connecting: false });
     }
-  }, []);
+  }, [interactions, store]);
 
   useEffect(() => {
     let active = true;
@@ -253,17 +252,26 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
         .then(async ([status, catalog]) => {
           if (!active) return;
           setProvider(status);
-          store.setCatalog(catalog);
-          if (catalog.selectedSessionId) {
-            const history = await window.selfmeLab!.getAgentSessionEvents(catalog.selectedSessionId);
+          store.setCatalog(catalog, true);
+          const selectedId = store.getSnapshot().selectedSessionId;
+          if (selectedId) {
+            const history = await window.selfmeLab!.getAgentSessionEvents(selectedId);
             if (!active) return;
-            store.loadHistory(catalog.selectedSessionId, history);
-            if (status.configured) await connect(catalog.selectedSessionId);
+            store.loadHistory(selectedId, history);
+            if (status.configured) await connect(selectedId);
           }
-        }).catch((error: unknown) => { if (active) setLocalError(errorMessage(error)); });
+        }).catch((error: unknown) => { if (active) setRailError(errorMessage(error)); });
     }
     return () => { active = false; };
   }, [connect, providerRevision, runtimeId, store]);
+
+  useLayoutEffect(() => {
+    setShowSendMenu(false);
+    const saved = scrollPositions.current.get(snapshot.selectedSessionId ?? "");
+    followOutputRef.current = saved?.following ?? true;
+    setShowLatest(!followOutputRef.current);
+    if (outputRef.current) outputRef.current.scrollTop = saved?.following === false ? saved.top : outputRef.current.scrollHeight;
+  }, [snapshot.selectedSessionId]);
 
   useLayoutEffect(() => {
     const output = outputRef.current;
@@ -293,19 +301,19 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   async function chooseFollowUpMode(mode: FollowUpMode): Promise<void> {
     const sessionId = store.getSnapshot().selectedSessionId;
     if (!sessionId || !window.selfmeLab) return;
-    if (changingModeRef.current || !followUpAvailability(store.getSnapshot().phase, {
-      connecting, stopping: stoppingRef.current, submitting: submittingRef.current,
+    const currentInteraction = interactions.get(sessionId);
+    if (currentInteraction.changingMode || !followUpAvailability(store.getSnapshot().phase, {
+      connecting: currentInteraction.connecting, stopping: currentInteraction.stopping, submitting: currentInteraction.submitting,
     }).canChooseMode) return;
     setShowSendMenu(false);
-    changingModeRef.current = true;
-    setChangingMode(true);
+    interactions.update(sessionId, { changingMode: true });
     try {
       await window.selfmeLab.setSessionFollowUpMode(sessionId, mode);
       store.setFollowUpMode(sessionId, mode);
       if (store.getSnapshot().selectedSessionId === sessionId) promptRef.current?.focus();
     }
-    catch (error) { setLocalError(errorMessage(error)); }
-    finally { changingModeRef.current = false; setChangingMode(false); }
+    catch (error) { interactions.update(sessionId, { error: errorMessage(error) }); }
+    finally { interactions.update(sessionId, { changingMode: false }); }
   }
 
   useLayoutEffect(() => {
@@ -314,7 +322,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     input.style.height = "auto";
     input.style.height = `${Math.min(Math.max(input.scrollHeight, 38), 178)}px`;
     input.style.overflowY = input.scrollHeight > 178 ? "auto" : "hidden";
-  }, [prompt]);
+  }, [prompt, snapshot.selectedSessionId]);
 
   useEffect(() => {
     if (!sessionAction) return;
@@ -331,6 +339,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     const nearLatest = output.scrollHeight - output.scrollTop - output.clientHeight < 72;
     followOutputRef.current = nearLatest;
     setShowLatest(!nearLatest);
+    if (snapshot.selectedSessionId) scrollPositions.current.set(snapshot.selectedSessionId, { top: output.scrollTop, following: nearLatest });
   }
 
   function jumpToLatest(): void {
@@ -339,6 +348,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     followOutputRef.current = true;
     setShowLatest(false);
     output.scrollTop = output.scrollHeight;
+    if (snapshot.selectedSessionId) scrollPositions.current.set(snapshot.selectedSessionId, { top: output.scrollTop, following: true });
   }
 
   async function createSession(path: string): Promise<void> {
@@ -348,28 +358,31 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
       const created = await bridge.createAgentSession(runtimeId, path);
       store.addSession(created);
       setShowDeletedSessions(false);
-      setPrompt("");
-      setLocalError(null);
-      if (provider?.configured) await connect(created.id);
+      setRailError(null);
+      if (provider?.configured) void connect(created.id);
     } catch (error) {
-      setLocalError(errorMessage(error));
+      setRailError(errorMessage(error));
     }
   }
 
   async function chooseWorkspace(): Promise<void> {
     if (!window.selfmeLab) return;
-    if (anyBusy) { setLocalError("当前任务仍在运行，请先完成或取消后新建会话"); return; }
+    if (creatingRef.current) return;
+    creatingRef.current = true; setCreatingSession(true);
     try {
       const selected = await window.selfmeLab.chooseWorkspace();
       if (selected) await createSession(selected);
-    } catch (error) { setLocalError(errorMessage(error)); }
+    } catch (error) { setRailError(errorMessage(error)); }
+    finally { creatingRef.current = false; setCreatingSession(false); }
   }
 
   async function newSession(): Promise<void> {
-    if (anyBusy) { setLocalError("当前任务仍在运行，请先完成或取消后新建会话"); return; }
+    if (creatingRef.current) return;
     const path = workspace ?? snapshot.lastWorkspace;
-    if (path) await createSession(path);
-    else await chooseWorkspace();
+    if (!path) { await chooseWorkspace(); return; }
+    creatingRef.current = true; setCreatingSession(true);
+    try { await createSession(path); }
+    finally { creatingRef.current = false; setCreatingSession(false); }
   }
 
   async function selectSession(next: AgentSessionSummary): Promise<void> {
@@ -378,25 +391,22 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
       if (provider?.configured && !busy && snapshot.phase !== "ready") await connect(next.id);
       return;
     }
-    if (anyBusy) { setLocalError("当前任务仍在运行，请先完成或取消后切换会话"); return; }
     store.select(next.id);
-    setPrompt("");
-    setLocalError(null);
     try {
       await window.selfmeLab.selectAgentSession(next.id);
       store.loadHistory(next.id, await window.selfmeLab.getAgentSessionEvents(next.id));
       if (provider?.configured) await connect(next.id);
-    } catch (error) { setLocalError(errorMessage(error)); }
+    } catch (error) { interactions.update(next.id, { error: errorMessage(error) }); }
   }
 
   async function refreshSessionCatalog(): Promise<void> {
     if (!window.selfmeLab) return;
     const catalog = await window.selfmeLab.getAgentSessionCatalog(runtimeId);
-    store.setCatalog(catalog);
-    setPrompt("");
-    if (catalog.selectedSessionId) {
-      store.loadHistory(catalog.selectedSessionId, await window.selfmeLab.getAgentSessionEvents(catalog.selectedSessionId));
-      if (provider?.configured) await connect(catalog.selectedSessionId);
+    store.setCatalog(catalog, true);
+    const selectedId = store.getSnapshot().selectedSessionId;
+    if (selectedId) {
+      store.loadHistory(selectedId, await window.selfmeLab.getAgentSessionEvents(selectedId));
+      if (provider?.configured) await connect(selectedId);
     }
   }
 
@@ -406,7 +416,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     setRailError(null);
     try {
       if (sessionAction.kind === "delete") await window.selfmeLab.deleteAgentSession(sessionAction.id);
-      else await window.selfmeLab.purgeAgentSession(sessionAction.id);
+      else { await window.selfmeLab.purgeAgentSession(sessionAction.id); interactions.forget(sessionAction.id); }
       setSessionAction(null);
       await refreshSessionCatalog();
     } catch (error) {
@@ -427,67 +437,62 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   }
 
   async function submit(): Promise<void> {
-    const text = prompt.trim();
-    if (!text || !window.selfmeLab || !followUpAvailability(store.getSnapshot().phase, {
-      connecting, stopping: stoppingRef.current, submitting: submittingRef.current, changingMode: changingModeRef.current,
-    }).canSubmit) return;
-    if (!snapshot.selectedSessionId) { await chooseWorkspace(); return; }
-    if (!provider?.configured) { onOpenSettings?.(); return; }
     const current = store.getSnapshot();
+    const sessionId = current.selectedSessionId;
+    const currentInteraction = interactions.get(sessionId);
+    const text = currentInteraction.prompt.trim();
+    if (!text || !window.selfmeLab || !followUpAvailability(current.phase, currentInteraction).canSubmit) return;
+    if (!sessionId) { await chooseWorkspace(); return; }
+    if (!provider?.configured) { onOpenSettings?.(); return; }
     const action = composerAction(current.phase, current.queue, followUpMode);
     if (action === "wait") {
-      setLocalError(`${names[runtimeId]} 尚未就绪，请稍等或检查连接状态`);
+      interactions.update(sessionId, { error: `${names[runtimeId]} 尚未就绪，请稍等或检查连接状态` });
       return;
     }
-    setPrompt("");
-    submittingRef.current = true;
-    setSubmitting(true);
-    setLocalError(null);
+    interactions.update(sessionId, { prompt: "", submitting: true, error: null });
     followOutputRef.current = true;
     setShowLatest(false);
     try {
-      if (action === "steer") await window.selfmeLab.steerSessionPrompt(snapshot.selectedSessionId, text);
-      else if (action === "queue") await window.selfmeLab.enqueueSessionPrompt(snapshot.selectedSessionId, text);
-      else await window.selfmeLab.sendSessionPrompt(snapshot.selectedSessionId, text);
+      if (action === "steer") await window.selfmeLab.steerSessionPrompt(sessionId, text);
+      else if (action === "queue") await window.selfmeLab.enqueueSessionPrompt(sessionId, text);
+      else await window.selfmeLab.sendSessionPrompt(sessionId, text);
     } catch (error) {
-      setPrompt((current) => current || text);
-      setLocalError(errorMessage(error));
+      interactions.update(sessionId, state => ({ prompt: state.prompt || text, error: errorMessage(error) }));
     } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
+      interactions.update(sessionId, { submitting: false });
     }
   }
 
   async function approve(requestId: string | number, optionId: string): Promise<void> {
-    if (!window.selfmeLab || !snapshot.selectedSessionId || stoppingRef.current || store.getSnapshot().phase === "cancelling") return;
-    setApprovalBusy(true);
+    const current = store.getSnapshot(), sessionId = current.selectedSessionId;
+    if (!window.selfmeLab || !sessionId || interactions.get(sessionId).stopping || interactions.get(sessionId).approvalBusy || current.phase === "cancelling") return;
+    interactions.update(sessionId, { approvalBusy: true });
     try {
-      await window.selfmeLab.respondSessionApproval(snapshot.selectedSessionId, requestId, optionId);
-      store.removeApproval(snapshot.selectedSessionId, requestId);
-      setLocalError(null);
+      await window.selfmeLab.respondSessionApproval(sessionId, requestId, optionId);
+      store.removeApproval(sessionId, requestId);
+      interactions.update(sessionId, { error: null });
     } catch (error) {
-      setLocalError(errorMessage(error));
+      interactions.update(sessionId, { error: errorMessage(error) });
     } finally {
-      setApprovalBusy(false);
+      interactions.update(sessionId, { approvalBusy: false });
     }
   }
 
   async function cancel(): Promise<void> {
-    if (!snapshot.selectedSessionId || !window.selfmeLab || stoppingRef.current || store.getSnapshot().phase === "cancelling") return;
-    stoppingRef.current = true;
-    setStoppingRequest(true);
+    const current = store.getSnapshot(), sessionId = current.selectedSessionId;
+    if (!sessionId || !window.selfmeLab || interactions.get(sessionId).stopping || current.phase === "cancelling") return;
+    interactions.update(sessionId, { stopping: true });
     setShowSendMenu(false);
     try {
-      await window.selfmeLab.cancelSessionRun(snapshot.selectedSessionId);
-      store.removeAllApprovals(snapshot.selectedSessionId);
+      await window.selfmeLab.cancelSessionRun(sessionId);
+      store.removeAllApprovals(sessionId);
     } catch (error) {
-      setLocalError(errorMessage(error));
+      interactions.update(sessionId, { error: errorMessage(error) });
     }
-    finally { stoppingRef.current = false; setStoppingRequest(false); }
+    finally { interactions.update(sessionId, { stopping: false }); }
   }
 
   const busy = connecting || stopping || busyPhases.has(snapshot.phase);
-  const anyBusy = connectingSessionId !== null || stopping || snapshot.sessions.some((item) => busyPhases.has(item.phase));
   const sendAction = composerAction(snapshot.phase, snapshot.queue, followUpMode);
   const sendLabel = sendAction === "queue" ? "Queue" : sendAction === "steer" ? "Steer" : "发送";
   const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : stopping ? "正在停止，下一条消息可以先写在这里" : connecting || snapshot.phase === "starting" ? "正在连接，任务内容可以先写在这里" : sendAction === "queue" ? "添加消息，按队列顺序发送" : sendAction === "steer" ? "补充要求或纠正当前工作的方向" : "描述任务或提出问题";
@@ -504,14 +509,14 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     <div className={`dsh-workspace agent-workspace--${runtimeId}`}>
       <div className="dsh-workspace__masthead">
         <div className="dsh-workspace__identity"><LabIcon runtimeId={runtimeId} /><h1>{names[runtimeId]} LAB</h1></div>
-        <button className="dsh-workspace__path" disabled={anyBusy} onClick={() => void chooseWorkspace()} type="button" title="选择工作目录并新建会话">
+        <button className="dsh-workspace__path" disabled={creatingSession} onClick={() => void chooseWorkspace()} type="button" title="选择工作目录并新建会话">
           <span>WORKSPACE</span><strong>{workspace ?? "选择工作目录"}</strong>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M2 5h7l2 2h11v13H2zM2 9h20" /></svg>
         </button>
       </div>
       <div className="dsh-workspace__grid">
         <aside className="dsh-rail">
-          <div className="dsh-rail__heading"><span>SESSIONS</span><button onClick={() => void newSession()} disabled={anyBusy} title="新建会话" type="button">＋</button></div>
+          <div className="dsh-rail__heading"><span>SESSIONS</span><button onClick={() => void newSession()} disabled={creatingSession} title="新建会话" type="button">＋</button></div>
           <div className="dsh-rail__switch" role="group" aria-label="会话列表类型">
             <button className={!showDeletedSessions ? "is-active" : ""} onClick={() => setShowDeletedSessions(false)} type="button">会话 <small>{snapshot.sessions.length}</small></button>
             <button className={showDeletedSessions ? "is-active" : ""} onClick={() => setShowDeletedSessions(true)} type="button">最近删除 <small>{snapshot.deletedSessions.length}</small></button>
@@ -529,7 +534,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
             )) : <p className="dsh-rail__empty">最近删除中没有会话</p>
           ) : snapshot.sessions.length ? snapshot.sessions.map((item) => (
             <div className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} key={item.id}>
-              <button className="dsh-rail__session-main" disabled={anyBusy && item.id !== snapshot.selectedSessionId} onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
+              <button className="dsh-rail__session-main" onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
                 <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small className="dsh-rail__session-meta"><span>{sessionStateLabel(item.phase)}</span><time dateTime={item.lastActivityAt ?? item.createdAt} title={`${item.lastActivityAt ? "最后活动" : "创建于"} ${exactTime(item.lastActivityAt ?? item.createdAt) ?? ""}`}>{sessionTimeLabel(item.lastActivityAt ?? item.createdAt, today)}</time></small>
               </button>
               <button className="dsh-rail__session-delete" disabled={busyPhases.has(item.phase)} onClick={() => setSessionAction({ id: item.id, title: item.title, kind: "delete" })} title="移至最近删除" aria-label={`删除会话：${item.title}`} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
@@ -541,7 +546,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           <div className="dsh-conversation__scroll" ref={outputRef} onScroll={trackOutputScroll}>
             {snapshot.entries.length === 0 && <div className="dsh-conversation__empty">
               <LabIcon runtimeId={runtimeId} /><h2>准备好让 {names[runtimeId]} 开始工作</h2>
-              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
+              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
               {!workspace && <button onClick={() => void chooseWorkspace()} type="button">选择工作目录</button>}
               {workspace && !provider?.configured && <button onClick={onOpenSettings} type="button">配置模型</button>}
             </div>}

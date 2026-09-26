@@ -154,6 +154,14 @@ export const atlasModules: readonly AtlasModule[] = [
 // baseline, not automatic runtime telemetry or an end-to-end certification.
 export const coverageRecords: readonly CoverageRecord[] = [
   {
+    capabilityId: "live-experience.background-switch",
+    moduleId: "agent-lab", harnessId: "DSH / Codex / Pi / Kimi Code", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
+    evidence: ["apps/desktop/src/main/agent-session-parallel.integration.test.ts", "apps/desktop/src/main/agent-session-controller.test.ts", "apps/desktop/src/renderer/labs/agent-lab/agent-store.test.ts", "apps/desktop/src/renderer/labs/agent-lab/session-interactions.test.ts", "apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx"],
+    checkedAt: "2026-09-27",
+    note: "会话运行中可新建、切换和并行发起工作；离开页面不会停止任务，返回可查看完整及增量输出。四个真实 Harness 各双会话经本机模拟模型接口测试，停止一个不影响另一个，后台队列不会抢走选择。输入草稿、发送模式、审批、队列和停止请求按会话独立，工作中圆点轻微呼吸、审批为暖色。关闭应用会停止全部实例，待发队列保留并暂停，重启后需主动继续；不承诺关机后继续执行。同一工作目录的并行会话共享文件，不提供自动分支隔离。",
+  },
+  {
     capabilityId: "sessions.queue-steer",
     moduleId: "agent-lab", harnessId: "DSH / Codex / Pi / Kimi Code", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
@@ -199,8 +207,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
       "packages/runtime/src/pi.ts",
       "packages/runtime/src/kimi.ts",
     ],
-    checkedAt: "2026-09-26",
-    note: "四种 Harness 均可从桌面创建并切换会话；在最近删除中新建会自动回到会话列表。手动重命名和跨端接续未实现。",
+    checkedAt: "2026-09-27",
+    note: "四种 Harness 均可从桌面创建并切换会话，运行中也可新建和并行工作；在最近删除中新建会自动回到会话列表。手动重命名和跨端接续未实现。",
   },
   {
     capabilityId: "sessions.resume",
@@ -233,8 +241,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
       "apps/desktop/src/renderer/labs/agent-lab/agent-lab.css",
       "apps/desktop/src/renderer/labs/agent-lab/agent-store.ts",
     ],
-    checkedAt: "2026-09-26",
-    note: "已有按 Harness 分开的会话列表、最近发起工作排序和独立滚动；跨会话搜索、状态筛选及大量会话真实体验仍待完成。",
+    checkedAt: "2026-09-27",
+    note: "已有按 Harness 分开的会话列表、最近发起工作排序和独立滚动；后台会话持续显示工作中、待审批和待命状态，工作中圆点有轻微呼吸动效。跨会话搜索、状态筛选及大量会话真实体验仍待完成。",
   },
   {
     capabilityId: "sessions.archive-delete",

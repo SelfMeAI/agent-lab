@@ -60,7 +60,11 @@
 .dsh-rail__session i { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #79908d; }
 .dsh-rail__session i.is-ready { background: var(--agent-accent, #d3fb52); box-shadow: 0 0 7px var(--agent-accent, #d3fb52); }
 .dsh-rail__session i.is-running, .dsh-rail__session i.is-starting, .dsh-rail__session i.is-cancelling { background: var(--agent-accent, #d3fb52); box-shadow: 0 0 8px var(--agent-accent, #d3fb52); }
+.dsh-rail__session i.is-running, .dsh-rail__session i.is-starting, .dsh-rail__session i.is-cancelling { animation: agent-session-pulse 1.8s ease-in-out infinite; }
 .dsh-rail__session i.is-approval { background: #efc15c; box-shadow: 0 0 8px #efc15c; }
+.dsh-rail__session:has(i.is-approval) .dsh-rail__session-meta > span { color: #efc15c; }
+@keyframes agent-session-pulse { 0%, 100% { opacity: .95; } 50% { opacity: .38; } }
+@media (prefers-reduced-motion: reduce) { .dsh-rail__session i { animation: none !important; } }
 .dsh-rail__session i.is-error { background: #e48484; }
 .dsh-rail__session-main span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .dsh-rail__session-main small { grid-column: 2; color: #95aaa5; font-size: 11px; }

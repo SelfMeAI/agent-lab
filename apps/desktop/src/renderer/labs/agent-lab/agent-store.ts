@@ -157,15 +157,18 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
   return {
     getSnapshot: (): AgentSnapshot => snapshot,
     subscribe: (listener: () => void): (() => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-    setCatalog(catalog: AgentSessionCatalog): void {
-      const selectedSessionId = catalog.selectedSessionId;
+    setCatalog(catalog: AgentSessionCatalog, preserveSelection = false): void {
+      const selectedSessionId = preserveSelection && catalog.sessions.some(item => item.id === snapshot.selectedSessionId)
+        ? snapshot.selectedSessionId : catalog.selectedSessionId;
       for (const [id, queue] of Object.entries(catalog.queues ?? {})) queues.set(id, queue);
       for (const id of queues.keys()) if (!catalog.sessions.some((session) => session.id === id)) queues.delete(id);
       const record = catalog.sessions.find((item) => item.id === selectedSessionId);
       const conversation = conversations.get(selectedSessionId ?? "") ?? {
         ...emptyConversation(), phase: record?.phase ?? "idle", statusText: record?.statusText ?? "尚未连接",
       };
-      publish({ ...conversation, queue: queues.get(selectedSessionId ?? "") ?? emptyConversation().queue, sessions: recentSessions(catalog.sessions), deletedSessions: catalog.deletedSessions, selectedSessionId, lastWorkspace: catalog.lastWorkspace, loaded: true });
+      const current = { ...conversation, phase: record?.phase ?? "idle", statusText: record?.statusText ?? "尚未连接" };
+      if (selectedSessionId) conversations.set(selectedSessionId, current);
+      publish({ ...current, queue: queues.get(selectedSessionId ?? "") ?? emptyConversation().queue, sessions: recentSessions(catalog.sessions), deletedSessions: catalog.deletedSessions, selectedSessionId, lastWorkspace: catalog.lastWorkspace, loaded: true });
     },
     setQueue(sessionId: string, queue: AgentSessionQueue): void {
       if (!snapshot.sessions.some((session) => session.id === sessionId) && !conversations.has(sessionId)) return;

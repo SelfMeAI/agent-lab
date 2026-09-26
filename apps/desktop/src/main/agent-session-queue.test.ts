@@ -55,7 +55,7 @@ async function fixture() {
   const events: AgentSessionEvent[] = [], changes: AgentSessionQueue[] = [];
   const controller = new AgentSessionController(repository, config, (_runtime, id) => {
     const adapter = new QueueAdapter(id); adapters.set(id, adapter); return adapter;
-  }, event => events.push(event), false, undefined, (_id, queue) => changes.push(queue));
+  }, event => events.push(event), undefined, (_id, queue) => changes.push(queue));
   cleanups.push(() => controller.stopAll());
   const session = await controller.create("pi", root);
   await controller.send(session.id, "original");

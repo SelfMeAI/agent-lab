@@ -99,7 +99,7 @@ void app.whenReady().then(async () => {
   await sessionRepository.init(appConfig.getLegacyFollowUpMode());
   await appConfig.clearLegacyFollowUpMode();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
-    (event) => mainWindow?.webContents.send("selfme:run-event", event), false,
+    (event) => mainWindow?.webContents.send("selfme:run-event", event),
     join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
@@ -151,28 +151,16 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
     assertMainWindow(event);
     if (runtimeId === "dsh") {
-      if (sessions!.isBusy("dsh")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
-      const status = await saveDshProvider(config);
-      await sessions!.stopRuntime("dsh");
-      return status;
+      return sessions!.reconfigure("dsh", () => saveDshProvider(config));
     }
     if (runtimeId === "codex") {
-      if (sessions!.isBusy("codex")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
-      const status = await saveCodexProvider(config);
-      await sessions!.stopRuntime("codex");
-      return status;
+      return sessions!.reconfigure("codex", () => saveCodexProvider(config));
     }
     if (runtimeId === "pi") {
-      if (sessions!.isBusy("pi")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
-      const status = await savePiProvider(config);
-      await sessions!.stopRuntime("pi");
-      return status;
+      return sessions!.reconfigure("pi", () => savePiProvider(config));
     }
     if (runtimeId === "kimi-code") {
-      if (sessions!.isBusy("kimi-code")) throw new Error("当前任务仍在运行，请先完成或取消后修改模型配置");
-      const status = await saveKimiProvider(config);
-      await sessions!.stopRuntime("kimi-code");
-      return status;
+      return sessions!.reconfigure("kimi-code", () => saveKimiProvider(config));
     }
     if (runtimeId === "jev") return saveJevProvider(config);
     throw new Error("此运行时暂不支持模型配置");

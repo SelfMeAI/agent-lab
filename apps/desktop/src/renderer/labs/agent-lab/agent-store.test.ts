@@ -16,6 +16,43 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 }
 
 describe("agent transcript updates", () => {
+  it("keeps background output, approvals and queues isolated, even with matching native ids", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    for (const id of ["a", "b"]) {
+      store.ingest(event(id, 1, { kind: "user", text: `${id} 的任务` }));
+      store.ingest(event(id, 2, { kind: "status", phase: "running", text: "工作中" }));
+      store.ingest(event(id, 3, { kind: "tool", toolCallId: "same-tool", toolStatus: "running", text: `${id} 的工具` }));
+      store.ingest(event(id, 4, { kind: "approval", phase: "approval", approval: { requestId: 1, title: id, options: [] } }));
+    }
+    store.setQueue("b", { paused: false, messages: [{ id: "queued-b", text: "B 的下一轮", createdAt: "2026-09-25T00:00:00Z", mode: "queue", state: "queued" }] });
+    store.removeApproval("a", 1);
+    store.ingest(event("a", 5, { kind: "status", phase: "ready" }));
+    store.select("b");
+    expect(store.getSnapshot()).toMatchObject({ phase: "approval", queue: { messages: [{ id: "queued-b" }] } });
+    expect(store.getSnapshot().entries.find(e => e.kind === "approval")?.approval?.requestId).toBe(1);
+    store.ingest(event("a", 6, { kind: "message", text: "A 在后台完成" }));
+    expect(store.getSnapshot().entries.some(e => e.text.includes("A 在后台完成"))).toBe(false);
+    store.loadHistory("a", [event("a", 1, { kind: "user", text: "a 的任务" })]);
+    expect(store.getSnapshot().selectedSessionId).toBe("b");
+    store.select("a");
+    expect(store.getSnapshot().entries.at(-1)?.text).toBe("A 在后台完成");
+    expect(store.getSnapshot().queue.messages).toHaveLength(0);
+  });
+
+  it("does not steal selection when a background catalog refresh completes", () => {
+    const store = createAgentStore("dsh");
+    const catalog = { sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null };
+    store.setCatalog(catalog);
+    store.select("b");
+    store.setCatalog(catalog, true);
+    expect(store.getSnapshot().selectedSessionId).toBe("b");
+    store.ingest(event("b", 1, { kind: "status", phase: "running" }));
+    store.setCatalog({ ...catalog, sessions: [session("a"), { ...session("b"), phase: "idle", statusText: "已停止" }] }, true);
+    expect(store.getSnapshot().phase).toBe("idle");
+    store.setCatalog({ ...catalog, sessions: [session("a")] }, true);
+    expect(store.getSnapshot().selectedSessionId).toBe("a");
+  });
   it("keeps mode changes scoped to their session across selection, late saves and other harnesses", () => {
     const store = createAgentStore("dsh"), pi = createAgentStore("pi");
     store.setCatalog({ sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
