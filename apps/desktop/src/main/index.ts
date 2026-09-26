@@ -18,10 +18,15 @@ import { decideJevMove } from "./jev-decision";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 import { AgentSessionController } from "./agent-session-controller";
+import { installAppShutdown } from "./app-shutdown";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
 let sessionRepository: AgentSessionRepository | null = null;
+const shutdown = installAppShutdown(app,
+  async () => { await sessions?.stopAll(); },
+  () => sessionRepository?.close(),
+  (error) => console.error("停止本地运行时失败：", error));
 
 app.setName("SelfMe Lab");
 
@@ -32,6 +37,7 @@ function assertMainWindow(event: IpcMainInvokeEvent): void {
 }
 
 function createWindow(): void {
+  if (shutdown.isQuitting()) return;
   const window = new BrowserWindow({
     title: "SelfMe Lab",
     titleBarStyle: process.platform === "darwin" ? "hidden" : "default",
@@ -261,21 +267,9 @@ void app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 }).catch((error: unknown) => {
-  sessionRepository?.close();
   const message = error instanceof Error ? error.message : String(error);
   dialog.showErrorBox("SelfMe Lab 无法启动", `读取本地会话或配置失败：${message}`);
   app.quit();
-});
-
-let quitAfterCleanup = false;
-app.on("before-quit", (event) => {
-  if (!sessions || quitAfterCleanup) return;
-  event.preventDefault();
-  void sessions.stopAll().finally(() => {
-    sessionRepository?.close();
-    quitAfterCleanup = true;
-    app.quit();
-  });
 });
 
 app.on("window-all-closed", () => {
