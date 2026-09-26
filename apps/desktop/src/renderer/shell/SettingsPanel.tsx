@@ -137,7 +137,6 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
               <strong>连接说明</strong>
               <p>{runtimeId === "dsh" || runtimeId === "pi" || runtimeId === "kimi-code" ? "填写支持 OpenAI Chat Completions 的 API 根地址、模型 ID 和 API Key。" : runtimeId === "codex" ? "填写支持 OpenAI Responses 的 API 根地址、模型 ID 和 API Key。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
               {canDiscoverModels && <p>API 根地址不要包含 /chat/completions 或 /responses。模型列表仅供选择，能否运行以实际调用为准。</p>}
-              {runtimeId === "pi" && <p>文件操作限定在所选工作目录。执行命令前会请你确认；允许后，命令仍可能访问目录外。</p>}
               <p>API Key 会加密保存在本机。以后修改设置时，密钥留空即可保持不变。{runtimeId !== "jev" && "保存后会重新连接。"}</p>
             </div>
             {error && <p className="settings-panel__error" role="alert">{error}</p>}

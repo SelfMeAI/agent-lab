@@ -140,7 +140,7 @@ function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: str
   </details>;
 }
 
-function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }: {
+export function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }: {
   entry: TranscriptEntry;
   runtimeId: AgentRuntimeId;
   workspace: string | null;
@@ -171,6 +171,7 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
       <div className="dsh-approval__content">
         <div className="dsh-approval__heading"><strong>需要你确认</strong>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div>
         <p>{approvalActionLabel(runtimeId, entry.text || entry.approval.title)}</p>
+        {runtimeId === "pi" && entry.approval.title === "命令执行授权" && <small>允许后，命令可能访问工作目录外。</small>}
         {entry.approval.toolCallId && <small>工具调用 · {entry.approval.toolCallId}</small>}
       </div>
       <div className="dsh-approval__actions">
