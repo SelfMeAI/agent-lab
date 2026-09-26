@@ -87,11 +87,12 @@
 .dsh-session-modal button.is-danger { color: #fff0ee; border-color: #a9605b; background: #843c3b; }
 .dsh-session-modal button:disabled { opacity: .55; cursor: wait; }
 .dsh-conversation { position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.dsh-conversation__viewport { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .dsh-conversation__scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 23px 28px; scrollbar-color: #4b6666 transparent; scrollbar-width: thin; }
 .dsh-conversation__date { display: flex; align-items: center; gap: 14px; margin: 0 0 21px 61px; color: #829d99; font-size: 11px; letter-spacing: .04em; white-space: nowrap; }
 .dsh-conversation__date::before, .dsh-conversation__date::after { content: ""; height: 1px; flex: 1; background: #607e763d; }
 .dsh-conversation__date::before { max-width: 26px; }
-.dsh-scroll-jump { position: absolute; right: 25px; bottom: 94px; z-index: 2; padding: 8px 12px; border: 1px solid #789993; border-radius: 3px; background: #15272c; color: #effbf6; box-shadow: 0 8px 24px #000a; font-size: 12px; }
+.dsh-scroll-jump { position: absolute; right: 25px; bottom: 14px; z-index: 2; padding: 8px 12px; border: 1px solid #789993; border-radius: 3px; background: #15272c; color: #effbf6; box-shadow: 0 8px 24px #000a; font-size: 12px; }
 .dsh-scroll-jump:hover { border-color: #d3fb52; }
 .dsh-conversation__empty { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .dsh-conversation__empty svg { width: 58px; height: 58px; color: #d3fb52; opacity: .87; }
@@ -111,13 +112,6 @@
 .dsh-entry__label { font-size: 13px; color: #d3fb52; letter-spacing: .08em; }
 .dsh-entry__heading time { flex: 0 0 auto; color: #819995; font-size: 11px; font-variant-numeric: tabular-nums; }
 .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
-.dsh-steering-receipt { display: inline-flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 11px; color: #96a5b2; }
-.dsh-steering-receipt i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.dsh-steering-receipt--incorporated { color: #9dc8b7; }
-.dsh-steering-receipt--unconfirmed, .dsh-steering-receipt--rejected { color: #ddb681; }
-.dsh-steering-receipt--submitting i, .dsh-steering-receipt--queued i { animation: steering-pulse 1.4s ease-in-out infinite; }
-@keyframes steering-pulse { 50% { opacity: .3; } }
-@media (prefers-reduced-motion: reduce) { .dsh-steering-receipt i { animation: none; } }
 .dsh-entry__body p { margin: 9px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
 .dsh-markdown { margin-top: 9px; color: #e7efed; font: 14px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; overflow-wrap: anywhere; }
 .dsh-markdown > :first-child { margin-top: 0; }

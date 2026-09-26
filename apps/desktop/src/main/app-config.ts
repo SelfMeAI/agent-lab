@@ -1,18 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AgentRuntimeId } from "../../../../packages/contracts/src/index";
+import type { AgentRuntimeId, FollowUpMode } from "../../../../packages/contracts/src/index";
 
 export interface AgentViewPreference {
   selectedSessionId: string | null;
   lastWorkspace: string | null;
 }
 
-type AppConfig = { version: 1; agentLab: Partial<Record<AgentRuntimeId, AgentViewPreference>> };
+type AppConfig = { version: 1; agentLab: Partial<Record<AgentRuntimeId, AgentViewPreference>>; followUpMode: FollowUpMode };
 
 /** Small, human-readable application preferences. Conversation data lives in SQLite. */
 export class AppConfigStore {
-  private data: AppConfig = { version: 1, agentLab: {} };
+  private data: AppConfig = { version: 1, agentLab: {}, followUpMode: "queue" };
   private pendingWrite: Promise<void> = Promise.resolve();
 
   constructor(private readonly root: string) {}
@@ -23,6 +23,7 @@ export class AppConfigStore {
       const parsed: unknown = JSON.parse(await readFile(this.path(), "utf8"));
       if (!parsed || typeof parsed !== "object" || (parsed as { version?: unknown }).version !== 1) throw new Error("应用配置文件版本无效");
       const agentLab = (parsed as { agentLab?: unknown }).agentLab;
+      this.data.followUpMode = (parsed as { followUpMode?: unknown }).followUpMode === "steer" ? "steer" : "queue";
       if (!agentLab || typeof agentLab !== "object" || Array.isArray(agentLab)) throw new Error("应用配置文件格式无效");
       for (const runtimeId of ["dsh", "codex", "pi", "kimi-code"] as const) {
         const value = (agentLab as Record<string, unknown>)[runtimeId];
@@ -43,10 +44,18 @@ export class AppConfigStore {
     return { ...(this.data.agentLab[runtimeId] ?? { selectedSessionId: null, lastWorkspace: null }) };
   }
 
+  getFollowUpMode(): FollowUpMode { return this.data.followUpMode; }
+
+  async setFollowUpMode(mode: FollowUpMode): Promise<void> {
+    if (mode !== "queue" && mode !== "steer") throw new Error("发送模式无效");
+    this.data.followUpMode = mode;
+    await this.write();
+  }
+
   async select(runtimeId: AgentRuntimeId, sessionId: string, workspace: string): Promise<void> {
     const current = this.data.agentLab[runtimeId];
     if (current?.selectedSessionId === sessionId && current.lastWorkspace === workspace) return;
-    this.data.agentLab[runtimeId] = { selectedSessionId: sessionId, lastWorkspace: workspace };
+    this.data.agentLab[runtimeId] = { ...this.get(runtimeId), selectedSessionId: sessionId, lastWorkspace: workspace };
     await this.write();
   }
 

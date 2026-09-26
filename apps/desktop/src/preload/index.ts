@@ -19,6 +19,16 @@ const bridge: DesktopBridge = {
   startAgentSession: (sessionId) => ipcRenderer.invoke("selfme:start-agent-session", sessionId),
   sendSessionPrompt: (sessionId, prompt) => ipcRenderer.invoke("selfme:send-session-prompt", sessionId, prompt),
   steerSessionPrompt: (sessionId, prompt) => ipcRenderer.invoke("selfme:steer-session-prompt", sessionId, prompt),
+  enqueueSessionPrompt: (sessionId, prompt) => ipcRenderer.invoke("selfme:enqueue-session-prompt", sessionId, prompt),
+  editQueuedSessionPrompt: (sessionId, messageId, prompt) => ipcRenderer.invoke("selfme:edit-queued-session-prompt", sessionId, messageId, prompt),
+  deleteQueuedSessionPrompt: (sessionId, messageId) => ipcRenderer.invoke("selfme:delete-queued-session-prompt", sessionId, messageId),
+  moveQueuedSessionPrompt: (sessionId, messageId, direction) => ipcRenderer.invoke("selfme:move-queued-session-prompt", sessionId, messageId, direction),
+  steerQueuedSessionPrompt: (sessionId, messageId) => ipcRenderer.invoke("selfme:steer-queued-session-prompt", sessionId, messageId),
+  retryQueuedSessionPrompt: (sessionId, messageId) => ipcRenderer.invoke("selfme:retry-queued-session-prompt", sessionId, messageId),
+  resumeSessionQueue: (sessionId) => ipcRenderer.invoke("selfme:resume-session-queue", sessionId),
+  pauseSessionQueue: (sessionId) => ipcRenderer.invoke("selfme:pause-session-queue", sessionId),
+  getFollowUpMode: () => ipcRenderer.invoke("selfme:get-follow-up-mode"),
+  setFollowUpMode: (mode) => ipcRenderer.invoke("selfme:set-follow-up-mode", mode),
   cancelSessionRun: (sessionId) => ipcRenderer.invoke("selfme:cancel-session-run", sessionId),
   respondSessionApproval: (sessionId, requestId, optionId) => ipcRenderer.invoke("selfme:respond-session-approval", sessionId, requestId, optionId),
   decideJevMove: (fen, style) => ipcRenderer.invoke("selfme:jev-decision", fen, style),
@@ -26,6 +36,11 @@ const bridge: DesktopBridge = {
     const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
     ipcRenderer.on("selfme:run-event", handler);
     return () => ipcRenderer.removeListener("selfme:run-event", handler);
+  },
+  onAgentQueueChange: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
+    ipcRenderer.on("selfme:agent-queue-change", handler);
+    return () => ipcRenderer.removeListener("selfme:agent-queue-change", handler);
   },
 };
 

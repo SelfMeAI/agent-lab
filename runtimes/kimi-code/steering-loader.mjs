@@ -29,6 +29,11 @@ export function transformKimi(source) {
     return { accepted: true };
   }
   assertNoActiveTurn() {`);
+  // Upstream only marks deferred (pre-turn-id) cancellation. Mark every
+  // cancellation synchronously so an async metadata write cannot admit a
+  // supplemental input after cancellation has already been requested.
+  const cancelGuard = '\t\t\tif (driver === void 0 || driver.settled) return;\n\t\t\tconst turnId = driver.turnId;';
+  source = replaceOnce(source, cancelGuard, '\t\t\tif (driver === void 0 || driver.settled) return;\n\t\t\tdriver.cancelRequested = true;\n\t\t\tconst turnId = driver.turnId;');
   source = replaceOnce(source, ".onNotification(methods.agent.session.cancel,", `.onRequest("_selfme/steer", selfmeParseSteering, ({ params }) => {
     const session = getServer().sessions.get(params.sessionId);
     if (!session) throw new Error("会话不存在");

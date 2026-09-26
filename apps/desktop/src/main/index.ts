@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
-import type { AgentRuntimeId, AppInfo } from "../../../../packages/contracts/src/index";
+import type { AgentRuntimeId, AppInfo, FollowUpMode } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
@@ -99,7 +99,7 @@ void app.whenReady().then(async () => {
   await appConfig.init();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event), false,
-    join(root, "runtime-homes"));
+    join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
@@ -223,6 +223,36 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:steer-session-prompt", async (event, sessionId: string, prompt: string) => {
     assertMainWindow(event);
     await sessions!.steer(sessionId, prompt);
+  });
+  ipcMain.handle("selfme:enqueue-session-prompt", async (event, sessionId: string, prompt: string) => {
+    assertMainWindow(event); await sessions!.enqueue(sessionId, prompt);
+  });
+  ipcMain.handle("selfme:edit-queued-session-prompt", async (event, sessionId: string, messageId: string, prompt: string) => {
+    assertMainWindow(event); await sessions!.editQueued(sessionId, messageId, prompt);
+  });
+  ipcMain.handle("selfme:delete-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
+    assertMainWindow(event); await sessions!.deleteQueued(sessionId, messageId);
+  });
+  ipcMain.handle("selfme:move-queued-session-prompt", async (event, sessionId: string, messageId: string, direction: "up" | "down") => {
+    assertMainWindow(event); await sessions!.moveQueued(sessionId, messageId, direction);
+  });
+  ipcMain.handle("selfme:steer-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
+    assertMainWindow(event); await sessions!.steerQueued(sessionId, messageId);
+  });
+  ipcMain.handle("selfme:retry-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
+    assertMainWindow(event); await sessions!.retryQueued(sessionId, messageId);
+  });
+  ipcMain.handle("selfme:resume-session-queue", async (event, sessionId: string) => {
+    assertMainWindow(event); await sessions!.resumeQueue(sessionId);
+  });
+  ipcMain.handle("selfme:pause-session-queue", (event, sessionId: string) => {
+    assertMainWindow(event); sessions!.pauseQueue(sessionId);
+  });
+  ipcMain.handle("selfme:get-follow-up-mode", (event) => {
+    assertMainWindow(event); return appConfig.getFollowUpMode();
+  });
+  ipcMain.handle("selfme:set-follow-up-mode", async (event, mode: FollowUpMode) => {
+    assertMainWindow(event); await appConfig.setFollowUpMode(mode);
   });
   ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string) => {
     assertMainWindow(event);

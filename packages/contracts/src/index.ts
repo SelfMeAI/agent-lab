@@ -37,6 +37,27 @@ export type RuntimePhase = "idle" | "starting" | "ready" | "running" | "approval
 
 export type AgentRuntimeId = "dsh" | "codex" | "pi" | "kimi-code";
 
+export type FollowUpMode = "queue" | "steer";
+
+export interface PendingAgentMessage {
+  id: string;
+  text: string;
+  createdAt: string;
+  mode: FollowUpMode;
+  state: "queued" | "sending" | "awaiting" | "unconfirmed";
+  detail?: string;
+}
+
+export interface AgentSessionQueue {
+  messages: PendingAgentMessage[];
+  paused: boolean;
+}
+
+export interface AgentQueueChange {
+  sessionId: string;
+  queue: AgentSessionQueue;
+}
+
 export interface AgentSessionSummary {
   id: string;
   runtimeId: AgentRuntimeId;
@@ -55,6 +76,7 @@ export interface AgentSessionCatalog {
   deletedSessions: AgentSessionSummary[];
   selectedSessionId: string | null;
   lastWorkspace: string | null;
+  queues?: Record<string, AgentSessionQueue>;
 }
 
 export interface ProviderStatus {
@@ -95,7 +117,7 @@ export interface RunEvent {
   source: string;
   kind: RunEventKind;
   messageId?: string;
-  deliveryMode?: "steer";
+  deliveryMode?: FollowUpMode;
   deliveryState?: "submitting" | "queued" | "incorporated" | "unconfirmed" | "rejected";
   text?: string;
   title?: string;
@@ -170,8 +192,19 @@ export interface DesktopBridge {
   startAgentSession(sessionId: string): Promise<void>;
   sendSessionPrompt(sessionId: string, prompt: string): Promise<void>;
   steerSessionPrompt(sessionId: string, prompt: string): Promise<void>;
+  enqueueSessionPrompt(sessionId: string, prompt: string): Promise<void>;
+  editQueuedSessionPrompt(sessionId: string, messageId: string, prompt: string): Promise<void>;
+  deleteQueuedSessionPrompt(sessionId: string, messageId: string): Promise<void>;
+  moveQueuedSessionPrompt(sessionId: string, messageId: string, direction: "up" | "down"): Promise<void>;
+  steerQueuedSessionPrompt(sessionId: string, messageId: string): Promise<void>;
+  retryQueuedSessionPrompt(sessionId: string, messageId: string): Promise<void>;
+  resumeSessionQueue(sessionId: string): Promise<void>;
+  pauseSessionQueue(sessionId: string): Promise<void>;
+  getFollowUpMode(): Promise<FollowUpMode>;
+  setFollowUpMode(mode: FollowUpMode): Promise<void>;
   cancelSessionRun(sessionId: string): Promise<void>;
   respondSessionApproval(sessionId: string, requestId: string | number, optionId: string): Promise<void>;
   decideJevMove(fen: string, style: JevStyle): Promise<JevDecision>;
   onRunEvent(listener: (event: AgentSessionEvent) => void): () => void;
+  onAgentQueueChange(listener: (change: AgentQueueChange) => void): () => void;
 }

@@ -1,4 +1,4 @@
-import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, ApprovalRequest, RuntimePhase } from "../../../../../../packages/contracts/src/index";
+import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, ApprovalRequest, FollowUpMode, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 
 export type { AgentRuntimeId } from "../../../../../../packages/contracts/src/index";
 
@@ -17,7 +17,7 @@ export interface TranscriptEntry {
   finishedAt?: string;
   hasExecutionActivity?: boolean;
   messageId?: string;
-  deliveryMode?: "steer";
+  deliveryMode?: FollowUpMode;
   deliveryState?: AgentSessionEvent["deliveryState"];
   deliveryDetail?: string;
 }
@@ -28,6 +28,7 @@ interface ConversationSnapshot {
   statusText: string;
   currentTask: string | null;
   hasExecutionActivity: boolean;
+  queue: AgentSessionQueue;
 }
 
 export interface AgentSnapshot extends ConversationSnapshot {
@@ -38,7 +39,7 @@ export interface AgentSnapshot extends ConversationSnapshot {
   loaded: boolean;
 }
 
-const emptyConversation = (): ConversationSnapshot => ({ entries: [], phase: "idle", statusText: "尚未连接", currentTask: null, hasExecutionActivity: false });
+const emptyConversation = (): ConversationSnapshot => ({ entries: [], phase: "idle", statusText: "尚未连接", currentTask: null, hasExecutionActivity: false, queue: { messages: [], paused: false } });
 const activityKinds = new Set(["user", "message", "tool", "approval", "artifact", "error"]);
 
 /** Sort on task starts, not status/tool events, so active rows do not jump. */
@@ -47,6 +48,11 @@ export function recentSessions(sessions: readonly AgentSessionSummary[]): AgentS
     const recent = (b.lastPromptAt ?? b.createdAt).localeCompare(a.lastPromptAt ?? a.createdAt);
     return recent || b.createdAt.localeCompare(a.createdAt);
   });
+}
+
+/** Pending/recovery input belongs above the composer, not in two places. */
+export function isTranscriptInput(entry: TranscriptEntry): boolean {
+  return entry.kind !== "user" || !entry.deliveryMode || entry.deliveryState === "queued" || entry.deliveryState === "incorporated";
 }
 
 function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): ConversationSnapshot {
@@ -59,7 +65,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
     };
   }
   if (event.kind === "delivery") return { ...snapshot, entries: snapshot.entries.map((entry) =>
-    entry.messageId === event.messageId && entry.deliveryMode === "steer"
+    entry.messageId === event.messageId && entry.deliveryMode
       ? { ...entry, deliveryState: event.deliveryState, deliveryDetail: event.text } : entry) };
   if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return snapshot;
   if (event.kind === "status" && event.phase) {
@@ -119,6 +125,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
 export function createAgentStore(runtimeId: AgentRuntimeId) {
   let snapshot: AgentSnapshot = { ...emptyConversation(), sessions: [], deletedSessions: [], selectedSessionId: null, lastWorkspace: null, loaded: false };
   const conversations = new Map<string, ConversationSnapshot>();
+  const queues = new Map<string, AgentSessionQueue>();
   const eventMaps = new Map<string, Map<number, AgentSessionEvent>>();
   const listeners = new Set<() => void>();
   const publish = (next: AgentSnapshot): void => {
@@ -127,11 +134,11 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
   };
   const display = (sessionId: string | null): ConversationSnapshot => {
     if (!sessionId) return emptyConversation();
-    return conversations.get(sessionId) ?? {
+    return { ...(conversations.get(sessionId) ?? {
       ...emptyConversation(),
       phase: snapshot.sessions.find((item) => item.id === sessionId)?.phase ?? "idle",
       statusText: snapshot.sessions.find((item) => item.id === sessionId)?.statusText ?? "尚未连接",
-    };
+    }), ...(queues.has(sessionId) ? { queue: queues.get(sessionId)! } : {}) };
   };
   const updateSession = (event: AgentSessionEvent): AgentSessionSummary[] => {
     const sessions = snapshot.sessions.map((session) => {
@@ -152,11 +159,20 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
     subscribe: (listener: () => void): (() => void) => { listeners.add(listener); return () => listeners.delete(listener); },
     setCatalog(catalog: AgentSessionCatalog): void {
       const selectedSessionId = catalog.selectedSessionId;
+      for (const [id, queue] of Object.entries(catalog.queues ?? {})) queues.set(id, queue);
+      for (const id of queues.keys()) if (!catalog.sessions.some((session) => session.id === id)) queues.delete(id);
       const record = catalog.sessions.find((item) => item.id === selectedSessionId);
       const conversation = conversations.get(selectedSessionId ?? "") ?? {
         ...emptyConversation(), phase: record?.phase ?? "idle", statusText: record?.statusText ?? "尚未连接",
       };
-      publish({ ...conversation, sessions: recentSessions(catalog.sessions), deletedSessions: catalog.deletedSessions, selectedSessionId, lastWorkspace: catalog.lastWorkspace, loaded: true });
+      publish({ ...conversation, queue: queues.get(selectedSessionId ?? "") ?? emptyConversation().queue, sessions: recentSessions(catalog.sessions), deletedSessions: catalog.deletedSessions, selectedSessionId, lastWorkspace: catalog.lastWorkspace, loaded: true });
+    },
+    setQueue(sessionId: string, queue: AgentSessionQueue): void {
+      if (!snapshot.sessions.some((session) => session.id === sessionId) && !conversations.has(sessionId)) return;
+      queues.set(sessionId, queue);
+      const conversation = conversations.get(sessionId);
+      if (conversation) conversations.set(sessionId, { ...conversation, queue });
+      if (snapshot.selectedSessionId === sessionId) publish({ ...snapshot, queue });
     },
     select(sessionId: string): void {
       publish({ ...display(sessionId), sessions: snapshot.sessions, deletedSessions: snapshot.deletedSessions, selectedSessionId: sessionId, lastWorkspace: snapshot.lastWorkspace, loaded: true });
@@ -167,6 +183,7 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
       eventMaps.set(sessionId, events);
       let conversation = emptyConversation();
       for (const event of [...events.values()].sort((a, b) => a.eventIndex - b.eventIndex)) conversation = applyEvent(conversation, event);
+      conversation.queue = queues.get(sessionId) ?? emptyConversation().queue;
       const record = snapshot.sessions.find((item) => item.id === sessionId);
       if (record) conversation = { ...conversation, phase: record.phase, statusText: record.statusText,
         entries: record.phase === "approval" ? conversation.entries : conversation.entries.filter((entry) => entry.kind !== "approval") };
@@ -197,7 +214,7 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
       if (events.has(event.eventIndex)) return;
       events.set(event.eventIndex, event);
       eventMaps.set(event.sessionId, events);
-      const conversation = applyEvent(conversations.get(event.sessionId) ?? emptyConversation(), event);
+      const conversation = applyEvent({ ...(conversations.get(event.sessionId) ?? emptyConversation()), queue: queues.get(event.sessionId) ?? emptyConversation().queue }, event);
       conversations.set(event.sessionId, conversation);
       const sessions = updateSession(event);
       if (snapshot.selectedSessionId === event.sessionId) publish({ ...snapshot, ...conversation, sessions });
@@ -215,9 +232,13 @@ let unsubscribeBridge: (() => void) | null = null;
 
 export function attachAgentEvents(): () => void {
   if (!unsubscribeBridge && window.selfmeLab) {
-    unsubscribeBridge = window.selfmeLab.onRunEvent((event) => {
+    const unsubscribeRun = window.selfmeLab.onRunEvent((event) => {
       if (event.runtimeId === "dsh" || event.runtimeId === "codex" || event.runtimeId === "pi" || event.runtimeId === "kimi-code") agentStores[event.runtimeId].ingest(event);
     });
+    const unsubscribeQueue = window.selfmeLab.onAgentQueueChange(({ sessionId, queue }) => {
+      for (const store of Object.values(agentStores)) store.setQueue(sessionId, queue);
+    });
+    unsubscribeBridge = () => { unsubscribeRun(); unsubscribeQueue(); };
   }
   return () => { unsubscribeBridge?.(); unsubscribeBridge = null; };
 }

@@ -14,6 +14,7 @@ describe("version-pinned ACP extensions", () => {
     const patched = module[exportName](source) as string;
     expect(patched).toContain('onRequest("_selfme/steer"');
     expect(patched).toContain("selfmeSteer(params)");
+    if (runtime === "kimi-code") expect(patched).toContain("driver.cancelRequested = true;\n\t\t\tconst turnId = driver.turnId;");
     expect(() => module[exportName](source.replace("selfmeSteer", "changed").replace(".onNotification(methods.agent.session.cancel,", ".onNotification(changed,"))).toThrow(/signature changed/);
     expect(() => module[exportName](patched)).toThrow(/signature changed/);
   });

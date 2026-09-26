@@ -1,0 +1,51 @@
+.agent-queue { flex: 0 0 auto; min-width: 0; padding: 9px 13px 0; border-top: 1px solid #35464a; background: #0b1419; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.agent-queue__heading { display: flex; align-items: center; gap: 12px; padding: 0 3px 7px; color: #c3d0d2; }
+.agent-queue__heading > span { display: flex; align-items: center; gap: 8px; }
+.agent-queue__heading > span small { padding: 0 5px; border: 1px solid #3e5056; border-radius: 3px; color: #a3b5ba; font-size: 10px; font-variant-numeric: tabular-nums; }
+.agent-queue__heading > small { margin-left: auto; color: #7f959b; font-size: 10px; }
+.agent-queue button { padding: 4px 8px; border: 1px solid #40525a; border-radius: 4px; background: #132128; color: #c1d1d4; font: inherit; font-size: 11px; white-space: nowrap; }
+.agent-queue button:hover:not(:disabled) { border-color: #82989e; background: #1b2a32; }
+.agent-queue button:disabled { opacity: .35; cursor: default; }
+.agent-queue__list { max-height: 171px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #40545d transparent; }
+.agent-queue__list::-webkit-scrollbar { width: 4px; }
+.agent-queue__list::-webkit-scrollbar-thumb { background: #40545d; border-radius: 4px; }
+.agent-queue__item { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; min-height: 46px; margin: 0 2px 6px; padding: 8px 9px; border: 1px solid #34464e; border-radius: 5px; background: #101c22; }
+.agent-queue__item.is-unconfirmed { border-color: #806442; }
+.agent-queue__number { flex: 0 0 13px; color: #69828a; font-size: 10px; text-align: center; font-variant-numeric: tabular-nums; }
+.agent-queue__content { flex: 1; min-width: 0; }
+.agent-queue__content summary { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d3e0e2; cursor: pointer; list-style: none; }
+.agent-queue__content summary::-webkit-details-marker { display: none; }
+.agent-queue__content p { margin: 8px 0 0; max-height: 120px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #abc0c5; }
+.agent-queue__content small { display: block; margin-top: 4px; color: #dfba86; font-size: 10px; }
+.agent-queue__actions { display: flex; align-items: center; gap: 6px; }
+.agent-queue .agent-queue__steer { color: var(--agent-accent); border-color: color-mix(in srgb, var(--agent-accent) 32%, #34464e); }
+.agent-queue-popover { position: fixed; z-index: 50; width: 128px; padding: 5px; border: 1px solid #536b75; border-radius: 6px; background: #101b23; box-shadow: 0 8px 24px #000b; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.agent-queue-popover button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 9px; border: 0; border-radius: 3px; color: #d0e0e4; background: transparent; text-align: left; font: inherit; }
+.agent-queue-popover button:hover:not(:disabled), .agent-queue-popover button:focus-visible { outline: none; background: #20323d; }
+.agent-queue-popover button:disabled { opacity: .3; cursor: default; }
+.agent-queue-popover button span { color: #7f9aa5; font-size: 11px; }
+.agent-queue__editor { flex: 1 0 100%; min-width: 0; }
+.agent-queue__editor textarea { display: block; width: 100%; min-height: 68px; max-height: 120px; padding: 8px; resize: vertical; border: 1px solid #6c858e; border-radius: 4px; outline: none; color: #e0edef; background: #091318; font: 12px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; scrollbar-width: thin; }
+.agent-queue__editor textarea:focus { border-color: var(--agent-accent); }
+.agent-queue__editor > div { display: flex; justify-content: flex-end; align-items: center; gap: 7px; margin-top: 7px; }
+.agent-queue__editor small { margin-right: auto; color: #819ba2; font-size: 10px; }
+.agent-queue__editor p { margin: 4px 0 8px; color: #dfba86; }
+.agent-queue__retry { flex: 1 0 100%; border-top: 1px solid #70543b; padding-top: 8px; }
+.agent-queue__retry p { margin: 0 0 8px; color: #dec4a1; }
+.agent-queue__retry > div { display: flex; justify-content: flex-end; gap: 6px; }
+.agent-queue__error { display: flex; align-items: center; gap: 8px; margin: 6px 3px 8px; color: #efb2ae; font-size: 11px; overflow-wrap: anywhere; }
+.agent-queue__error button { flex: 0 0 auto; margin-left: auto; }
+.agent-queue__spinner { display: block; width: 11px; height: 11px; border: 1px solid #55717a; border-top-color: var(--agent-accent); border-radius: 50%; animation: agent-queue-spin .8s linear infinite; }
+@keyframes agent-queue-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .agent-queue__spinner { animation: none; } }
+.dsh-send-control { position: relative; flex: 0 0 auto; display: flex; gap: 0; }
+.dsh-send-control .dsh-composer__send { width: auto; flex: 0 0 auto; display: flex; gap: 7px; padding: 0 10px; border-radius: 4px 0 0 4px; font: 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-send-control .dsh-composer__send svg { width: 17px; height: 17px; }
+.dsh-send-control .dsh-send-control__toggle { width: 24px; flex: 0 0 24px; padding: 0; border-left: 0; border-radius: 0 4px 4px 0; font-size: 13px; }
+.dsh-send-menu { position: absolute; z-index: 12; right: 0; bottom: calc(100% + 10px); width: 244px; padding: 7px; border: 1px solid #536b75; border-radius: 7px; background: #101b23; box-shadow: 0 8px 30px #000b; }
+.dsh-send-menu > span { display: block; padding: 5px 8px 8px; color: #92a5ac; font: 10px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-composer .dsh-send-menu button { display: grid; grid-template-columns: 1fr 16px; place-items: start; gap: 5px; width: 100%; height: auto; padding: 9px 8px; border: 0; border-radius: 4px; text-align: left; color: #d7e3e7; background: transparent; font: 12px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-composer .dsh-send-menu button:hover:not(:disabled) { transform: none; background: #20323d; }
+.dsh-send-menu strong { font-weight: 500; }
+.dsh-send-menu small { grid-row: 2; color: #8ea5af; font-size: 10px; }
+.dsh-send-menu i { grid-column: 2; grid-row: 1 / 3; font-style: normal; color: var(--agent-accent); }
