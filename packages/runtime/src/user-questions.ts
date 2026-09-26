@@ -47,6 +47,23 @@ export function dshQuestions(value: unknown): AgentQuestion[] {
   return result;
 }
 
+/** SelfMe's Pi custom tool, not a built-in Pi question protocol. */
+export function piQuestions(value: unknown): AgentQuestion[] {
+  if (!Array.isArray(value) || !value.length || value.length > 4) return [];
+  const result: AgentQuestion[] = [];
+  for (const item of value) {
+    const q = object(item), options = q.options === undefined ? [] : choices(q.options);
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(text(q.id)) || !text(q.question).trim() || text(q.question).length > 2000
+      || text(q.header).length > 12 || text(q.detail).length > 2000 || !options || options.length > 4
+      || options.some(option => option.label.length > 200 || option.description.length > 2000)
+      || (q.multi_select !== undefined && typeof q.multi_select !== "boolean")
+      || result.some(previous => previous.id === q.id)) return [];
+    result.push({ id: text(q.id), header: text(q.header), question: text(q.question), detail: text(q.detail) || undefined,
+      options, multiSelect: q.multi_select === true, allowCustom: true });
+  }
+  return result;
+}
+
 export type KimiCustomFields = Record<string, { fieldId: string; value: string }>;
 
 /** Only the version-pinned Kimi bridge may add custom-input companion fields. */

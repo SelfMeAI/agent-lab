@@ -11,7 +11,7 @@ const question: AgentQuestion = { id: "0", header: "游戏类型", question: "�
 const approval: ApprovalRequest = { requestId: 7, title: "Ask user 1 question", questions: [question], options: [{ optionId: "proceed_once", name: "Submit", kind: "allow_once" }, { optionId: "cancel", name: "Cancel", kind: "reject_once" }] };
 
 describe("user question card", () => {
-  it.each(["qwen-code", "kimi-code", "codex", "dsh"] as const)("shows the actual question instead of authorization buttons for %s", runtimeId => {
+  it.each(["qwen-code", "kimi-code", "codex", "dsh", "pi"] as const)("shows the actual question instead of authorization buttons for %s", runtimeId => {
     const markup = renderToStaticMarkup(createElement(TranscriptItem, { runtimeId, workspace: "/workspace", onApprove: () => {}, approvalBusy: false,
       entry: { id: "question", kind: "approval", runId: "run", at: "2026-09-27T00:00:00Z", text: "Ask user 1 question", approval } }));
     for (const value of ["需要你回答", "想加哪个游戏？", "2048", "经典数字合并", "其他", "提交答案", "取消回答"]) expect(markup).toContain(value);

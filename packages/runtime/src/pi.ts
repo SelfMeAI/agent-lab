@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, dirname, sep } from "node:path";
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
+import type { AgentQuestionAnswers, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
 import { SteeringTracker, steeringError } from "./steering";
+import { PiUserQuestions } from "./pi-user-questions";
 
 type JsonObject = Record<string, unknown>;
 type ApprovalDecision = "allow_once" | "allow_session" | "deny";
@@ -74,6 +75,15 @@ export class PiAdapter implements HarnessAdapter {
   readonly label = "Pi";
   private readonly listeners = new Set<(event: RunEvent) => void>();
   private readonly approvals = new Map<string, PendingApproval>();
+  private readonly userQuestions = new PiUserQuestions(request => {
+    this.emitStatus("approval", "等待你回答问题");
+    this.emit("approval", { title: "需要你回答", text: request.questions!.map(q => q.question).join("\n"), approval: request });
+  }, request => {
+    this.emit("approval_result", { title: "请求已取消", text: "该提问已取消", approval: request });
+    if (this.session && this.phase === "approval" && !this.userQuestions.isPending && !this.approvals.size) {
+      this.emitStatus("running", "Pi 正在继续工作");
+    }
+  });
   private readonly allowedForSession = new Set<string>();
   private readonly toolInputs = new Map<string, { name: string; args: JsonObject }>();
   private session: AgentSession | null = null;
@@ -151,6 +161,7 @@ export class PiAdapter implements HarnessAdapter {
       const edit = sdk.createEditToolDefinition(workspace);
       const write = sdk.createWriteToolDefinition(workspace);
       const customTools = [
+        this.userQuestions.tool(),
         { ...read, execute: async (id: string, params: Parameters<typeof read.execute>[1], signal: Parameters<typeof read.execute>[2], onUpdate: Parameters<typeof read.execute>[3], ctx: Parameters<typeof read.execute>[4]) => {
           const path = await resolveWorkspacePath(workspace, params.path, true);
           return read.execute(id, { ...params, path }, signal, onUpdate, ctx);
@@ -181,7 +192,7 @@ export class PiAdapter implements HarnessAdapter {
           : sdk.SessionManager.create(workspace, join(this.options.homeDirectory, "sessions")),
         settingsManager,
         resourceLoader,
-        tools: ["read", "bash", "edit", "write"],
+        tools: ["read", "bash", "edit", "write", "ask_user_question"],
         customTools: customTools as unknown as ToolDefinition[],
       });
       this.session = session;
@@ -225,6 +236,7 @@ export class PiAdapter implements HarnessAdapter {
     if (!session || !["running", "approval"].includes(this.phase)) return;
     const runId = this.runId;
     this.emitStatus("cancelling", "正在取消 Pi 任务");
+    this.userQuestions.cancelAll();
     this.denyApprovals();
     session.clearQueue();
     this.steering.finish("任务已取消，尚未接入的补充不会自动执行");
@@ -248,10 +260,15 @@ export class PiAdapter implements HarnessAdapter {
     } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
 
-  async respondApproval(requestId: string | number, optionId: string): Promise<void> {
-    if (optionId !== "allow_once" && optionId !== "allow_session" && optionId !== "deny") throw new Error("无效的审批选项");
+  async respondApproval(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
+    if (this.userQuestions.respond(requestId, optionId, answers)) {
+      if (!this.userQuestions.isPending && !this.approvals.size) this.emitStatus("running", optionId === "cancel" ? "已取消回答，Pi 将继续处理" : "答案已提交，继续执行");
+      return;
+    }
     const pending = this.approvals.get(String(requestId));
     if (!pending) throw new Error("审批请求已失效");
+    if (optionId !== "allow_once" && optionId !== "allow_session" && optionId !== "deny") throw new Error("无效的审批选项");
+    if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
     pending.resolve(optionId);
     this.emitStatus("running", optionId === "deny" ? "已拒绝操作，Pi 将继续处理" : "审批已提交，继续执行");
   }
@@ -263,6 +280,7 @@ export class PiAdapter implements HarnessAdapter {
     this.workspace = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.userQuestions.cancelAll();
     this.denyApprovals();
     this.allowedForSession.clear();
     this.toolInputs.clear();
@@ -366,7 +384,9 @@ export class PiAdapter implements HarnessAdapter {
       const input = this.toolInputs.get(event.toolCallId);
       this.toolInputs.delete(event.toolCallId);
       const diff = this.fileTracker?.finish(event.toolCallId, !event.isError);
-      const rawOutput = resultText(event.result);
+      const details = object(object(event.result).details);
+      const rawOutput = event.toolName === "ask_user_question" && details.type === "selfmeUserQuestions" && typeof details.summary === "string"
+        ? details.summary : resultText(event.result);
       this.emit("tool", {
         title: event.toolName,
         toolCallId: event.toolCallId,
@@ -398,6 +418,7 @@ export class PiAdapter implements HarnessAdapter {
     this.session?.clearQueue();
     this.steering.finish("运行出错，未接入的补充不会自动执行");
     this.phase = "error";
+    this.userQuestions.cancelAll();
     this.emit("error", { phase: "error", text: this.apiKey ? text.replaceAll(this.apiKey, "[redacted]") : text });
   }
 

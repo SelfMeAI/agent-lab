@@ -9,6 +9,7 @@ import { CodexAdapter } from "./codex";
 import { DshAdapter } from "./dsh";
 import { KimiAdapter } from "./kimi";
 import { QwenAdapter } from "./qwen";
+import { PiAdapter } from "./pi";
 import { chat, responses, prepareQwenTestHome, type Obj } from "./test-support/mock-model";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -16,8 +17,8 @@ const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runt
 const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
 const options = [{ label: "2048", description: "数字合并" }, { label: "扫雷", description: "推理" }];
 
-describe("real native human-question round trips", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(["qwen-code", "kimi-code", "dsh", "codex"] as const)("%s actually receives answers and handles cancellation", async id => {
+describe("real harness human-question round trips (Pi uses SelfMe's SDK custom tool)", () => {
+  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(["qwen-code", "kimi-code", "dsh", "codex", "pi"] as const)("%s actually receives answers and handles cancellation", async id => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/question-native-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);
@@ -37,7 +38,7 @@ describe("real native human-question round trips", () => {
             { header: "平台", question: "支持哪些平台？", options: [{ label: "电脑", description: "桌面" }, { label: "手机", description: "移动" }] }];
           const questions = base.map((q, i) => ({ ...q, ...(id === "kimi-code" ? { multi_select: i === 1 }
             : id === "qwen-code" ? { multiSelect: i === 1 }
-              : id === "dsh" ? { id: i ? "platform" : "game", multi_select: i === 1 }
+              : id === "dsh" || id === "pi" ? { id: i ? "platform" : "game", multi_select: i === 1 }
                 : { id: "game" }) }));
           // Codex's native question interface is single-select.
           respond(res, { name, args: { questions: id === "codex" ? questions.slice(0, 1) : questions } });
@@ -48,10 +49,11 @@ describe("real native human-question round trips", () => {
             if (context.includes("No valid answers were provided")) throw new Error("Native question lost its answers");
           }
           if (turn === 4) {
-            receivedCustom = context.includes("CUSTOM_ANSWER_947") && (id !== "kimi-code" || context.includes("CUSTOM_PLATFORM_948"));
+            receivedCustom = context.includes("CUSTOM_ANSWER_947") && (!["kimi-code", "pi"].includes(id) || context.includes("CUSTOM_PLATFORM_948"));
             if (id === "kimi-code" && context.includes("__selfme_kimi_other__")) throw new Error("Synthetic Other marker leaked into Kimi's tool result");
           }
           if (turn === 2 && id === "kimi-code") receivedCancellation = context.includes("User dismissed the question without answering.");
+          if (turn === 2 && id === "pi") receivedCancellation = context.includes('\\"cancelled\\":true') || context.includes('"cancelled":true');
           respond(res, undefined, turn === 1 ? "已收到你的选择" : turn === 4 ? "已收到你的自定义答案" : "已尊重取消回答");
         }
       } catch (error) { errors.push(String(error)); res.writeHead(500); res.end(JSON.stringify({ error: { message: String(error) } })); }
@@ -63,6 +65,7 @@ describe("real native human-question round trips", () => {
     if (id === "qwen-code") adapter = new QwenAdapter({ homeDirectory: prepareQwenTestHome(homeDirectory), provider, nodeExecutable, entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js") });
     else if (id === "kimi-code") adapter = new KimiAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"), steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs") });
     else if (id === "dsh") adapter = new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
+    else if (id === "pi") adapter = new PiAdapter({ homeDirectory, provider });
     else adapter = new CodexAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "codex/bin/codex") });
     adapter.onEvent(event => { events.push(event); if (event.kind === "error") errors.push(event.text ?? "Runtime error"); });
     async function question(after: number): Promise<RunEvent> {
@@ -77,7 +80,7 @@ describe("real native human-question round trips", () => {
       const first = events.length; await adapter.send("先问我选择什么游戏和支持哪些平台，再根据答案继续。不要操作文件。");
       const asked = (await question(first)).approval!;
       expect(asked.questions).toHaveLength(id === "codex" ? 1 : 2);
-      if (id === "kimi-code") expect(asked.questions!.every(q => q.allowCustom)).toBe(true);
+      if (id === "kimi-code" || id === "pi") expect(asked.questions!.every(q => q.allowCustom)).toBe(true);
       const submit = asked.options.find(o => o.kind.includes("allow"))!;
       await expect(adapter.respondApproval(asked.requestId, submit.optionId, {})).rejects.toThrow(/回答/);
       const answers = Object.fromEntries(asked.questions!.map((q, i) => [q.id, i === 0 ? ["扫雷"] : ["电脑", "手机"]]));
@@ -87,7 +90,7 @@ describe("real native human-question round trips", () => {
       {
         const customStart = events.length; nextQuestion = true; turn = 4; await adapter.send("再问我一次，我会填写自己的答案。");
         const custom = (await question(customStart)).approval!;
-        const customAnswers = Object.fromEntries(custom.questions!.map((q, index) => [q.id, index === 0 ? ["CUSTOM_ANSWER_947"] : id === "kimi-code" ? ["电脑", "CUSTOM_PLATFORM_948"] : ["电脑"]]));
+        const customAnswers = Object.fromEntries(custom.questions!.map((q, index) => [q.id, index === 0 ? ["CUSTOM_ANSWER_947"] : id === "kimi-code" || id === "pi" ? ["电脑", "CUSTOM_PLATFORM_948"] : ["电脑"]]));
         await adapter.respondApproval(custom.requestId, custom.options.find(o => o.kind.includes("allow"))!.optionId, customAnswers);
         await end(customStart); expect(receivedCustom).toBe(true);
       }
@@ -95,7 +98,7 @@ describe("real native human-question round trips", () => {
       const cancelled = (await question(second)).approval!;
       await adapter.respondApproval(cancelled.requestId, cancelled.options.find(o => o.kind.includes("reject"))!.optionId);
       await end(second);
-      if (id === "kimi-code") expect(receivedCancellation).toBe(true);
+      if (id === "kimi-code" || id === "pi") expect(receivedCancellation).toBe(true);
       const third = events.length; nextQuestion = true; turn = 3; await adapter.send("再问我一次，测试停止整个任务。");
       const stopping = (await question(third)).approval!;
       await adapter.cancel(); await end(third);
