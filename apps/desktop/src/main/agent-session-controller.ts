@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
-import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
+import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
@@ -42,6 +42,8 @@ export class AgentSessionController {
   }
 
   events(id: string): AgentSessionEvent[] { return this.repository.events(id); }
+
+  setFollowUpMode(id: string, mode: FollowUpMode): void { this.repository.setFollowUpMode(id, mode); }
 
   async create(runtimeId: AgentRuntimeId, workspace: string): Promise<AgentSessionSummary> {
     const canonical = await realpath(workspace);

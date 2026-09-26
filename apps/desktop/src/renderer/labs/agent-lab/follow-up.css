@@ -1,5 +1,5 @@
-.agent-queue { flex: 0 0 auto; min-width: 0; padding: 10px 13px 0; border-top: 1px solid #ffffff10; background: #0a1318; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
-.agent-queue__heading { display: flex; align-items: center; gap: 12px; min-height: 29px; padding: 0 3px 8px; color: #bdc8ce; }
+.agent-queue { display: flex; flex-direction: column; flex: 0 1 auto; min-width: 0; min-height: 0; max-height: 204px; padding: 10px 13px 0; border-top: 1px solid #ffffff10; background: #0a1318; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.agent-queue__heading { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; min-height: 29px; padding: 0 3px 8px; color: #bdc8ce; }
 .agent-queue__title { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; }
 .agent-queue__title > svg { width: 14px; height: 14px; color: #8d9ba5; }
 .agent-queue__title strong { font-weight: 500; }
@@ -12,7 +12,7 @@
 .agent-queue button:focus-visible, .agent-queue-popover button:focus-visible { outline: 1px solid #a2b7c4; outline-offset: 2px; }
 .agent-queue button svg { width: 14px; height: 14px; flex: 0 0 14px; }
 .agent-queue .agent-queue__control { flex: 0 0 auto; color: #bfccd4; }
-.agent-queue__list { max-height: 157px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #ffffff26 transparent; border: 1px solid #ffffff0c; border-radius: 7px; background: #ffffff02; }
+.agent-queue__list { flex: 0 1 auto; min-height: 0; max-height: 157px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #ffffff26 transparent; border: 1px solid #ffffff0c; border-radius: 7px; background: #ffffff02; }
 .agent-queue__list::-webkit-scrollbar { width: 4px; }
 .agent-queue__list::-webkit-scrollbar-thumb { background: #ffffff26; border-radius: 4px; }
 .agent-queue__item { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; min-height: 47px; margin: 0; padding: 8px 10px; border-bottom: 1px solid #ffffff08; }

@@ -174,6 +174,9 @@ export function createAgentStore(runtimeId: AgentRuntimeId) {
       if (conversation) conversations.set(sessionId, { ...conversation, queue });
       if (snapshot.selectedSessionId === sessionId) publish({ ...snapshot, queue });
     },
+    setFollowUpMode(sessionId: string, mode: FollowUpMode): void {
+      publish({ ...snapshot, sessions: snapshot.sessions.map((session) => session.id === sessionId ? { ...session, followUpMode: mode } : session) });
+    },
     select(sessionId: string): void {
       publish({ ...display(sessionId), sessions: snapshot.sessions, deletedSessions: snapshot.deletedSessions, selectedSessionId: sessionId, lastWorkspace: snapshot.lastWorkspace, loaded: true });
     },

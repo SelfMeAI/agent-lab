@@ -6,6 +6,7 @@ import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, isTranscriptInput, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
 import { PendingMessageQueue } from "./PendingMessageQueue";
 import { composerAction, followUpAvailability } from "./follow-up";
+import { observeTranscriptLayout } from "./transcript-layout";
 import "./follow-up.css";
 import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, toolDuration, turnDuration } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
@@ -214,7 +215,6 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const [submitting, setSubmitting] = useState(false);
   const [stoppingRequest, setStoppingRequest] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
-  const [followUpMode, setFollowUpMode] = useState<FollowUpMode>("queue");
   const [showSendMenu, setShowSendMenu] = useState(false);
   const sendMenuRef = useRef<HTMLDivElement>(null);
   const sendMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -223,6 +223,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const changingModeRef = useRef(false);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const session = snapshot.sessions.find((item) => item.id === snapshot.selectedSessionId) ?? null;
+  const followUpMode = session?.followUpMode ?? "queue";
   const workspace = session?.workspace ?? null;
   const outputRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -248,11 +249,10 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   useEffect(() => {
     let active = true;
     if (window.selfmeLab) {
-      void Promise.all([window.selfmeLab.getProviderStatus(runtimeId), window.selfmeLab.getAgentSessionCatalog(runtimeId), window.selfmeLab.getFollowUpMode()])
-        .then(async ([status, catalog, mode]) => {
+      void Promise.all([window.selfmeLab.getProviderStatus(runtimeId), window.selfmeLab.getAgentSessionCatalog(runtimeId)])
+        .then(async ([status, catalog]) => {
           if (!active) return;
           setProvider(status);
-          setFollowUpMode(mode);
           store.setCatalog(catalog);
           if (catalog.selectedSessionId) {
             const history = await window.selfmeLab!.getAgentSessionEvents(catalog.selectedSessionId);
@@ -270,6 +270,12 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     if (output && followOutputRef.current) output.scrollTop = output.scrollHeight;
   }, [snapshot.entries, snapshot.statusText, snapshot.queue, prompt, localError]);
 
+  useLayoutEffect(() => {
+    const output = outputRef.current;
+    if (!output) return;
+    return observeTranscriptLayout(output, followOutputRef, (nearLatest) => setShowLatest(!nearLatest));
+  }, [runtimeId, snapshot.selectedSessionId]);
+
   useEffect(() => {
     if (!availability.canChooseMode) setShowSendMenu(false);
   }, [availability.canChooseMode]);
@@ -285,13 +291,19 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   }, [showSendMenu]);
 
   async function chooseFollowUpMode(mode: FollowUpMode): Promise<void> {
+    const sessionId = store.getSnapshot().selectedSessionId;
+    if (!sessionId || !window.selfmeLab) return;
     if (changingModeRef.current || !followUpAvailability(store.getSnapshot().phase, {
       connecting, stopping: stoppingRef.current, submitting: submittingRef.current,
     }).canChooseMode) return;
     setShowSendMenu(false);
     changingModeRef.current = true;
     setChangingMode(true);
-    try { await window.selfmeLab?.setFollowUpMode(mode); setFollowUpMode(mode); promptRef.current?.focus(); }
+    try {
+      await window.selfmeLab.setSessionFollowUpMode(sessionId, mode);
+      store.setFollowUpMode(sessionId, mode);
+      if (store.getSnapshot().selectedSessionId === sessionId) promptRef.current?.focus();
+    }
     catch (error) { setLocalError(errorMessage(error)); }
     finally { changingModeRef.current = false; setChangingMode(false); }
   }
@@ -553,7 +565,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
               {(["running", "approval", "cancelling"].includes(snapshot.phase) || stopping) && <button className="dsh-composer__cancel" disabled={stopping} onClick={() => void cancel()} type="button" title={stopping ? "正在停止，队列消息会保留" : "停止当前轮，同时暂停队列"} aria-label={stopping ? "正在停止当前轮" : "停止当前轮"}>{stopping ? <span className="agent-queue__spinner" aria-hidden="true" /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>}</button>}
               <div className="dsh-send-control" ref={sendMenuRef}>
                 <button className="dsh-composer__send" disabled={!prompt.trim() || !availability.canSubmit || sendAction === "wait"} onClick={() => void submit()} type="button" title={stopping ? "当前轮正在停止，输入内容会保留" : connecting || snapshot.phase === "starting" ? "连接完成后即可发送" : sendAction === "steer" ? "补充当前正在执行的工作" : sendAction === "queue" ? snapshot.queue.paused ? "加入已暂停的队列，不会自动发送" : "加入队列，当前轮结束后依次发送" : "发送任务"} aria-label={sendLabel}>{submitting ? <span className="agent-queue__spinner" aria-hidden="true" /> : <>{sendLabel}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 14 0m-6-6 6 6-6 6" /></svg></>}</button>
-                <button ref={sendMenuButtonRef} className="dsh-send-control__toggle" disabled={!availability.canChooseMode} type="button" aria-label="工作中发送方式" aria-haspopup="menu" aria-expanded={showSendMenu} title={stopping ? "停止完成后可切换发送方式" : connecting || snapshot.phase === "starting" ? "连接完成后可切换发送方式" : `工作中默认：${followUpMode === "queue" ? "Queue · 排队发送" : "Steer · 补充本轮"}`} onClick={() => setShowSendMenu(!showSendMenu)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 6 3 3 3-3" /></svg></button>
+                <button ref={sendMenuButtonRef} className="dsh-send-control__toggle" disabled={!session || !availability.canChooseMode} type="button" aria-label="工作中发送方式" aria-haspopup="menu" aria-expanded={showSendMenu} title={stopping ? "停止完成后可切换发送方式" : connecting || snapshot.phase === "starting" ? "连接完成后可切换发送方式" : `工作中默认：${followUpMode === "queue" ? "Queue · 排队发送" : "Steer · 补充本轮"}`} onClick={() => setShowSendMenu(!showSendMenu)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 6 3 3 3-3" /></svg></button>
                 {showSendMenu && <div className="dsh-send-menu" role="menu" aria-label="工作中发送方式" onKeyDown={(event) => {
                   if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
                     event.preventDefault(); const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitemradio"]')];

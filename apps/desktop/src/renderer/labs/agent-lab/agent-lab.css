@@ -87,7 +87,7 @@
 .dsh-session-modal button.is-danger { color: #fff0ee; border-color: #a9605b; background: #843c3b; }
 .dsh-session-modal button:disabled { opacity: .55; cursor: wait; }
 .dsh-conversation { position: relative; display: flex; flex-direction: column; overflow: hidden; }
-.dsh-conversation__viewport { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.dsh-conversation__viewport { position: relative; display: flex; flex: 1 0 180px; min-height: 180px; overflow: hidden; }
 .dsh-conversation__scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 23px 28px; scrollbar-color: #4b6666 transparent; scrollbar-width: thin; }
 .dsh-conversation__date { display: flex; align-items: center; gap: 14px; margin: 0 0 21px 61px; color: #829d99; font-size: 11px; letter-spacing: .04em; white-space: nowrap; }
 .dsh-conversation__date::before, .dsh-conversation__date::after { content: ""; height: 1px; flex: 1; background: #607e763d; }
@@ -182,7 +182,7 @@
 .dsh-approval__actions .is-allow { border-color: #ffca37; color: #ffca37; }
 .dsh-approval__actions button:hover:not(:disabled) { background: #343221; }
 .dsh-approval__actions button:disabled { opacity: .4; cursor: default; }
-.dsh-live-status { min-height: 34px; padding: 6px 17px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #35464a; color: #cadad6; background: #0d1a1d; font-size: 11px; }
+.dsh-live-status { flex: 0 0 auto; min-height: 34px; padding: 6px 17px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #35464a; color: #cadad6; background: #0d1a1d; font-size: 11px; }
 .dsh-live-status > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-live-status small { margin-left: auto; flex: 0 0 auto; color: #829996; font-size: 10px; }
 .dsh-live-status .dsh-live-status__elapsed { margin-left: 0; color: #afc4be; font-variant-numeric: tabular-nums; }

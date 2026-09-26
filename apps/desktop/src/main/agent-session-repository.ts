@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { AgentRuntimeId, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
+import type { AgentRuntimeId, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
 
 export interface StoredAgentSession extends AgentSessionSummary {
   nativeRef: string | null;
@@ -32,6 +32,7 @@ function fromRow(row: Record<string, unknown>): StoredAgentSession {
     lastPromptAt: row.last_prompt_at == null ? null : String(row.last_prompt_at),
     lastActivityAt: row.last_activity_at == null ? null : String(row.last_activity_at),
     phase: String(row.phase) as RuntimePhase, statusText: String(row.status_text),
+    followUpMode: row.follow_up_mode === "steer" ? "steer" : "queue",
     nativeRef: row.native_ref === null ? null : String(row.native_ref),
     deletedAt: row.deleted_at === null ? null : String(row.deleted_at),
   };
@@ -44,7 +45,7 @@ export class AgentSessionRepository {
 
   constructor(private readonly root: string) {}
 
-  async init(): Promise<void> {
+  async init(legacyFollowUpMode: FollowUpMode = "queue"): Promise<void> {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     const path = join(this.root, "agent-sessions.sqlite");
     const db = new DatabaseSync(path, { timeout: 3000 });
@@ -89,6 +90,16 @@ export class AgentSessionRepository {
     if (!columns.has("last_prompt_at")) db.exec("ALTER TABLE agent_sessions ADD COLUMN last_prompt_at TEXT");
     if (!columns.has("deleted_at")) db.exec("ALTER TABLE agent_sessions ADD COLUMN deleted_at TEXT");
     if (!columns.has("queue_paused")) db.exec("ALTER TABLE agent_sessions ADD COLUMN queue_paused INTEGER NOT NULL DEFAULT 0");
+    if (!columns.has("follow_up_mode")) {
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        db.exec("ALTER TABLE agent_sessions ADD COLUMN follow_up_mode TEXT NOT NULL DEFAULT 'queue' CHECK (follow_up_mode IN ('queue', 'steer'))");
+        // Import once for existing (including deleted) sessions. New ones keep
+        // the Queue default; a later restart cannot overwrite independent choices.
+        if (legacyFollowUpMode === "steer") db.exec("UPDATE agent_sessions SET follow_up_mode = 'steer'");
+        db.exec("COMMIT");
+      } catch (error) { db.exec("ROLLBACK"); throw error; }
+    }
     db.exec("CREATE INDEX IF NOT EXISTS agent_pending_order ON agent_pending_messages(session_id, position)");
     // Never start saved work on app launch. In-flight handoffs are uncertain,
     // while unsent queue entries remain safely editable after recovery.
@@ -216,12 +227,19 @@ export class AgentSessionRepository {
     return record;
   }
 
+  setFollowUpMode(id: string, mode: FollowUpMode): void {
+    this.get(id);
+    if (mode !== "queue" && mode !== "steer") throw new Error("发送模式无效");
+    this.database().prepare("UPDATE agent_sessions SET follow_up_mode = ? WHERE id = ?").run(mode, id);
+  }
+
   create(runtimeId: AgentRuntimeId, workspace: string): AgentSessionSummary {
     if (!runtimeIds.has(runtimeId)) throw new Error("此运行时暂不支持会话");
     const now = new Date().toISOString();
     const record: StoredAgentSession = {
       id: randomUUID(), runtimeId, workspace, title: "新会话", createdAt: now, updatedAt: now,
       phase: "idle", statusText: "尚未连接", nativeRef: null,
+      followUpMode: "queue",
       lastPromptAt: null, lastActivityAt: null, deletedAt: null,
     };
     this.database().prepare(`INSERT INTO agent_sessions

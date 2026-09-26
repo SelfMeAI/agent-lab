@@ -8,11 +8,11 @@ export interface AgentViewPreference {
   lastWorkspace: string | null;
 }
 
-type AppConfig = { version: 1; agentLab: Partial<Record<AgentRuntimeId, AgentViewPreference>>; followUpMode: FollowUpMode };
+type AppConfig = { version: 1; agentLab: Partial<Record<AgentRuntimeId, AgentViewPreference>>; followUpMode?: FollowUpMode };
 
 /** Small, human-readable application preferences. Conversation data lives in SQLite. */
 export class AppConfigStore {
-  private data: AppConfig = { version: 1, agentLab: {}, followUpMode: "queue" };
+  private data: AppConfig = { version: 1, agentLab: {} };
   private pendingWrite: Promise<void> = Promise.resolve();
 
   constructor(private readonly root: string) {}
@@ -23,7 +23,8 @@ export class AppConfigStore {
       const parsed: unknown = JSON.parse(await readFile(this.path(), "utf8"));
       if (!parsed || typeof parsed !== "object" || (parsed as { version?: unknown }).version !== 1) throw new Error("应用配置文件版本无效");
       const agentLab = (parsed as { agentLab?: unknown }).agentLab;
-      this.data.followUpMode = (parsed as { followUpMode?: unknown }).followUpMode === "steer" ? "steer" : "queue";
+      // Kept only until existing sessions have adopted the former global value.
+      if ("followUpMode" in parsed) this.data.followUpMode = (parsed as { followUpMode?: unknown }).followUpMode === "steer" ? "steer" : "queue";
       if (!agentLab || typeof agentLab !== "object" || Array.isArray(agentLab)) throw new Error("应用配置文件格式无效");
       for (const runtimeId of ["dsh", "codex", "pi", "kimi-code"] as const) {
         const value = (agentLab as Record<string, unknown>)[runtimeId];
@@ -44,11 +45,11 @@ export class AppConfigStore {
     return { ...(this.data.agentLab[runtimeId] ?? { selectedSessionId: null, lastWorkspace: null }) };
   }
 
-  getFollowUpMode(): FollowUpMode { return this.data.followUpMode; }
+  getLegacyFollowUpMode(): FollowUpMode { return this.data.followUpMode ?? "queue"; }
 
-  async setFollowUpMode(mode: FollowUpMode): Promise<void> {
-    if (mode !== "queue" && mode !== "steer") throw new Error("发送模式无效");
-    this.data.followUpMode = mode;
+  async clearLegacyFollowUpMode(): Promise<void> {
+    if (this.data.followUpMode === undefined) return;
+    delete this.data.followUpMode;
     await this.write();
   }
 

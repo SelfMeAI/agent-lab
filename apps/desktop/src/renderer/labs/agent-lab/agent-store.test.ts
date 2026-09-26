@@ -5,7 +5,7 @@ import { presentEntry } from "./tool-presentation";
 
 const session = (id: string): AgentSessionSummary => ({
   id, runtimeId: "dsh", workspace: "/tmp/example", title: "新会话",
-  createdAt: "2026-09-25T00:00:00Z", updatedAt: "2026-09-25T00:00:00Z", lastPromptAt: null, lastActivityAt: null, phase: "ready", statusText: "已就绪",
+  createdAt: "2026-09-25T00:00:00Z", updatedAt: "2026-09-25T00:00:00Z", lastPromptAt: null, lastActivityAt: null, phase: "ready", statusText: "已就绪", followUpMode: "queue",
 });
 
 function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessionEvent>): AgentSessionEvent {
@@ -16,6 +16,20 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 }
 
 describe("agent transcript updates", () => {
+  it("keeps mode changes scoped to their session across selection, late saves and other harnesses", () => {
+    const store = createAgentStore("dsh"), pi = createAgentStore("pi");
+    store.setCatalog({ sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    pi.setCatalog({ sessions: [{ ...session("pi"), runtimeId: "pi" }], deletedSessions: [], selectedSessionId: "pi", lastWorkspace: null });
+    store.setFollowUpMode("a", "steer"); store.select("b");
+    expect(store.getSnapshot().sessions.find(s => s.id === "b")?.followUpMode).toBe("queue");
+    store.setFollowUpMode("a", "queue");
+    expect(store.getSnapshot().selectedSessionId).toBe("b");
+    store.setFollowUpMode("a", "steer"); store.select("a");
+    expect(store.getSnapshot().sessions.find(s => s.id === "a")?.followUpMode).toBe("steer");
+    expect(pi.getSnapshot().sessions[0].followUpMode).toBe("queue");
+    store.addSession(session("new"));
+    expect(store.getSnapshot().sessions.find(s => s.id === "new")?.followUpMode).toBe("queue");
+  });
   it("keeps original task, approval, tool diff and elapsed time when steering is submitted", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });

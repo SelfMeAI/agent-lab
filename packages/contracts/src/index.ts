@@ -69,6 +69,7 @@ export interface AgentSessionSummary {
   lastActivityAt: string | null;
   phase: RuntimePhase;
   statusText: string;
+  followUpMode: FollowUpMode;
 }
 
 export interface AgentSessionCatalog {
@@ -200,8 +201,7 @@ export interface DesktopBridge {
   retryQueuedSessionPrompt(sessionId: string, messageId: string): Promise<void>;
   resumeSessionQueue(sessionId: string): Promise<void>;
   pauseSessionQueue(sessionId: string): Promise<void>;
-  getFollowUpMode(): Promise<FollowUpMode>;
-  setFollowUpMode(mode: FollowUpMode): Promise<void>;
+  setSessionFollowUpMode(sessionId: string, mode: FollowUpMode): Promise<void>;
   cancelSessionRun(sessionId: string): Promise<void>;
   respondSessionApproval(sessionId: string, requestId: string | number, optionId: string): Promise<void>;
   decideJevMove(fen: string, style: JevStyle): Promise<JevDecision>;

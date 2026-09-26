@@ -5,7 +5,7 @@ import { createAgentStore, isTranscriptInput } from "./agent-store";
 
 const queue: AgentSessionQueue = { paused: false, messages: [{ id: "queued", text: "later", createdAt: "2026-09-26T10:00:00Z", mode: "queue", state: "queued" }] };
 const empty: AgentSessionQueue = { messages: [], paused: false };
-const session: AgentSessionSummary = { id: "session", runtimeId: "pi", workspace: "/workspace", title: "test", createdAt: "2026-09-26T10:00:00Z", updatedAt: "2026-09-26T10:00:00Z", phase: "running", statusText: "工作中", lastPromptAt: null, lastActivityAt: null };
+const session: AgentSessionSummary = { id: "session", runtimeId: "pi", workspace: "/workspace", title: "test", createdAt: "2026-09-26T10:00:00Z", updatedAt: "2026-09-26T10:00:00Z", phase: "running", statusText: "工作中", lastPromptAt: null, lastActivityAt: null, followUpMode: "queue" };
 
 describe("follow-up composer and transcript", () => {
   it("keeps queue and Steer as distinct choices and never bypasses a paused backlog", () => {

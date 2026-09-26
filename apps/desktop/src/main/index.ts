@@ -93,10 +93,11 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
 
 void app.whenReady().then(async () => {
   const root = app.getPath("userData");
-  sessionRepository = new AgentSessionRepository(root);
-  await sessionRepository.init();
   const appConfig = new AppConfigStore(root);
   await appConfig.init();
+  sessionRepository = new AgentSessionRepository(root);
+  await sessionRepository.init(appConfig.getLegacyFollowUpMode());
+  await appConfig.clearLegacyFollowUpMode();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event), false,
     join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
@@ -248,11 +249,8 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:pause-session-queue", (event, sessionId: string) => {
     assertMainWindow(event); sessions!.pauseQueue(sessionId);
   });
-  ipcMain.handle("selfme:get-follow-up-mode", (event) => {
-    assertMainWindow(event); return appConfig.getFollowUpMode();
-  });
-  ipcMain.handle("selfme:set-follow-up-mode", async (event, mode: FollowUpMode) => {
-    assertMainWindow(event); await appConfig.setFollowUpMode(mode);
+  ipcMain.handle("selfme:set-session-follow-up-mode", (event, sessionId: string, mode: FollowUpMode) => {
+    assertMainWindow(event); sessions!.setFollowUpMode(sessionId, mode);
   });
   ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string) => {
     assertMainWindow(event);
