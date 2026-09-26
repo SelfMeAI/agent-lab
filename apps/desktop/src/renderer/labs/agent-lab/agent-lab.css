@@ -211,7 +211,7 @@
 .agent-workspace--codex { --agent-accent: #40dbe7; }
 .agent-workspace--pi { --agent-accent: #b9ddf0; }
 .agent-workspace--kimi-code { --agent-accent: #f38f8e; }
-.agent-workspace--qwen-code { --agent-accent: #91c4b9; }
+.agent-workspace--qwen-code { --agent-accent: #e7bc73; }
 
 :is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-workspace__identity svg,
 :is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-conversation__empty svg,

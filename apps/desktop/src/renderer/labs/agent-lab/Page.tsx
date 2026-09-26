@@ -9,7 +9,7 @@ import "./agent-lab.css";
 
 const accents: Record<string, string> = {
   dsh: "#d3fb52", codex: "#40dbe7", pi: "#b9ddf0", "kimi-code": "#f38f8e",
-  "qwen-code": "#91c4b9", "claude-code": "#bd8df7",
+  "qwen-code": "#e7bc73", "claude-code": "#bd8df7",
 };
 const descriptions: Record<string, string> = {
   dsh: "本地任务与工具调用",
