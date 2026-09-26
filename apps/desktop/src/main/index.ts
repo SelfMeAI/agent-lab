@@ -19,6 +19,7 @@ import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 import { AgentSessionController } from "./agent-session-controller";
 import { installAppShutdown } from "./app-shutdown";
+import { harnessNodeExecutable } from "./harness-node";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
@@ -75,13 +76,14 @@ function createWindow(): void {
 }
 
 function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapter {
+  const nodeExecutable = runtimeId === "codex" || runtimeId === "pi" ? process.execPath : harnessNodeExecutable(process.execPath);
   const homeDirectory = join(app.getPath("userData"), "runtime-homes", runtimeId, sessionId);
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   const entryPoint = app.isPackaged
     ? join(process.resourcesPath, "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
     : join(__dirname, "../../../../runtimes/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js");
   if (runtimeId === "dsh") return new DshAdapter({
-    entryPoint, homeDirectory, nodeExecutable: process.execPath, provider: getDshProvider,
+    entryPoint, homeDirectory, nodeExecutable, provider: getDshProvider,
     steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs"),
   });
   if (runtimeId === "codex") return new CodexAdapter({
@@ -93,11 +95,11 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
   if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider });
   if (runtimeId === "qwen-code") return new QwenAdapter({
     entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js"),
-    nodeExecutable: process.execPath, homeDirectory, provider: getQwenProvider,
+    nodeExecutable, homeDirectory, provider: getQwenProvider,
   });
   return new KimiAdapter({
     entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"),
-    nodeExecutable: process.execPath,
+    nodeExecutable,
     steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs"),
     homeDirectory, provider: getKimiProvider,
   });

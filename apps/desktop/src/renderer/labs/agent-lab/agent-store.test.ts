@@ -16,6 +16,38 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 }
 
 describe("agent transcript updates", () => {
+  it("retains old connection errors as history only after a successful reconnect, also on replay", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    const history = [event("a", 1, { kind: "error", phase: "error", text: "Kimi Code 已退出（SIGTERM）" }),
+      event("a", 2, { kind: "status", phase: "starting" }),
+      event("a", 3, { kind: "status", phase: "ready", at: "2026-09-25T01:00:00Z" })];
+    store.ingest(history[0]); store.ingest(history[1]);
+    expect(store.getSnapshot().entries[0].reconnectedAt).toBeUndefined();
+    store.ingest(history[2]);
+    expect(store.getSnapshot().entries[0]).toMatchObject({ kind: "error", text: "Kimi Code 已退出（SIGTERM）", reconnectedAt: history[2].at });
+    store.loadHistory("a", history);
+    expect(store.getSnapshot().entries[0].reconnectedAt).toBe(history[2].at);
+    store.select("b");
+    store.ingest(event("b", 1, { kind: "error", phase: "error", text: "新错误" }));
+    expect(store.getSnapshot().entries[0].reconnectedAt).toBeUndefined();
+    store.ingest(event("b", 2, { kind: "status", phase: "starting" }));
+    store.ingest(event("b", 3, { kind: "error", phase: "error", text: "重新连接失败" }));
+    expect(store.getSnapshot().entries.every(entry => entry.reconnectedAt === undefined)).toBe(true);
+  });
+  it("does not mistake a turn completion for a reconnect or hide fresh errors after recovery", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    store.ingest(event("a", 1, { kind: "error", phase: "error", text: "旧任务失败" }));
+    store.ingest(event("a", 2, { kind: "status", phase: "running" }));
+    store.ingest(event("a", 3, { kind: "status", phase: "ready" }));
+    expect(store.getSnapshot().entries[0].reconnectedAt).toBeUndefined();
+    store.ingest(event("a", 4, { kind: "status", phase: "starting" }));
+    store.ingest(event("a", 5, { kind: "status", phase: "ready" }));
+    store.ingest(event("a", 6, { kind: "error", phase: "error", text: "新连接故障" }));
+    expect(store.getSnapshot().entries.at(-1)?.reconnectedAt).toBeUndefined();
+    expect(store.getSnapshot().phase).toBe("error");
+  });
   it("replays answers without reviving old questions, crossing sessions or changing turn timing", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [{ ...session("a"), phase: "approval" }], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });

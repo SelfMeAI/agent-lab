@@ -202,7 +202,10 @@ export function TranscriptItem({ entry, runtimeId, workspace, onApprove, approva
     </article>
   );
   if (entry.kind === "tool" || entry.kind === "status") return <ToolItem entry={entry} workspace={workspace} />;
-  if (entry.kind === "error") return <div className="dsh-error" role="alert">{entry.text}</div>;
+  if (entry.kind === "error") return entry.reconnectedAt ? <details className="agent-error-history">
+    <summary><span>历史错误</span><small>后续已重新连接</small>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</summary>
+    <div><p>{entry.text}</p><small>重新连接于 <time dateTime={entry.reconnectedAt}>{exactTime(entry.reconnectedAt)}</time></small></div>
+  </details> : <div className="dsh-error" role="alert">{entry.text}</div>;
   return (
     <article className="dsh-entry dsh-entry--agent">
       <LabIcon className="dsh-entry__avatar" runtimeId={runtimeId} />

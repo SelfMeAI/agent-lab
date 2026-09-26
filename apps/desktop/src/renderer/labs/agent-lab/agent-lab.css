@@ -196,6 +196,17 @@
 .dsh-activity__dots i:nth-child(3) { animation-delay: .32s; }
 @keyframes dsh-pulse { 0%, 65%, 100% { opacity: .25; transform: translateY(0); } 32% { opacity: 1; transform: translateY(-3px); } }
 .dsh-error { margin: 12px 0; padding: 13px 16px; color: #ffbaba; border: 1px solid #c97777; background: #351d20bb; font-size: 13px; overflow-wrap: anywhere; }
+.agent-error-history { margin: 12px 0; border: 1px solid #344248; border-radius: 5px; background: #10191dbb; color: #a0b0b8; font-size: 12px; overflow-wrap: anywhere; }
+.agent-error-history summary { display: flex; align-items: center; gap: 12px; padding: 11px 14px; cursor: pointer; list-style: none; }
+.agent-error-history summary::-webkit-details-marker { display: none; }
+.agent-error-history summary::after { content: "⌄"; color: #74868f; }
+.agent-error-history[open] summary::after { content: "⌃"; }
+.agent-error-history summary small { color: #74868f; font-size: 11px; }
+.agent-error-history summary time { margin-left: auto; color: #74868f; font-size: 11px; font-variant-numeric: tabular-nums; }
+.agent-error-history > div { border-top: 1px solid #2a373d; padding: 12px 14px; }
+.agent-error-history p { margin: 0 0 9px; color: #bcafb0; white-space: pre-wrap; line-height: 1.6; }
+.agent-error-history > div > small { color: #74868f; font-size: 11px; }
+.agent-error-history summary:focus-visible { outline: 2px solid var(--agent-accent); outline-offset: 2px; }
 .dsh-composer { flex: 0 0 auto; padding: 11px 13px 13px; border-top: 1px solid #35464a; background: #081216; }
 .dsh-composer__field { min-height: 56px; padding: 8px; display: flex; align-items: flex-end; gap: 10px; border: 1px solid #52666b; border-radius: 4px; background: #101c21; transition: border-color .16s ease, box-shadow .16s ease; }
 .dsh-composer__field:focus-within { border-color: var(--agent-accent, #d3fb52); box-shadow: 0 0 0 3px color-mix(in srgb, var(--agent-accent, #d3fb52) 12%, transparent); }

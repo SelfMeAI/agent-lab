@@ -17,6 +17,8 @@ export interface TranscriptEntry {
   startedAt?: string;
   finishedAt?: string;
   hasExecutionActivity?: boolean;
+  /** A subsequent successful reconnect does not erase the earlier failure. */
+  reconnectedAt?: string;
   messageId?: string;
   deliveryMode?: FollowUpMode;
   deliveryState?: AgentSessionEvent["deliveryState"];
@@ -79,6 +81,8 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
   if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return snapshot;
   if (event.kind === "status" && event.phase) {
     let entries = ["idle", "ready", "error", "cancelling"].includes(event.phase) ? snapshot.entries.filter(entry => entry.kind !== "approval") : snapshot.entries;
+    if (event.phase === "ready" && snapshot.phase === "starting") entries = entries.map(entry => entry.kind === "error"
+      ? { ...entry, reconnectedAt: entry.reconnectedAt ?? event.at } : entry);
     if (event.phase === "ready" && ["running", "approval", "cancelling"].includes(snapshot.phase)) {
       let lastUserIndex = entries.length - 1;
       while (lastUserIndex >= 0 && (entries[lastUserIndex].kind !== "user" || entries[lastUserIndex].deliveryMode === "steer")) lastUserIndex--;
