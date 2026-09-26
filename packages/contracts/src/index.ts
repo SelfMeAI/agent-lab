@@ -101,7 +101,22 @@ export interface ApprovalRequest {
   title: string;
   options: ApprovalOption[];
   toolCallId?: string;
+  /** Present (even if empty) for user questions, never a permission grant. */
+  questions?: AgentQuestion[];
 }
+
+export interface AgentQuestion {
+  id: string;
+  header: string;
+  question: string;
+  detail?: string;
+  options: Array<{ label: string; description: string }>;
+  multiSelect: boolean;
+  allowCustom: boolean;
+  secret?: boolean;
+}
+
+export type AgentQuestionAnswers = Record<string, string[]>;
 
 export type RunEventKind =
   | "user"
@@ -110,6 +125,7 @@ export type RunEventKind =
   | "thought"
   | "tool"
   | "approval"
+  | "approval_result"
   | "artifact"
   | "status"
   | "error";
@@ -207,7 +223,7 @@ export interface DesktopBridge {
   pauseSessionQueue(sessionId: string): Promise<void>;
   setSessionFollowUpMode(sessionId: string, mode: FollowUpMode): Promise<void>;
   cancelSessionRun(sessionId: string): Promise<void>;
-  respondSessionApproval(sessionId: string, requestId: string | number, optionId: string): Promise<void>;
+  respondSessionApproval(sessionId: string, requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void>;
   decideJevMove(fen: string, style: JevStyle): Promise<JevDecision>;
   onRunEvent(listener: (event: AgentSessionEvent) => void): () => void;
   onAgentQueueChange(listener: (change: AgentQueueChange) => void): () => void;

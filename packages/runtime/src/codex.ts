@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, join, delimiter } from "node:path";
 import { createInterface } from "node:readline";
-import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
+import type { AgentQuestion, AgentQuestionAnswers, ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { SteeringTracker, steeringError } from "./steering";
+import { codexQuestions, validateQuestionAnswers } from "./user-questions";
 
 type JsonObject = Record<string, unknown>;
 type Pending = { resolve(value: JsonObject): void; reject(error: Error): void };
@@ -47,7 +48,7 @@ export class CodexAdapter implements HarnessAdapter {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly listeners = new Set<(event: RunEvent) => void>();
   private readonly pending = new Map<number, Pending>();
-  private readonly approvals = new Map<string, { requestId: number | string; options: ApprovalOption[] }>();
+  private readonly approvals = new Map<string, { requestId: number | string; options: ApprovalOption[]; questions?: AgentQuestion[] }>();
   private readonly toolText = new Map<string, string>();
   private readonly activeTools = new Set<string>();
   private readonly messageDeltaIds = new Set<string>();
@@ -106,6 +107,9 @@ export class CodexAdapter implements HarnessAdapter {
       'approval_policy = "on-request"',
       'sandbox_mode = "workspace-write"',
       "",
+      "[features]",
+      "default_mode_request_user_input = true",
+      "",
       "[features.code_mode_host]",
       "enabled = true",
       "disable_in_process_fallback = true",
@@ -151,6 +155,7 @@ export class CodexAdapter implements HarnessAdapter {
     try {
       await this.request("initialize", {
         clientInfo: { name: "selfme_lab", title: "SelfMe Lab", version: "0.1.0" },
+        capabilities: { experimentalApi: true },
       }, 30000);
       this.notify("initialized", {});
       const threadSettings = {
@@ -197,7 +202,7 @@ export class CodexAdapter implements HarnessAdapter {
   async cancel(): Promise<void> {
     if (!this.threadId || !this.turnId || !["running", "approval"].includes(this.phase)) return;
     const threadId = this.threadId, turnId = this.turnId;
-    for (const approval of this.approvals.values()) this.write({ id: approval.requestId, result: { decision: "cancel" } });
+    for (const approval of this.approvals.values()) this.write({ id: approval.requestId, result: approval.questions !== undefined ? { answers: {} } : { decision: "cancel" } });
     this.approvals.clear();
     this.emitStatus("cancelling", "正在取消 Codex 任务");
     try {
@@ -224,12 +229,17 @@ export class CodexAdapter implements HarnessAdapter {
     } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
 
-  async respondApproval(requestId: string | number, optionId: string): Promise<void> {
+  async respondApproval(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const approval = this.approvals.get(String(requestId));
     if (!approval || !approval.options.some((option) => option.optionId === optionId)) throw new Error("审批请求已失效或选项无效");
-    this.write({ id: approval.requestId, result: { decision: optionId } });
+    let result: JsonObject = { decision: optionId };
+    if (approval.questions !== undefined) {
+      const checked = optionId === "submit" ? validateQuestionAnswers(approval.questions, answers) : {};
+      result = { answers: Object.fromEntries(Object.entries(checked).map(([id, values]) => [id, { answers: values }])) };
+    } else if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
+    this.write({ id: approval.requestId, result });
     this.approvals.delete(String(requestId));
-    this.emitStatus("running", "审批已提交，继续执行");
+    this.emitStatus("running", approval.questions !== undefined ? optionId === "cancel" ? "已取消回答" : "答案已提交，继续执行" : "审批已提交，继续执行");
   }
 
   async stop(): Promise<void> {
@@ -298,6 +308,17 @@ export class CodexAdapter implements HarnessAdapter {
   private handleServerRequest(message: JsonObject, method: string): void {
     const requestId = message.id as string | number;
     const params = object(message.params);
+    if (method === "item/tool/requestUserInput") {
+      const questions = codexQuestions(params.questions);
+      const options: ApprovalOption[] = [
+        { optionId: "submit", name: "提交答案", kind: "allow_once" },
+        { optionId: "cancel", name: "取消回答", kind: "reject_once" },
+      ];
+      this.approvals.set(String(requestId), { requestId, options, questions });
+      this.emitStatus("approval", "等待你回答问题");
+      this.emit("approval", { title: "需要你回答", approval: { requestId, title: "需要你回答", options, questions, toolCallId: string(params.itemId) }, raw: params });
+      return;
+    }
     if (method !== "item/commandExecution/requestApproval" && method !== "item/fileChange/requestApproval") {
       this.write({ id: requestId, error: { code: -32601, message: "SelfMe Lab does not support this request" } });
       this.emit("error", { text: `Codex 请求了尚未支持的交互：${method}` });
@@ -321,6 +342,18 @@ export class CodexAdapter implements HarnessAdapter {
   }
 
   private handleNotification(method: string, params: JsonObject): void {
+    if (method === "serverRequest/resolved") {
+      const requestId = params.requestId;
+      if (typeof requestId !== "string" && typeof requestId !== "number") return;
+      const approval = this.approvals.get(String(requestId));
+      if (approval) {
+        this.approvals.delete(String(requestId));
+        this.emit("approval_result", { title: "提问已结束", text: approval.questions !== undefined ? "该提问已由运行时结束" : undefined,
+          approval: { ...approval, title: "请求已结束" } });
+        if (!this.approvals.size && this.phase === "approval") this.emitStatus("running", "Codex 正在继续工作");
+      }
+      return;
+    }
     if (method === "turn/started") {
       this.turnId = string(object(params.turn).id) ?? this.turnId;
       this.emitStatus("running", "Codex 正在执行任务");

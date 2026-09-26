@@ -57,6 +57,14 @@ export function isTranscriptInput(entry: TranscriptEntry): boolean {
 }
 
 function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): ConversationSnapshot {
+  if (event.kind === "approval_result" && event.approval) {
+    const entries = snapshot.entries.filter(entry => !(entry.runId === event.runId && entry.approval?.requestId === event.approval!.requestId));
+    if (event.approval.questions !== undefined && event.text) entries.push({
+      id: `${event.sessionId}:${event.eventIndex}`, kind: "status", runId: event.runId, at: event.at,
+      title: "你的回答", text: event.text, raw: { type: "userQuestionAnswer" },
+    });
+    return { ...snapshot, entries };
+  }
   if (event.kind === "user") {
     const text = event.text?.trim() ?? "";
     return {
@@ -70,7 +78,7 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
       ? { ...entry, deliveryState: event.deliveryState, deliveryDetail: event.text } : entry) };
   if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return snapshot;
   if (event.kind === "status" && event.phase) {
-    let entries = snapshot.entries;
+    let entries = ["idle", "ready", "error", "cancelling"].includes(event.phase) ? snapshot.entries.filter(entry => entry.kind !== "approval") : snapshot.entries;
     if (event.phase === "ready" && ["running", "approval", "cancelling"].includes(snapshot.phase)) {
       let lastUserIndex = entries.length - 1;
       while (lastUserIndex >= 0 && (entries[lastUserIndex].kind !== "user" || entries[lastUserIndex].deliveryMode === "steer")) lastUserIndex--;

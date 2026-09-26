@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
-import type { AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
+import type { AgentQuestionAnswers, AgentRuntimeId, AgentSessionCatalog, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
 import { agentRuntimeIds } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { AgentSessionRepository } from "./agent-session-repository";
@@ -320,10 +320,21 @@ export class AgentSessionController {
     this.queueChanged(id);
   }
 
-  async respondApproval(id: string, requestId: string | number, optionId: string): Promise<void> {
+  async respondApproval(id: string, requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const live = this.live.get(id);
     if (!live) throw new Error("会话未在运行，审批已失效");
-    await live.adapter.respondApproval(requestId, optionId);
+    const request = this.repository.events(id).reverse().find(event => event.kind === "approval" && event.approval?.requestId === requestId && event.runId === live.runId);
+    await live.adapter.respondApproval(requestId, optionId, answers);
+    if (request?.approval) {
+      const questions = request.approval.questions;
+      const submitted = request.approval.options.find(option => option.optionId === optionId)?.kind.includes("allow") && answers;
+      const text = questions !== undefined
+        ? submitted ? questions.map(q => `${q.header || q.question}：${q.secret ? "已填写（隐藏内容）" : (submitted[q.id] ?? []).join("、")}`).join("\n") : "已取消回答"
+        : undefined;
+      this.forward(id, { runtimeId: request.runtimeId, source: request.source, runId: request.runId,
+        sequence: request.sequence, at: new Date().toISOString(), kind: "approval_result", title: "你的回答", text,
+        approval: request.approval });
+    }
   }
 
   isBusy(runtimeId: AgentRuntimeId): boolean {

@@ -16,6 +16,20 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 }
 
 describe("agent transcript updates", () => {
+  it("replays answers without reviving old questions, crossing sessions or changing turn timing", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [{ ...session("a"), phase: "approval" }], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    const approval = { requestId: 7, title: "选择", options: [], questions: [{ id: "q", header: "游戏", question: "选择？", options: [], multiSelect: false, allowCustom: true }] };
+    const history = [event("a", 1, { kind: "user", text: "任务" }), event("a", 2, { kind: "approval", approval }),
+      event("a", 3, { kind: "approval_result", approval, text: "游戏：扫雷" }),
+      event("a", 4, { kind: "approval", approval: { ...approval, requestId: 8 } })];
+    store.loadHistory("a", history);
+    expect(store.getSnapshot().entries.filter(e => e.kind === "approval").map(e => e.approval?.requestId)).toEqual([8]);
+    expect(store.getSnapshot().entries.some(e => e.title === "你的回答" && e.text === "游戏：扫雷")).toBe(true);
+    expect(store.getSnapshot().currentTask).toBe("任务");
+    store.ingest(event("a", 5, { kind: "status", phase: "ready" }));
+    expect(store.getSnapshot().entries.some(e => e.kind === "approval")).toBe(false);
+  });
   it("keeps background output, approvals and queues isolated, even with matching native ids", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });

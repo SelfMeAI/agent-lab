@@ -136,10 +136,11 @@ export function presentEntry(entry: TranscriptEntry): EntryPresentation {
   const type = string(raw.type);
   const kind = string(raw.kind);
   const rawInput = record(raw.rawInput);
+  const questionTool = /^(AskUserQuestion|ask_user_question|Ask user \d+ questions?)(?:\b|:)/.test(entry.title ?? "") || record(raw._meta).toolName === "ask_user_question";
   const action = entry.title?.match(/^(read|edit|write|bash|delete|move|search|execute|fetch)\b/i)?.[1]?.toLowerCase();
   const titlePath = string(rawInput.file_path) ?? entry.title?.match(/<path>([^<]+)<\/path>/)?.[1] ?? entry.text.match(/<path>([^<]+)<\/path>/)?.[1];
   const cleanTitle = entry.title?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const label = type === "turnDiff" ? "本轮文件变更" : type === "fileChange" ? "文件修改" : type === "commandExecution" ? "执行命令"
+  const label = questionTool ? "向你提问" : type === "turnDiff" ? "本轮文件变更" : type === "fileChange" ? "文件修改" : type === "commandExecution" ? "执行命令"
     : type === "webSearch" ? "网页搜索" : action ? kindLabels[action] ?? cleanTitle ?? "工具调用"
       : kind ? kindLabels[kind] ?? cleanTitle ?? "工具调用"
         : cleanTitle ?? (entry.kind === "status" ? "运行状态" : "工具调用");
@@ -207,13 +208,13 @@ export function presentEntry(entry: TranscriptEntry): EntryPresentation {
   }
   const added = files.reduce((sum, file) => sum + file.added, 0);
   const removed = files.reduce((sum, file) => sum + file.removed, 0);
-  const summary = files.length ? `${files.length} 个文件 · +${added} −${removed}`
+  const summary = questionTool ? Array.isArray(rawInput.questions) ? `${rawInput.questions.length} 个问题` : "等待你的选择或补充信息" : files.length ? `${files.length} 个文件 · +${added} −${removed}`
     : command ? string(rawInput.description) ?? command
       : locations.length ? locations.slice(0, 2).join(" · ")
         : cleanTitle && cleanTitle !== label ? cleanTitle
           : entry.text?.trim().split("\n")[0] ?? "";
   return {
-    label, status: statusLabels[entry.toolStatus ?? ""] ?? (entry.kind === "status" ? "更新" : "进行中"),
+    label, status: type === "userQuestionAnswer" ? "已记录" : statusLabels[entry.toolStatus ?? ""] ?? (entry.kind === "status" ? "更新" : "进行中"),
     summary, command, cwd, output, exitCode, durationMs, files, plan, locations, notes,
   };
 }

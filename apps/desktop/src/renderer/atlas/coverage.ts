@@ -154,6 +154,14 @@ export const atlasModules: readonly AtlasModule[] = [
 // baseline, not automatic runtime telemetry or an end-to-end certification.
 export const coverageRecords: readonly CoverageRecord[] = [
   {
+    capabilityId: "consent-experience.ask-user",
+    moduleId: "agent-lab", harnessId: "DSH / Codex / Kimi Code / Qwen Code", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
+    evidence: ["packages/runtime/src/user-questions.integration.test.ts", "packages/runtime/src/user-questions.test.ts", "apps/desktop/src/renderer/labs/agent-lab/UserQuestionCard.test.ts", "apps/desktop/src/main/agent-session-controller.test.ts", "apps/desktop/src/renderer/labs/agent-lab/agent-store.test.ts"],
+    checkedAt: "2026-09-27",
+    note: "四个真实运行时经本机模拟模型接口验证：问题、选项说明、按原生协议支持单选/多选和自填，提交后答案进入工具结果并继续本轮；取消回答与停止任务不伪造答案，过期请求不可提交。Qwen ACP 元数据、Kimi 原生 elicitation form、Codex requestUserInput 和 DSH 原生 userQuestions 服务分别适配，共用中文提问卡片，不改变普通授权审批。Codex 显式启用固定版本的 default_mode_request_user_input 原生开发中开关；DSH 通过版本锁定的内存桥接启用官方提问工具。Kimi 当前 form 协议不支持 Other 自填，Pi 当前基础工具不含独立提问工具，未计入。答案草稿按会话隔离；已提交摘要与交互结果保存在 SQLite，秘密回答在应用摘要中隐藏，原生 Harness 自身的存储规则不由桌面摘要替代。",
+  },
+  {
     capabilityId: "live-experience.background-switch",
     moduleId: "agent-lab", harnessId: "DSH / Codex / Pi / Kimi Code / Qwen Code", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2],

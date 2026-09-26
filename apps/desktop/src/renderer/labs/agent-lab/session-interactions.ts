@@ -1,4 +1,5 @@
 import type { AgentRuntimeId } from "./agent-store";
+import type { QuestionDraft } from "./question-drafts";
 
 export interface SessionInteraction {
   prompt: string;
@@ -8,11 +9,13 @@ export interface SessionInteraction {
   stopping: boolean;
   changingMode: boolean;
   approvalBusy: boolean;
+  questionDrafts: Record<string, QuestionDraft>;
 }
 
 const empty: SessionInteraction = Object.freeze({
   prompt: "", error: null, connecting: false, submitting: false,
   stopping: false, changingMode: false, approvalBusy: false,
+  questionDrafts: {},
 });
 
 /** Ephemeral UI state survives navigation, but never crosses session boundaries.

@@ -29,7 +29,7 @@ const bridge: DesktopBridge = {
   pauseSessionQueue: (sessionId) => ipcRenderer.invoke("selfme:pause-session-queue", sessionId),
   setSessionFollowUpMode: (sessionId, mode) => ipcRenderer.invoke("selfme:set-session-follow-up-mode", sessionId, mode),
   cancelSessionRun: (sessionId) => ipcRenderer.invoke("selfme:cancel-session-run", sessionId),
-  respondSessionApproval: (sessionId, requestId, optionId) => ipcRenderer.invoke("selfme:respond-session-approval", sessionId, requestId, optionId),
+  respondSessionApproval: (sessionId, requestId, optionId, answers) => ipcRenderer.invoke("selfme:respond-session-approval", sessionId, requestId, optionId, answers),
   decideJevMove: (fen, style) => ipcRenderer.invoke("selfme:jev-decision", fen, style),
   onRunEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);

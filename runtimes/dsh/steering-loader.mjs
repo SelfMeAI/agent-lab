@@ -4,6 +4,21 @@ import { replaceOnce, parseSteeringSource } from "../steering-bridge.mjs";
 // Locked by runtimes/dsh/package-lock.json (dsh-acp 0.1.2-rc.1).
 export function transformDsh(source) {
   source = parseSteeringSource + source;
+  // Adapt the native userQuestions seam; do not replace its tool or agent loop.
+  // The pinned ACP server has an approval bridge but no human-question bridge.
+  source = replaceOnce(source, '\tctx.on("approval/request", (request, next) => {', `
+  ctx.on("user-questions/request", async (request, next) => {
+    const record = request.agent === undefined ? undefined : ownedRecord(request.agent);
+    if (record === undefined) return next();
+    await record.drainUpdates();
+    if (request.signal?.aborted) throw new Error("用户提问已取消");
+    const response = await conn.request("_selfme/user-question", {
+      sessionId: record.agent.session.id, questions: request.questions
+    }, { signal: request.signal });
+    if (response.cancelled || request.signal?.aborted) throw new Error("用户已取消回答");
+    return { answers: response.answers };
+  });
+  ctx.on("approval/request", (request, next) => {`);
   source = replaceOnce(source, "\tonInboxClaimed(message, turn) {", `
   selfmeSteering = new Map();
   selfmeSteer(params) {

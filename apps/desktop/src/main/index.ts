@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
-import { agentRuntimeIds, isAgentRuntimeId, type AgentRuntimeId, type AppInfo, type FollowUpMode } from "../../../../packages/contracts/src/index";
+import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
@@ -257,9 +257,9 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:set-session-follow-up-mode", (event, sessionId: string, mode: FollowUpMode) => {
     assertMainWindow(event); sessions!.setFollowUpMode(sessionId, mode);
   });
-  ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string) => {
+  ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string, answers?: AgentQuestionAnswers) => {
     assertMainWindow(event);
-    await sessions!.respondApproval(sessionId, requestId, optionId);
+    await sessions!.respondApproval(sessionId, requestId, optionId, answers);
   });
 
   createWindow();

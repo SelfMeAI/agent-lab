@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AgentRuntimeId, RunEvent, RuntimeStatus } from "../../../../packages/contracts/src/index";
+import type { AgentQuestionAnswers, ApprovalRequest, AgentRuntimeId, RunEvent, RuntimeStatus } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { AgentSessionController } from "./agent-session-controller";
 import { AgentSessionRepository } from "./agent-session-repository";
@@ -23,7 +23,7 @@ class FakeAdapter implements HarnessAdapter {
   readonly starts: Array<{ workspace: string; resumeRef?: string }> = [];
   stopped = false;
   readonly supplements: Array<{ text: string; messageId: string }> = [];
-  readonly approvals: Array<{ requestId: string | number; optionId: string }> = [];
+  readonly approvals: Array<{ requestId: string | number; optionId: string; answers?: AgentQuestionAnswers }> = [];
   private sequence = 0;
 
   constructor(id: AgentRuntimeId, private readonly sessionId: string, private readonly startGate?: Promise<void>) { this.id = id; }
@@ -39,12 +39,16 @@ class FakeAdapter implements HarnessAdapter {
   async send(): Promise<void> { this.emit("status", "工作中", "running"); }
   async steer(text: string, messageId: string): Promise<void> { this.supplements.push({ text, messageId }); }
   async cancel(): Promise<void> { this.emit("status", "已就绪", "ready"); }
-  async respondApproval(requestId: string | number, optionId: string): Promise<void> {
-    this.approvals.push({ requestId, optionId }); this.emit("status", "已批准", "running");
+  async respondApproval(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
+    this.approvals.push({ requestId, optionId, ...(answers ? { answers } : {}) }); this.emit("status", "已批准", "running");
   }
   async stop(): Promise<void> { this.stopped = true; this.emit("status", "已停止", "idle"); }
   complete(): void { this.emit("status", "完成", "ready"); }
   awaitApproval(): void { this.emit("approval", "需要确认", "approval"); }
+  ask(approval: ApprovalRequest): void {
+    const event: RunEvent = { runtimeId: this.id, runId: "run", sequence: ++this.sequence, at: new Date().toISOString(), source: this.label, kind: "approval", phase: "approval", approval };
+    for (const listener of this.listeners) listener(event);
+  }
   private emit(kind: RunEvent["kind"], text: string, phase?: RunEvent["phase"]): void {
     const event: RunEvent = { runtimeId: this.id, runId: "run", sequence: ++this.sequence, at: new Date().toISOString(), source: this.label, kind, text, phase };
     for (const listener of this.listeners) listener(event);
@@ -52,6 +56,27 @@ class FakeAdapter implements HarnessAdapter {
 }
 
 describe("parallel multi-session lifecycle", () => {
+  it("passes answers to only their native session and persists a redacted, replayable result", async () => {
+    const root = await testRoot("controller-question-");
+    const repository = new AgentSessionRepository(root); await repository.init();
+    const config = new AppConfigStore(root); await config.init();
+    const adapters = new Map<string, FakeAdapter>();
+    const controller = new AgentSessionController(repository, config, (runtimeId, id) => {
+      const adapter = new FakeAdapter(runtimeId, id); adapters.set(id, adapter); return adapter;
+    }, () => {});
+    const a = await controller.create("qwen-code", root), b = await controller.create("qwen-code", root);
+    await Promise.all([controller.send(a.id, "A"), controller.send(b.id, "B")]);
+    const approval: ApprovalRequest = { requestId: 7, title: "选择", options: [{ optionId: "submit", name: "Submit", kind: "allow_once" }],
+      questions: [{ id: "key", header: "密钥", question: "请输入密码", options: [], multiSelect: false, allowCustom: true, secret: true }] };
+    adapters.get(a.id)!.ask(approval); adapters.get(b.id)!.ask(approval);
+    await controller.respondApproval(a.id, 7, "submit", { key: ["secret-test-answer"] });
+    expect(adapters.get(a.id)!.approvals[0].answers).toEqual({ key: ["secret-test-answer"] });
+    expect(adapters.get(b.id)!.approvals).toEqual([]);
+    const result = repository.events(a.id).find(e => e.kind === "approval_result")!;
+    expect(result.text).toContain("隐藏内容"); expect(JSON.stringify(result)).not.toContain("secret-test-answer");
+    expect(repository.get(b.id).phase).toBe("approval");
+    await controller.stopAll(); repository.close();
+  });
   it("uses native steer on the existing run and rejects late input without starting a new turn", async () => {
     const root = await testRoot("controller-steer-");
     const repository = new AgentSessionRepository(root);

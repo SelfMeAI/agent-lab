@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
+import type { AgentQuestion, AgentQuestionAnswers, ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
 import { SteeringTracker, steeringError } from "./steering";
+import { dshQuestions, validateQuestionAnswers } from "./user-questions";
 
 type JsonObject = Record<string, unknown>;
 
@@ -38,7 +39,7 @@ function string(value: unknown): string | undefined {
 }
 
 export function dshModelOverlay(model: string): string {
-  return `- id: acp\n  config:\n    provider: deepseek-official\n    model: ${JSON.stringify(model)}\n`;
+  return `- id: acp\n  config:\n    provider: deepseek-official\n    model: ${JSON.stringify(model)}\n- insert:\n    - id: selfme-ask-user\n      name: '@deepseek-ai/dsh-tool-ask-user'\n`;
 }
 
 export function contentText(value: unknown): string | undefined {
@@ -61,7 +62,7 @@ export class DshAdapter implements HarnessAdapter {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly listeners = new Set<(event: RunEvent) => void>();
   private readonly pending = new Map<number, PendingRequest>();
-  private readonly approvals = new Map<string, { requestId: string | number; options: ApprovalOption[] }>();
+  private readonly approvals = new Map<string, { requestId: string | number; options: ApprovalOption[]; questions?: AgentQuestion[] }>();
   private readonly toolTitles = new Map<string, string>();
   private nextRequestId = 0;
   private sequence = 0;
@@ -195,7 +196,7 @@ export class DshAdapter implements HarnessAdapter {
   async cancel(): Promise<void> {
     if (!this.sessionId || !["running", "approval"].includes(this.phase)) return;
     for (const approval of this.approvals.values()) {
-      this.write({ jsonrpc: "2.0", id: approval.requestId, result: { outcome: { outcome: "cancelled" } } });
+      this.write({ jsonrpc: "2.0", id: approval.requestId, result: approval.questions !== undefined ? { cancelled: true } : { outcome: { outcome: "cancelled" } } });
     }
     this.approvals.clear();
     this.notify("session/cancel", { sessionId: this.sessionId });
@@ -211,17 +212,27 @@ export class DshAdapter implements HarnessAdapter {
     } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
 
-  async respondApproval(requestId: string | number, optionId: string): Promise<void> {
+  async respondApproval(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const approval = this.approvals.get(String(requestId));
     if (!approval) throw new Error("审批请求已失效");
     if (!approval.options.some((option) => option.optionId === optionId)) throw new Error("无效的审批选项");
+    let result: JsonObject = { outcome: { outcome: "selected", optionId } };
+    if (approval.questions !== undefined) {
+      if (optionId === "cancel") result = { cancelled: true };
+      else {
+        const checked = validateQuestionAnswers(approval.questions, answers);
+        result = { answers: approval.questions.map(q => ({ id: q.id,
+          selected: checked[q.id].filter(value => q.options.some(o => o.label === value)),
+          custom: checked[q.id].filter(value => !q.options.some(o => o.label === value)).join(", ") || undefined })) };
+      }
+    } else if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
     this.write({
       jsonrpc: "2.0",
       id: requestId,
-      result: { outcome: { outcome: "selected", optionId } },
+      result,
     });
     this.approvals.delete(String(requestId));
-    this.emitStatus("running", "审批已提交，继续执行");
+    this.emitStatus("running", approval.questions !== undefined ? optionId === "cancel" ? "已取消回答" : "答案已提交，继续执行" : "审批已提交，继续执行");
   }
 
   async stop(): Promise<void> {
@@ -298,6 +309,18 @@ export class DshAdapter implements HarnessAdapter {
       return;
     }
     const method = string(message.method);
+    if (method === "$/cancel_request") {
+      const requestId = object(message.params).id;
+      if (typeof requestId !== "string" && typeof requestId !== "number") return;
+      const approval = this.approvals.get(String(requestId));
+      if (approval) {
+        this.approvals.delete(String(requestId));
+        this.emit("approval_result", { text: approval.questions !== undefined ? "该提问已由运行时取消" : undefined,
+          approval: { ...approval, title: "请求已取消" } });
+        if (!this.approvals.size && this.phase === "approval") this.emitStatus("running", "DSH 正在继续工作");
+      }
+      return;
+    }
     if (method === "session/update") {
       this.handleUpdate(object(message.params));
       return;
@@ -306,6 +329,7 @@ export class DshAdapter implements HarnessAdapter {
       this.handleApproval(message);
       return;
     }
+    if (method === "_selfme/user-question") { this.handleQuestion(message); return; }
     const id = message.id;
     if (typeof id !== "number") return;
     const pending = this.pending.get(id);
@@ -365,6 +389,20 @@ export class DshAdapter implements HarnessAdapter {
       approval: { requestId, title: title ?? "DSH 操作授权", options, toolCallId },
       raw: params,
     });
+  }
+
+  private handleQuestion(message: JsonObject): void {
+    const requestId = message.id;
+    if (typeof requestId !== "string" && typeof requestId !== "number") return;
+    const params = object(message.params);
+    const questions = dshQuestions(params.questions);
+    const options: ApprovalOption[] = [
+      { optionId: "submit", name: "提交答案", kind: "allow_once" },
+      { optionId: "cancel", name: "取消回答", kind: "reject_once" },
+    ];
+    this.approvals.set(String(requestId), { requestId, options, questions });
+    this.emitStatus("approval", "等待你回答问题");
+    this.emit("approval", { title: "需要你回答", approval: { requestId, title: "需要你回答", options, questions }, raw: params });
   }
 
   private handleExit(child: ChildProcessWithoutNullStreams, error: Error): void {

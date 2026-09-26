@@ -1,13 +1,15 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { AgentSessionSummary, FollowUpMode, ProviderStatus, RuntimePhase } from "../../../../../../packages/contracts/src/index";
+import type { AgentQuestionAnswers, AgentSessionSummary, FollowUpMode, ProviderStatus, RuntimePhase } from "../../../../../../packages/contracts/src/index";
 import { LabIcon } from "../../shell/LabIcon";
 import { agentStores, isTranscriptInput, type AgentRuntimeId, type TranscriptEntry } from "./agent-store";
 import { PendingMessageQueue } from "./PendingMessageQueue";
 import { composerAction, followUpAvailability } from "./follow-up";
 import { observeTranscriptLayout } from "./transcript-layout";
 import { sessionInteractions } from "./session-interactions";
+import { UserQuestionCard } from "./UserQuestionCard";
+import { emptyQuestionDraft, type QuestionDraft } from "./question-drafts";
 import "./follow-up.css";
 import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, toolDuration, turnDuration } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
@@ -15,9 +17,9 @@ import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE", "qwen-code": "QWEN CODE" } as const;
 const busyPhases = new Set<RuntimePhase>(["starting", "running", "approval", "cancelling"]);
 
-function sessionStateLabel(phase: RuntimePhase): string {
+function sessionStateLabel(phase: RuntimePhase, statusText?: string): string {
   if (phase === "running") return "工作中";
-  if (phase === "approval") return "待审批";
+  if (phase === "approval") return statusText === "等待你回答问题" ? "待回答" : "待审批";
   if (phase === "starting") return "连接中";
   if (phase === "cancelling") return "取消中";
   if (phase === "ready") return "待命";
@@ -42,6 +44,9 @@ const approvalOptionLabels: Record<string, string> = {
   "reject and exit": "拒绝并退出",
   reject: "拒绝",
   deny: "拒绝",
+  submit: "提交",
+  cancel: "取消",
+  skip: "跳过",
 };
 
 const kimiApprovalTitles: Record<string, string> = {
@@ -145,12 +150,14 @@ function ToolItem({ entry, workspace }: { entry: TranscriptEntry; workspace: str
   </details>;
 }
 
-export function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }: {
+export function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy, questionDraft, onQuestionDraftChange }: {
   entry: TranscriptEntry;
   runtimeId: AgentRuntimeId;
   workspace: string | null;
-  onApprove(requestId: string | number, optionId: string): void;
+  onApprove(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): void;
   approvalBusy: boolean;
+  questionDraft?: QuestionDraft;
+  onQuestionDraftChange?(draft: QuestionDraft): void;
 }): JSX.Element {
   const time = clockTime(entry.at);
   const exact = exactTime(entry.at);
@@ -170,6 +177,7 @@ export function TranscriptItem({ entry, runtimeId, workspace, onApprove, approva
       <div className="dsh-entry__body"><div className="dsh-entry__heading"><span className="dsh-entry__label">YOU</span>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div><p>{entry.text}</p></div>
     </article>
   );
+  if (entry.kind === "approval" && entry.approval?.questions !== undefined) return <UserQuestionCard approval={entry.approval} at={entry.at} busy={approvalBusy} draft={questionDraft} onDraftChange={onQuestionDraftChange} onAnswer={onApprove} />;
   if (entry.kind === "approval" && entry.approval) return (
     <article className="dsh-approval">
       <span className="dsh-approval__mark" aria-hidden="true">!</span>
@@ -224,6 +232,14 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   useSyncExternalStore(interactions.subscribe, interactions.getSnapshot);
   const interaction = interactions.get(snapshot.selectedSessionId);
+  useEffect(() => {
+    const sessionId = snapshot.selectedSessionId;
+    const drafts = interactions.get(sessionId).questionDrafts;
+    const active = new Set(snapshot.entries.filter(entry => entry.approval?.questions !== undefined).map(entry => entry.id));
+    if (Object.keys(drafts).some(id => !active.has(id))) interactions.update(sessionId, {
+      questionDrafts: Object.fromEntries(Object.entries(drafts).filter(([id]) => active.has(id))),
+    });
+  }, [interactions, snapshot.selectedSessionId, snapshot.entries]);
   const { prompt, error: localError, connecting, submitting, changingMode, approvalBusy } = interaction;
   const setPrompt = (value: string): void => interactions.update(snapshot.selectedSessionId, { prompt: value });
   const session = snapshot.sessions.find((item) => item.id === snapshot.selectedSessionId) ?? null;
@@ -469,12 +485,17 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     }
   }
 
-  async function approve(requestId: string | number, optionId: string): Promise<void> {
+  async function approve(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const current = store.getSnapshot(), sessionId = current.selectedSessionId;
     if (!window.selfmeLab || !sessionId || interactions.get(sessionId).stopping || interactions.get(sessionId).approvalBusy || current.phase === "cancelling") return;
     interactions.update(sessionId, { approvalBusy: true });
     try {
-      await window.selfmeLab.respondSessionApproval(sessionId, requestId, optionId);
+      await window.selfmeLab.respondSessionApproval(sessionId, requestId, optionId, answers);
+      const entry = current.entries.find(item => item.approval?.requestId === requestId);
+      if (entry) interactions.update(sessionId, state => {
+        const { [entry.id]: _removed, ...questionDrafts } = state.questionDrafts;
+        return { questionDrafts };
+      });
       store.removeApproval(sessionId, requestId);
       interactions.update(sessionId, { error: null });
     } catch (error) {
@@ -505,7 +526,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const lastPromptIndex = snapshot.entries.reduce((index, entry, current) => entry.kind === "user" && entry.deliveryMode !== "steer" ? current : index, -1);
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
   const activeTool = [...activeEntries].reverse().find((entry) => entry.kind === "tool" && ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? ""));
-  const liveStatus = stopping ? "正在停止当前轮，队列消息将保留" : snapshot.phase === "approval" ? "等待审批后继续" : activeTool ? `${presentEntry(activeTool).label} · ${presentEntry(activeTool).summary}` : snapshot.statusText;
+  const liveStatus = stopping ? "正在停止当前轮，队列消息将保留" : snapshot.phase === "approval" ? snapshot.entries.some(entry => entry.approval?.questions !== undefined) ? "等待你回答问题" : "等待审批后继续" : activeTool ? `${presentEntry(activeTool).label} · ${presentEntry(activeTool).summary}` : snapshot.statusText;
   const transcriptEntries = visibleTranscriptEntries(snapshot.entries).filter((entry) =>
     entry.kind !== "thought" && isTranscriptInput(entry) && (entry.kind !== "turn_end" || entry.hasExecutionActivity),
   );
@@ -541,7 +562,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           ) : snapshot.sessions.length ? snapshot.sessions.map((item) => (
             <div className={`dsh-rail__session${item.id === snapshot.selectedSessionId ? " is-selected" : ""}`} key={item.id}>
               <button className="dsh-rail__session-main" onClick={() => void selectSession(item)} title={`${item.workspace}\n${item.statusText}`} type="button">
-                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small className="dsh-rail__session-meta"><span>{sessionStateLabel(item.phase)}</span><time dateTime={item.lastActivityAt ?? item.createdAt} title={`${item.lastActivityAt ? "最后活动" : "创建于"} ${exactTime(item.lastActivityAt ?? item.createdAt) ?? ""}`}>{sessionTimeLabel(item.lastActivityAt ?? item.createdAt, today)}</time></small>
+                <i className={`is-${item.phase}`} aria-hidden="true" /><span>{item.title}</span><small className="dsh-rail__session-meta"><span>{sessionStateLabel(item.phase, item.statusText)}</span><time dateTime={item.lastActivityAt ?? item.createdAt} title={`${item.lastActivityAt ? "最后活动" : "创建于"} ${exactTime(item.lastActivityAt ?? item.createdAt) ?? ""}`}>{sessionTimeLabel(item.lastActivityAt ?? item.createdAt, today)}</time></small>
               </button>
               <button className="dsh-rail__session-delete" disabled={busyPhases.has(item.phase)} onClick={() => setSessionAction({ id: item.id, title: item.title, kind: "delete" })} title="移至最近删除" aria-label={`删除会话：${item.title}`} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg></button>
             </div>
@@ -561,7 +582,8 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
               const previousDay = index > 0 ? calendarDayKey(transcriptEntries[index - 1].at) : null;
               return <Fragment key={entry.id}>
                 {day && day !== previousDay && <div className="dsh-conversation__date" role="separator"><span>{dateDividerLabel(entry.at, today)}</span></div>}
-                <TranscriptItem entry={entry} runtimeId={runtimeId} workspace={workspace} onApprove={(requestId, optionId) => void approve(requestId, optionId)} approvalBusy={approvalBusy || stopping} />
+                <TranscriptItem entry={entry} runtimeId={runtimeId} workspace={workspace} onApprove={(requestId, optionId, answers) => void approve(requestId, optionId, answers)} approvalBusy={approvalBusy || stopping}
+                  questionDraft={interaction.questionDrafts[entry.id] ?? emptyQuestionDraft} onQuestionDraftChange={draft => interactions.update(snapshot.selectedSessionId, state => ({ questionDrafts: { ...state.questionDrafts, [entry.id]: draft } }))} />
               </Fragment>;
             })}
             {localError && <div className="dsh-error" role="alert">{localError}</div>}

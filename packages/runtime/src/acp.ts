@@ -2,10 +2,11 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { access, realpath, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
+import type { AgentQuestion, AgentQuestionAnswers, ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
 import { SteeringTracker, steeringError } from "./steering";
+import { kimiFormQuestions, qwenQuestions, validateQuestionAnswers } from "./user-questions";
 
 type JsonObject = Record<string, unknown>;
 
@@ -63,7 +64,7 @@ export class AcpAdapter implements HarnessAdapter {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly listeners = new Set<(event: RunEvent) => void>();
   private readonly pending = new Map<number, PendingRequest>();
-  private readonly approvals = new Map<string, { requestId: string | number; options: ApprovalOption[] }>();
+  private readonly approvals = new Map<string, { requestId: string | number; options: ApprovalOption[]; questions?: AgentQuestion[]; form?: boolean }>();
   private readonly toolTitles = new Map<string, string>();
   private nextRequestId = 0;
   private sequence = 0;
@@ -151,7 +152,7 @@ export class AcpAdapter implements HarnessAdapter {
       await this.request("initialize", {
         protocolVersion: 1,
         clientInfo: { name: "selfme-lab", version: "0.1.0" },
-        clientCapabilities: {},
+        clientCapabilities: this.id === "kimi-code" ? { elicitation: { form: {} } } : {},
       }, 30000);
       const session = resumeRef
         ? await this.request("session/resume", { sessionId: resumeRef, cwd: workspace, mcpServers: [] }, 30000)
@@ -187,7 +188,7 @@ export class AcpAdapter implements HarnessAdapter {
   async cancel(): Promise<void> {
     if (!this.sessionId || !["running", "approval"].includes(this.phase)) return;
     for (const approval of this.approvals.values()) {
-      this.write({ jsonrpc: "2.0", id: approval.requestId, result: { outcome: { outcome: "cancelled" } } });
+      this.write({ jsonrpc: "2.0", id: approval.requestId, result: approval.form ? { action: "cancel" } : { outcome: { outcome: "cancelled" } } });
     }
     this.approvals.clear();
     this.nativeSteering.clear();
@@ -209,13 +210,23 @@ export class AcpAdapter implements HarnessAdapter {
     } catch (error) { const failure = steeringError(error, this.secret); this.steering.rejected(messageId, failure); throw failure; }
   }
 
-  async respondApproval(requestId: string | number, optionId: string): Promise<void> {
+  async respondApproval(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const approval = this.approvals.get(String(requestId));
     if (!approval) throw new Error("审批请求已失效");
     if (!approval.options.some((option) => option.optionId === optionId)) throw new Error("无效的审批选项");
-    this.write({ jsonrpc: "2.0", id: requestId, result: { outcome: { outcome: "selected", optionId } } });
+    let result: JsonObject = { outcome: { outcome: "selected", optionId } };
+    if (approval.questions !== undefined) {
+      const allow = approval.options.find(option => option.optionId === optionId)!.kind.includes("allow");
+      if (allow) {
+        const checked = validateQuestionAnswers(approval.questions, answers);
+        result = approval.form
+          ? { action: "accept", content: Object.fromEntries(approval.questions.map(q => [q.id, q.multiSelect ? checked[q.id] : checked[q.id][0]])) }
+          : { ...result, answers: Object.fromEntries(Object.entries(checked).map(([id, values]) => [id, values.join(", ")])) };
+      } else if (approval.form) result = { action: "cancel" };
+    } else if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
+    this.write({ jsonrpc: "2.0", id: approval.requestId, result });
     this.approvals.delete(String(requestId));
-    this.emitStatus("running", "审批已提交，继续执行");
+    this.emitStatus("running", approval.questions !== undefined ? optionId === "cancel" ? "已取消回答" : "答案已提交，继续执行" : "审批已提交，继续执行");
   }
 
   async stop(): Promise<void> {
@@ -290,8 +301,21 @@ export class AcpAdapter implements HarnessAdapter {
       return;
     }
     const method = string(message.method);
+    if (method === "$/cancel_request") {
+      const requestId = object(message.params).id;
+      if (typeof requestId !== "string" && typeof requestId !== "number") return;
+      const approval = this.approvals.get(String(requestId));
+      if (approval) {
+        this.approvals.delete(String(requestId));
+        this.emit("approval_result", { text: approval.questions !== undefined ? "该提问已由运行时取消" : undefined,
+          approval: { ...approval, title: "请求已取消" } });
+        if (!this.approvals.size && this.phase === "approval") this.emitStatus("running", `${this.label} 正在继续工作`);
+      }
+      return;
+    }
     if (method === "session/update") { this.handleUpdate(object(message.params)); return; }
     if (method === "session/request_permission") { this.handleApproval(message); return; }
+    if (method === "elicitation/create" && this.id === "kimi-code" && message.id !== undefined) { this.handleQuestionForm(message); return; }
     if (method && (typeof message.id === "number" || typeof message.id === "string")) {
       if (method === this.options.steeringDrainMethod && object(message.params).sessionId === this.sessionId) {
         // Queue stays app-owned and starts after end_turn. Only explicit Steer
@@ -355,14 +379,34 @@ export class AcpAdapter implements HarnessAdapter {
       const option = object(entry);
       return { optionId: string(option.optionId) ?? "", name: string(option.name) ?? "选项", kind: string(option.kind) ?? "" };
     }).filter((option) => option.optionId);
-    this.approvals.set(String(requestId), { requestId, options });
-    this.emitStatus("approval", "等待你的审批");
+    const questions = this.id === "qwen-code" ? qwenQuestions(toolCall) : undefined;
+    this.approvals.set(String(requestId), { requestId, options, questions });
+    this.emitStatus("approval", questions !== undefined ? "等待你回答问题" : "等待你的审批");
     this.emit("approval", {
-      title: "需要授权",
+      title: questions !== undefined ? "需要你回答" : "需要授权",
       text: title ?? toolCallId ?? `${this.label} 请求执行受保护操作`,
-      approval: { requestId, title: title ?? `${this.label} 操作授权`, options, toolCallId },
+      approval: { requestId, title: title ?? `${this.label} 操作授权`, options, toolCallId, questions },
       raw: params,
     });
+  }
+
+  private handleQuestionForm(message: JsonObject): void {
+    const requestId = message.id;
+    if (typeof requestId !== "string" && typeof requestId !== "number") return;
+    const params = object(message.params);
+    if (params.mode !== "form") {
+      this.write({ jsonrpc: "2.0", id: requestId, result: { action: "cancel" } });
+      return;
+    }
+    const questions = kimiFormQuestions(params);
+    const options: ApprovalOption[] = [
+      { optionId: "submit", name: "提交答案", kind: "allow_once" },
+      { optionId: "cancel", name: "取消回答", kind: "reject_once" },
+    ];
+    this.approvals.set(String(requestId), { requestId, options, questions, form: true });
+    this.emitStatus("approval", "等待你回答问题");
+    this.emit("approval", { title: "需要你回答", text: string(params.message),
+      approval: { requestId, title: "需要你回答", options, questions, toolCallId: string(params.toolCallId) }, raw: params });
   }
 
   private handleExit(child: ChildProcessWithoutNullStreams, error: Error): void {
