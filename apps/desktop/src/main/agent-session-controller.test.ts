@@ -17,6 +17,7 @@ class FakeAdapter implements HarnessAdapter {
   private readonly listeners = new Set<(event: RunEvent) => void>();
   readonly starts: Array<{ workspace: string; resumeRef?: string }> = [];
   stopped = false;
+  readonly supplements: Array<{ text: string; messageId: string }> = [];
   private sequence = 0;
 
   constructor(id: AgentRuntimeId, private readonly sessionId: string, private readonly startGate?: Promise<void>) { this.id = id; }
@@ -30,6 +31,7 @@ class FakeAdapter implements HarnessAdapter {
     this.emit("status", "已就绪", "ready");
   }
   async send(): Promise<void> { this.emit("status", "工作中", "running"); }
+  async steer(text: string, messageId: string): Promise<void> { this.supplements.push({ text, messageId }); }
   async cancel(): Promise<void> { this.emit("status", "已就绪", "ready"); }
   async respondApproval(): Promise<void> {}
   async stop(): Promise<void> { this.stopped = true; this.emit("status", "已停止", "idle"); }
@@ -41,6 +43,32 @@ class FakeAdapter implements HarnessAdapter {
 }
 
 describe("non-parallel multi-session lifecycle", () => {
+  it("uses native steer on the existing run and rejects late input without starting a new turn", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-controller-steer-"));
+    roots.push(root);
+    const repository = new AgentSessionRepository(root);
+    await repository.init();
+    const config = new AppConfigStore(root);
+    await config.init();
+    const adapters: FakeAdapter[] = [];
+    const controller = new AgentSessionController(repository, config, (runtimeId, sessionId) => {
+      const adapter = new FakeAdapter(runtimeId, sessionId); adapters.push(adapter); return adapter;
+    }, () => {});
+    const session = await controller.create("pi", root);
+    await controller.send(session.id, "原任务");
+    await controller.steer(session.id, "新增要求");
+    expect(adapters).toHaveLength(1);
+    expect(adapters[0].starts).toHaveLength(1);
+    expect(adapters[0].supplements).toHaveLength(1);
+    expect(repository.get(session.id).phase).toBe("running");
+    expect(repository.events(session.id).find(e => e.deliveryMode === "steer")).toMatchObject({ kind: "user", text: "新增要求", runId: "run" });
+    adapters[0].complete();
+    await expect(controller.steer(session.id, "太晚了")).rejects.toThrow(/结束/);
+    expect(adapters[0].supplements).toHaveLength(1);
+    expect(adapters[0].starts).toHaveLength(1);
+    await controller.stopAll(); repository.close();
+  });
+
   it("does not resume an empty Codex thread before its first turn creates a rollout", async () => {
     const root = await mkdtemp(join(tmpdir(), "selfme-controller-codex-empty-"));
     roots.push(root);

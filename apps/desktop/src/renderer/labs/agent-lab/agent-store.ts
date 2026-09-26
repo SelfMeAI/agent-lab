@@ -16,6 +16,10 @@ export interface TranscriptEntry {
   startedAt?: string;
   finishedAt?: string;
   hasExecutionActivity?: boolean;
+  messageId?: string;
+  deliveryMode?: "steer";
+  deliveryState?: AgentSessionEvent["deliveryState"];
+  deliveryDetail?: string;
 }
 
 interface ConversationSnapshot {
@@ -49,16 +53,20 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
   if (event.kind === "user") {
     const text = event.text?.trim() ?? "";
     return {
-      ...snapshot, currentTask: text, phase: "running", statusText: "正在执行任务", hasExecutionActivity: false,
-      entries: [...snapshot.entries, { id: `${event.sessionId}:${event.eventIndex}`, kind: "user", runId: event.runId, text, at: event.at }],
+      ...snapshot, ...(event.deliveryMode === "steer" ? {} : { currentTask: text, phase: "running" as const, statusText: "正在执行任务", hasExecutionActivity: false }),
+      entries: [...snapshot.entries, { id: `${event.sessionId}:${event.eventIndex}`, kind: "user", runId: event.runId, text, at: event.at,
+        messageId: event.messageId, deliveryMode: event.deliveryMode, deliveryState: event.deliveryState }],
     };
   }
+  if (event.kind === "delivery") return { ...snapshot, entries: snapshot.entries.map((entry) =>
+    entry.messageId === event.messageId && entry.deliveryMode === "steer"
+      ? { ...entry, deliveryState: event.deliveryState, deliveryDetail: event.text } : entry) };
   if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return snapshot;
   if (event.kind === "status" && event.phase) {
     let entries = snapshot.entries;
     if (event.phase === "ready" && ["running", "approval", "cancelling"].includes(snapshot.phase)) {
       let lastUserIndex = entries.length - 1;
-      while (lastUserIndex >= 0 && entries[lastUserIndex].kind !== "user") lastUserIndex--;
+      while (lastUserIndex >= 0 && (entries[lastUserIndex].kind !== "user" || entries[lastUserIndex].deliveryMode === "steer")) lastUserIndex--;
       const user = entries[lastUserIndex];
       if (user && !entries.slice(lastUserIndex + 1).some((entry) => entry.kind === "turn_end")) {
         entries = [...entries, {

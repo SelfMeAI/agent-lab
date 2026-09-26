@@ -157,7 +157,11 @@ function TranscriptItem({ entry, runtimeId, workspace, onApprove, approvalBusy }
           <path d="M5.4 19c.6-3.4 2.9-5.1 6.6-5.1s6 1.7 6.6 5.1" />
         </svg>
       </div>
-      <div className="dsh-entry__body"><div className="dsh-entry__heading"><span className="dsh-entry__label">YOU</span>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div><p>{entry.text}</p></div>
+      <div className="dsh-entry__body"><div className="dsh-entry__heading"><span className="dsh-entry__label">YOU</span>{time && <time dateTime={entry.at} title={exact ?? undefined}>{time}</time>}</div><p>{entry.text}</p>
+        {entry.deliveryMode === "steer" && <span className={`dsh-steering-receipt dsh-steering-receipt--${entry.deliveryState ?? "submitting"}`} title={entry.deliveryDetail ?? "补充在 Harness 的安全节点接入当前任务；已接入不代表模型一定遵从"}>
+          <i aria-hidden="true" />{{ submitting: "补充 · 正在提交", queued: "补充 · 等待接入", incorporated: "补充 · 已接入本轮", unconfirmed: "补充 · 未确认接入", rejected: "补充 · 未提交" }[entry.deliveryState ?? "submitting"]}
+        </span>}
+      </div>
     </article>
   );
   if (entry.kind === "approval" && entry.approval) return (
@@ -208,6 +212,8 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const [sessionAction, setSessionAction] = useState<{ id: string; title: string; kind: "delete" | "purge" } | null>(null);
   const [sessionActionBusy, setSessionActionBusy] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const session = snapshot.sessions.find((item) => item.id === snapshot.selectedSessionId) ?? null;
   const workspace = session?.workspace ?? null;
@@ -373,21 +379,29 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   async function submit(): Promise<void> {
     const text = prompt.trim();
-    if (!text || !window.selfmeLab) return;
+    if (!text || !window.selfmeLab || submittingRef.current) return;
     if (!snapshot.selectedSessionId) { await chooseWorkspace(); return; }
     if (!provider?.configured) { onOpenSettings?.(); return; }
-    if (snapshot.phase !== "ready") {
+    const steering = ["running", "approval"].includes(snapshot.phase);
+    if (snapshot.phase !== "ready" && !steering) {
       setLocalError(`${names[runtimeId]} 尚未就绪，请稍等或检查连接状态`);
       return;
     }
     setPrompt("");
+    submittingRef.current = true;
+    setSubmitting(true);
     setLocalError(null);
     followOutputRef.current = true;
     setShowLatest(false);
     try {
-      await window.selfmeLab.sendSessionPrompt(snapshot.selectedSessionId, text);
+      if (steering) await window.selfmeLab.steerSessionPrompt(snapshot.selectedSessionId, text);
+      else await window.selfmeLab.sendSessionPrompt(snapshot.selectedSessionId, text);
     } catch (error) {
+      setPrompt((current) => current || text);
       setLocalError(errorMessage(error));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
@@ -417,8 +431,9 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   const busy = (connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId) || busyPhases.has(snapshot.phase);
   const anyBusy = connectingSessionId !== null || snapshot.sessions.some((item) => busyPhases.has(item.phase));
-  const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : busy ? "任务执行中" : "描述任务或提出问题";
-  const lastPromptIndex = snapshot.entries.reduce((index, entry, current) => entry.kind === "user" ? current : index, -1);
+  const canSteer = ["running", "approval"].includes(snapshot.phase);
+  const composerHint = !workspace ? "先选择工作目录" : !provider?.configured ? "先配置模型 API Key" : canSteer ? "补充要求或纠正方向，接入当前任务" : busy ? "正在连接或取消，请稍候" : "描述任务或提出问题";
+  const lastPromptIndex = snapshot.entries.reduce((index, entry, current) => entry.kind === "user" && entry.deliveryMode !== "steer" ? current : index, -1);
   const activeEntries = snapshot.entries.slice(lastPromptIndex + 1);
   const activeTool = [...activeEntries].reverse().find((entry) => entry.kind === "tool" && ["pending", "in_progress", "inProgress", "running"].includes(entry.toolStatus ?? ""));
   const liveStatus = snapshot.phase === "approval" ? "等待审批后继续" : activeTool ? `${presentEntry(activeTool).label} · ${presentEntry(activeTool).summary}` : snapshot.statusText;
@@ -486,7 +501,8 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           <div className="dsh-composer">
             <div className="dsh-composer__field">
               <textarea ref={promptRef} aria-label="任务内容" title="Enter 发送 · Shift+Enter 换行" onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} placeholder={composerHint} value={prompt} rows={1} />
-              {["running", "approval", "cancelling"].includes(snapshot.phase) ? <button className="dsh-composer__cancel" disabled={snapshot.phase === "cancelling"} onClick={() => void cancel()} type="button" title="取消当前任务" aria-label="取消当前任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg></button> : <button className="dsh-composer__send" disabled={!prompt.trim() || (connectingSessionId !== null && connectingSessionId === snapshot.selectedSessionId)} onClick={() => void submit()} type="button" title="发送任务" aria-label="发送任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M3 11.5 21 3l-5.5 18-3.9-7.1L3 11.5Z" /><path d="m11.6 13.9 4.9-5" /></svg></button>}
+              {["running", "approval", "cancelling"].includes(snapshot.phase) && <button className="dsh-composer__cancel" disabled={snapshot.phase === "cancelling"} onClick={() => void cancel()} type="button" title="取消当前任务" aria-label="取消当前任务"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg></button>}
+              <button className="dsh-composer__send" disabled={!prompt.trim() || submitting || busy && !canSteer} onClick={() => void submit()} type="button" title={canSteer ? "补充指令 · 在安全节点接入当前任务" : "发送任务"} aria-label={canSteer ? "补充指令" : "发送任务"}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M3 11.5 21 3l-5.5 18-3.9-7.1L3 11.5Z" /><path d="m11.6 13.9 4.9-5" /></svg></button>
             </div>
           </div>
         </section>

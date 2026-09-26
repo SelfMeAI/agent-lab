@@ -6,17 +6,17 @@ import { describe, expect, it } from "vitest";
 import { KimiAdapter } from "./kimi";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const executable = join(root, "runtimes/kimi-code/bin/kimi");
+const entryPoint = join(root, "runtimes/kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs");
 
 describe("bundled Kimi Code ACP", () => {
-  it.skipIf(!existsSync(executable))("starts a session using the packaged binary without a global Kimi install", async () => {
+  it.skipIf(!existsSync(entryPoint))("starts the official JS runtime with the steering bridge without a global Kimi install", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const temporary = await mkdtemp(join(root, ".work/kimi-acp-smoke-"));
     const homeDirectory = join(temporary, "home");
     const workspace = join(temporary, "workspace");
     await mkdir(workspace, { recursive: true });
     const adapter = new KimiAdapter({
-      executable,
+      entryPoint, nodeExecutable: process.execPath, steeringLoader: join(root, "runtimes/kimi-code/steering-loader.mjs"),
       homeDirectory,
       provider: async () => ({ baseUrl: "http://127.0.0.1:9/v1", model: "test-model", apiKey: "sk-local-test" }),
     });

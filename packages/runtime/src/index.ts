@@ -7,6 +7,7 @@ export interface HarnessAdapter {
   start(workspace: string, resumeRef?: string): Promise<void>;
   getResumeRef(): string | null;
   send(prompt: string): Promise<void>;
+  steer(prompt: string, messageId: string): Promise<void>;
   cancel(): Promise<void>;
   respondApproval(requestId: string | number, optionId: string): Promise<void>;
   stop(): Promise<void>;

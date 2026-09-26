@@ -5,6 +5,7 @@ import type { AgentSession, AgentSessionEvent, ToolDefinition } from "@earendil-
 import type { RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
+import { SteeringTracker, steeringError } from "./steering";
 
 type JsonObject = Record<string, unknown>;
 type ApprovalDecision = "allow_once" | "allow_session" | "deny";
@@ -68,6 +69,7 @@ export async function resolveWorkspacePath(workspace: string, rawPath: string, m
 }
 
 export class PiAdapter implements HarnessAdapter {
+  private readonly steering = new SteeringTracker((extra) => this.emit("delivery", extra));
   readonly id = "pi";
   readonly label = "Pi";
   private readonly listeners = new Set<(event: RunEvent) => void>();
@@ -203,22 +205,47 @@ export class PiAdapter implements HarnessAdapter {
     const session = this.session;
     if (!session || this.phase !== "ready") throw new Error("Pi 尚未就绪，或正在执行上一轮任务");
     this.runId = randomUUID();
+    const runId = this.runId;
     this.emitStatus("running", "Pi 正在执行任务");
     void session.prompt(text).then(() => {
-      if (session !== this.session || this.phase === "error") return;
+      if (session !== this.session || runId !== this.runId || !["running", "approval", "cancelling"].includes(this.phase)) return;
+      session.clearQueue();
       this.emitStatus("ready", this.phase === "cancelling" ? "本轮已取消" : "本轮已完成");
     }).catch((error: unknown) => {
-      if (session === this.session && this.phase !== "idle") this.emitError(error instanceof Error ? error.message : String(error));
+      if (session === this.session && runId === this.runId && !["idle", "ready"].includes(this.phase)) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (this.phase === "cancelling" && /abort|cancelled|canceled/iu.test(message)) this.emitStatus("ready", "本轮已取消");
+        else this.emitError(message);
+      }
     });
   }
 
   async cancel(): Promise<void> {
     const session = this.session;
     if (!session || !["running", "approval"].includes(this.phase)) return;
+    const runId = this.runId;
     this.emitStatus("cancelling", "正在取消 Pi 任务");
     this.denyApprovals();
+    session.clearQueue();
+    this.steering.finish("任务已取消，尚未接入的补充不会自动执行");
     await session.abort();
-    if (session === this.session && this.phase === "cancelling") this.emitStatus("ready", "本轮已取消");
+    if (session === this.session && runId === this.runId && this.phase === "cancelling") this.emitStatus("ready", "本轮已取消");
+  }
+
+  async steer(prompt: string, messageId: string): Promise<void> {
+    const session = this.session;
+    if (!session || !["running", "approval"].includes(this.phase)) throw new Error("本轮已结束，补充指令未提交");
+    const text = this.steering.begin(messageId, prompt);
+    const runId = this.runId;
+    try {
+      await session.steer(text);
+      if (session !== this.session || runId !== this.runId || !["running", "approval"].includes(this.phase)) {
+        session.clearQueue();
+        this.steering.unconfirmed(messageId, "任务已结束或取消，补充不会自动作为新任务执行");
+        return;
+      }
+      this.steering.accepted(messageId);
+    } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
 
   async respondApproval(requestId: string | number, optionId: string): Promise<void> {
@@ -242,6 +269,7 @@ export class PiAdapter implements HarnessAdapter {
     this.fileTracker?.clear();
     this.fileTracker = null;
     if (session) {
+      session.clearQueue();
       try { await session.abort(); } catch { /* Already idle or disposed. */ }
       session.dispose();
     }
@@ -289,6 +317,11 @@ export class PiAdapter implements HarnessAdapter {
   }
 
   private handleEvent(event: AgentSessionEvent): void {
+    if (event.type === "message_start" && event.message.role === "user") {
+      const text = typeof event.message.content === "string" ? event.message.content
+        : event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+      this.steering.match(text);
+    }
     if (event.type === "message_start") this.messageHadDelta = false;
     if (event.type === "message_update") {
       const update = event.assistantMessageEvent;
@@ -305,7 +338,9 @@ export class PiAdapter implements HarnessAdapter {
         const text = event.message.content.filter((item) => item.type === "text").map((item) => item.text).join("\n");
         if (text) this.emit("message", { text });
       }
-      if (event.message.stopReason === "error") this.emitError(event.message.errorMessage ?? "Pi 模型请求失败");
+      if (event.message.stopReason === "error" && !(this.phase === "cancelling" && /abort|cancelled|canceled/iu.test(event.message.errorMessage ?? ""))) {
+        this.emitError(event.message.errorMessage ?? "Pi 模型请求失败");
+      }
       return;
     }
     if (event.type === "tool_execution_start") {
@@ -354,11 +389,14 @@ export class PiAdapter implements HarnessAdapter {
   }
 
   private emitStatus(phase: RuntimePhase, text: string): void {
+    if (["idle", "ready", "error"].includes(phase)) this.steering.finish();
     this.phase = phase;
     this.emit("status", { phase, text });
   }
 
   private emitError(text: string): void {
+    this.session?.clearQueue();
+    this.steering.finish("运行出错，未接入的补充不会自动执行");
     this.phase = "error";
     this.emit("error", { phase: "error", text: this.apiKey ? text.replaceAll(this.apiKey, "[redacted]") : text });
   }

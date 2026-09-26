@@ -5,6 +5,7 @@ import { dirname, join, delimiter } from "node:path";
 import { createInterface } from "node:readline";
 import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
+import { SteeringTracker, steeringError } from "./steering";
 
 type JsonObject = Record<string, unknown>;
 type Pending = { resolve(value: JsonObject): void; reject(error: Error): void };
@@ -39,6 +40,8 @@ function errorText(value: unknown): string {
 }
 
 export class CodexAdapter implements HarnessAdapter {
+  private readonly steering = new SteeringTracker((extra) => this.emit("delivery", extra));
+  private readonly seenUserMessageIds = new Set<string>();
   readonly id = "codex";
   readonly label = "Codex";
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -176,6 +179,7 @@ export class CodexAdapter implements HarnessAdapter {
     if (!text) throw new Error("请输入任务内容");
     if (!this.threadId || this.phase !== "ready") throw new Error("Codex 尚未就绪，或正在执行上一轮任务");
     this.runId = randomUUID();
+    this.seenUserMessageIds.clear();
     this.turnId = null;
     this.emitStatus("running", "Codex 正在执行任务");
     try {
@@ -196,6 +200,19 @@ export class CodexAdapter implements HarnessAdapter {
     this.approvals.clear();
     await this.request("turn/interrupt", { threadId: this.threadId, turnId: this.turnId }, 15000);
     this.emitStatus("cancelling", "正在取消 Codex 任务");
+  }
+
+  async steer(prompt: string, messageId: string): Promise<void> {
+    if (!this.threadId || !this.turnId || !["running", "approval"].includes(this.phase)) throw new Error("本轮尚未开始或已结束，补充指令未提交");
+    const text = this.steering.begin(messageId, prompt);
+    try {
+      const expectedTurnId = this.turnId;
+      const result = await this.request("turn/steer", {
+        threadId: this.threadId, expectedTurnId, input: [{ type: "text", text }],
+      }, 15000);
+      if (result.turnId !== expectedTurnId) throw new Error("Codex 未确认接入当前任务");
+      this.steering.accepted(messageId);
+    } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
 
   async respondApproval(requestId: string | number, optionId: string): Promise<void> {
@@ -376,7 +393,15 @@ export class CodexAdapter implements HarnessAdapter {
       if (completed && itemId && !this.messageDeltaIds.has(itemId) && string(item.text)) this.emit("message", { text: string(item.text) });
       return;
     }
-    if (type === "reasoning" || type === "userMessage") return;
+    if (type === "userMessage") {
+      if (itemId && this.seenUserMessageIds.has(itemId)) return;
+      if (itemId) this.seenUserMessageIds.add(itemId);
+      else if (!completed) return;
+      const text = (Array.isArray(item.content) ? item.content : []).map((part) => string(object(part).text) ?? "").join("\n");
+      this.steering.match(text);
+      return;
+    }
+    if (type === "reasoning") return;
     if (type === "commandExecution" || type === "fileChange" || type === "mcpToolCall" || type === "webSearch" || type === "dynamicToolCall") {
       const title = type === "commandExecution" ? string(item.command) ?? "命令执行"
         : type === "fileChange" ? "文件修改"
@@ -408,9 +433,13 @@ export class CodexAdapter implements HarnessAdapter {
     this.emitError(detail ? `${error.message} · ${detail.slice(0, 400)}` : error.message);
   }
 
-  private emitStatus(phase: RuntimePhase, text: string): void { this.phase = phase; this.emit("status", { phase, text }); }
+  private emitStatus(phase: RuntimePhase, text: string): void {
+    if (["idle", "ready", "error"].includes(phase)) this.steering.finish();
+    this.phase = phase; this.emit("status", { phase, text });
+  }
 
   private emitError(text: string): void {
+    this.steering.finish("运行出错，未确认补充指令是否接入");
     this.phase = "error";
     this.emit("error", { phase: "error", text: this.apiKey ? text.replaceAll(this.apiKey, "[redacted]") : text });
   }

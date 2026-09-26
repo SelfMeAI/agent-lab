@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
+import { SteeringTracker, steeringError } from "./steering";
 
 type JsonObject = Record<string, unknown>;
 
@@ -24,6 +25,7 @@ export interface DshAdapterOptions {
   entryPoint: string;
   homeDirectory: string;
   nodeExecutable: string;
+  steeringLoader: string;
   provider(): Promise<DshProvider>;
 }
 
@@ -71,6 +73,7 @@ export class DshAdapter implements HarnessAdapter {
   private stderrTail: string[] = [];
   private apiKey: string | undefined;
   private fileTracker: FileChangeTracker | null = null;
+  private readonly steering = new SteeringTracker((extra) => this.emit("delivery", extra));
 
   constructor(private readonly options: DshAdapterOptions) {}
 
@@ -123,10 +126,11 @@ export class DshAdapter implements HarnessAdapter {
       ELECTRON_RUN_AS_NODE: "1",
       DSH_HOME: this.options.homeDirectory,
       DEEPSEEK_BASE_URL: provider.baseUrl,
+      SELFME_ACP_STEERING: "1",
     };
     if (provider.apiKey) env.DEEPSEEK_API_KEY = provider.apiKey;
     else delete env.DEEPSEEK_API_KEY;
-    const child = spawn(this.options.nodeExecutable, [this.options.entryPoint, "--profile", "acp", "--patch", modelPatchPath], {
+    const child = spawn(this.options.nodeExecutable, ["--import", this.options.steeringLoader, this.options.entryPoint, "--profile", "acp", "--patch", modelPatchPath], {
       cwd: workspace,
       env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -196,6 +200,15 @@ export class DshAdapter implements HarnessAdapter {
     this.approvals.clear();
     this.notify("session/cancel", { sessionId: this.sessionId });
     this.emitStatus("cancelling", "正在取消任务");
+  }
+
+  async steer(prompt: string, messageId: string): Promise<void> {
+    if (!this.sessionId || !["running", "approval"].includes(this.phase)) throw new Error("本轮已结束，补充指令未提交");
+    const text = this.steering.begin(messageId, prompt);
+    try {
+      await this.request("_selfme/steer", { sessionId: this.sessionId, text, messageId }, 15000);
+      this.steering.accepted(messageId);
+    } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
 
   async respondApproval(requestId: string | number, optionId: string): Promise<void> {
@@ -305,6 +318,12 @@ export class DshAdapter implements HarnessAdapter {
   private handleUpdate(params: JsonObject): void {
     const update = object(params.update);
     const kind = string(update.sessionUpdate) ?? "update";
+    if (kind === "selfme_steering") {
+      const id = string(update.messageId);
+      if (id && update.state === "incorporated") this.steering.incorporated(id);
+      else if (id) this.steering.unconfirmed(id, string(update.detail) ?? "未确认接入本轮任务");
+      return;
+    }
     if (kind === "user_message_chunk") return;
     const toolCallId = string(update.toolCallId);
     if (toolCallId && string(update.title)) this.toolTitles.set(toolCallId, string(update.title)!);
@@ -364,11 +383,13 @@ export class DshAdapter implements HarnessAdapter {
   }
 
   private emitStatus(phase: RuntimePhase, text: string): void {
+    if (["idle", "ready", "error"].includes(phase)) this.steering.finish();
     this.phase = phase;
     this.emit("status", { phase, text });
   }
 
   private emitError(text: string): void {
+    this.steering.finish("运行出错，未确认补充指令是否接入");
     this.phase = "error";
     this.emit("error", { phase: "error", text: this.apiKey ? text.replaceAll(this.apiKey, "[redacted]") : text });
   }

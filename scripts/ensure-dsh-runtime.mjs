@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { transformDsh } from "../runtimes/dsh/steering-loader.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const entry = join(root, "runtimes/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js");
@@ -15,3 +16,4 @@ if (!existsSync(entry)) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 if (!existsSync(entry)) throw new Error("DSH 运行时安装后仍缺少入口文件");
+transformDsh(readFileSync(join(root, "runtimes/dsh/node_modules/@deepseek-ai/dsh-acp/lib/index.js"), "utf8"));

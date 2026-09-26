@@ -78,6 +78,7 @@ export interface ApprovalRequest {
 
 export type RunEventKind =
   | "user"
+  | "delivery"
   | "message"
   | "thought"
   | "tool"
@@ -93,6 +94,9 @@ export interface RunEvent {
   at: string;
   source: string;
   kind: RunEventKind;
+  messageId?: string;
+  deliveryMode?: "steer";
+  deliveryState?: "submitting" | "queued" | "incorporated" | "unconfirmed" | "rejected";
   text?: string;
   title?: string;
   phase?: RuntimePhase;
@@ -165,6 +169,7 @@ export interface DesktopBridge {
   purgeAgentSession(sessionId: string): Promise<void>;
   startAgentSession(sessionId: string): Promise<void>;
   sendSessionPrompt(sessionId: string, prompt: string): Promise<void>;
+  steerSessionPrompt(sessionId: string, prompt: string): Promise<void>;
   cancelSessionRun(sessionId: string): Promise<void>;
   respondSessionApproval(sessionId: string, requestId: string | number, optionId: string): Promise<void>;
   decideJevMove(fen: string, style: JevStyle): Promise<JevDecision>;

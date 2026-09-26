@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import type { ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
+import { SteeringTracker, steeringError } from "./steering";
 
 type JsonObject = Record<string, unknown>;
 
@@ -70,6 +71,7 @@ export class AcpAdapter implements HarnessAdapter {
   private stderrTail: string[] = [];
   private secret: string | undefined;
   private fileTracker: FileChangeTracker | null = null;
+  private readonly steering = new SteeringTracker((extra) => this.emit("delivery", extra));
 
   constructor(private readonly options: AcpAdapterOptions) {
     this.id = options.id;
@@ -186,6 +188,15 @@ export class AcpAdapter implements HarnessAdapter {
     this.emitStatus("cancelling", "正在取消任务");
   }
 
+  async steer(prompt: string, messageId: string): Promise<void> {
+    if (!this.sessionId || !["running", "approval"].includes(this.phase)) throw new Error("本轮已结束，补充指令未提交");
+    const text = this.steering.begin(messageId, prompt);
+    try {
+      await this.request("_selfme/steer", { sessionId: this.sessionId, text, messageId }, 15000);
+      this.steering.accepted(messageId);
+    } catch (error) { const failure = steeringError(error, this.secret); this.steering.rejected(messageId, failure); throw failure; }
+  }
+
   async respondApproval(requestId: string | number, optionId: string): Promise<void> {
     const approval = this.approvals.get(String(requestId));
     if (!approval) throw new Error("审批请求已失效");
@@ -281,6 +292,12 @@ export class AcpAdapter implements HarnessAdapter {
   private handleUpdate(params: JsonObject): void {
     const update = object(params.update);
     const kind = string(update.sessionUpdate) ?? "update";
+    if (kind === "selfme_steering") {
+      const id = string(update.messageId);
+      if (id && update.state === "incorporated") this.steering.incorporated(id);
+      else if (id) this.steering.unconfirmed(id, string(update.detail) ?? "未确认接入本轮任务");
+      return;
+    }
     if (["user_message_chunk", "available_commands_update", "session_info_update", "current_mode_update", "config_option_update"].includes(kind)) return;
     const toolCallId = string(update.toolCallId);
     if (toolCallId && string(update.title)) this.toolTitles.set(toolCallId, string(update.title)!);
@@ -331,20 +348,24 @@ export class AcpAdapter implements HarnessAdapter {
     this.workspace = null;
     this.fileTracker?.clear();
     this.fileTracker = null;
-    for (const pending of this.pending.values()) pending.reject(error);
+    const detail = this.stderrTail.slice(-6).join(" · ");
+    const raw = detail ? `${error.message} · ${detail.slice(0, 1200)}` : error.message;
+    const failure = new Error(this.secret ? raw.replaceAll(this.secret, "[redacted]") : raw);
+    for (const pending of this.pending.values()) pending.reject(failure);
     this.pending.clear();
     this.approvals.clear();
     this.toolTitles.clear();
-    const detail = this.stderrTail.at(-1);
-    this.emitError(detail ? `${error.message} · ${detail.slice(0, 400)}` : error.message);
+    this.emitError(failure.message);
   }
 
   private emitStatus(phase: RuntimePhase, text: string): void {
+    if (["idle", "ready", "error"].includes(phase)) this.steering.finish();
     this.phase = phase;
     this.emit("status", { phase, text });
   }
 
   private emitError(text: string): void {
+    this.steering.finish("运行出错，未确认补充指令是否接入");
     this.phase = "error";
     this.emit("error", { phase: "error", text: this.secret ? text.replaceAll(this.secret, "[redacted]") : text });
   }

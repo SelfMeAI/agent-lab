@@ -16,6 +16,23 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 }
 
 describe("agent transcript updates", () => {
+  it("keeps original task, approval, tool diff and elapsed time when steering is submitted", () => {
+    const store = createAgentStore("dsh");
+    store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    store.ingest(event("a", 1, { kind: "user", text: "原任务", at: "2026-09-25T00:00:00Z" }));
+    store.ingest(event("a", 2, { kind: "tool", toolCallId: "write", toolStatus: "running", raw: { diff: "+new" } }));
+    store.ingest(event("a", 3, { kind: "approval", phase: "approval" }));
+    store.ingest(event("a", 4, { kind: "user", text: "补充", deliveryMode: "steer", messageId: "supplement", deliveryState: "submitting", at: "2026-09-25T00:00:30Z" }));
+    expect(store.getSnapshot()).toMatchObject({ currentTask: "原任务", phase: "approval", hasExecutionActivity: true });
+    store.ingest(event("a", 5, { kind: "delivery", messageId: "supplement", deliveryState: "incorporated" }));
+    expect(store.getSnapshot().entries.find(e => e.messageId === "supplement")?.deliveryState).toBe("incorporated");
+    expect(store.getSnapshot().entries.find(e => e.toolCallId === "write")?.raw).toEqual({ diff: "+new" });
+    store.ingest(event("a", 6, { kind: "status", phase: "ready", at: "2026-09-25T00:01:00Z" }));
+    expect(store.getSnapshot().entries.at(-1)).toMatchObject({ kind: "turn_end", startedAt: "2026-09-25T00:00:00Z", hasExecutionActivity: true });
+    store.loadHistory("a", []);
+    expect(store.getSnapshot().entries.find(e => e.messageId === "supplement")?.deliveryState).toBe("incorporated");
+  });
+
   it("keeps ACP tool metadata when later updates contain a diff", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [session("a")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: "/tmp/example" });

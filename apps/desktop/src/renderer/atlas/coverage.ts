@@ -154,6 +154,22 @@ export const atlasModules: readonly AtlasModule[] = [
 // baseline, not automatic runtime telemetry or an end-to-end certification.
 export const coverageRecords: readonly CoverageRecord[] = [
   {
+    capabilityId: "sessions.queue-steer",
+    moduleId: "agent-lab", harnessId: "DSH / Codex / Pi / Kimi Code", platform: "desktop",
+    state: "integrated", upstream: "tested", passedChecks: [2],
+    evidence: ["packages/runtime/src/steering.integration.test.ts", "apps/desktop/src/main/agent-session-controller.ts", "packages/runtime/src/steering.ts"],
+    checkedAt: "2026-09-26",
+    note: "支持原生中途纠偏，明确不退化为完成后另开任务。四个真实 Harness 经本机模拟模型接口验证补充进入原轮下一次模型请求；待接入最多 10 条。队列编辑与下一轮排队模式未实现。",
+  },
+  {
+    capabilityId: "live-experience.steering",
+    moduleId: "agent-lab", harnessId: "DSH / Codex / Pi / Kimi Code", platform: "desktop",
+    state: "integrated", upstream: "tested", passedChecks: [0, 2],
+    evidence: ["apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx", "apps/desktop/src/renderer/labs/agent-lab/agent-store.test.ts", "packages/runtime/src/steering.integration.test.ts"],
+    checkedAt: "2026-09-26",
+    note: "执行与审批等待中均可补充，显示提交/待接入/已接入/未确认回执，不重置任务、工具信息或本轮计时。取消保留独立操作；逐条撤销未实现。原生接入不等于模型一定遵从。",
+  },
+  {
     capabilityId: "providers.provider-accounts",
     moduleId: "agent-lab",
     harnessId: "DSH / Codex / Pi / Kimi Code",

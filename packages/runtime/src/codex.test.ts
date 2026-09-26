@@ -3,6 +3,30 @@ import type { RunEvent } from "../../contracts/src/index";
 import { CodexAdapter } from "./codex";
 
 describe("Codex diff notifications", () => {
+  it("does not consume duplicate supplements twice for started/completed of the same native item", async () => {
+    const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
+    const internals = adapter as unknown as {
+      phase: string; threadId: string; turnId: string;
+      request(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
+      handleNotification(method: string, params: Record<string, unknown>): void;
+    };
+    internals.phase = "running"; internals.threadId = "thread"; internals.turnId = "turn";
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    internals.request = async (method, params) => { requests.push({ method, params }); return { turnId: "turn" }; };
+    const events: RunEvent[] = [];
+    adapter.onEvent(e => events.push(e));
+    await adapter.steer("same", "first");
+    await adapter.steer("same", "second");
+    const item = { type: "userMessage", id: "user-1", content: [{ type: "text", text: "same" }] };
+    internals.handleNotification("item/started", { item });
+    internals.handleNotification("item/completed", { item });
+    expect(events.filter(e => e.deliveryState === "incorporated").map(e => e.messageId)).toEqual(["first"]);
+    internals.handleNotification("item/started", { item: { ...item, id: "user-2" } });
+    expect(events.filter(e => e.deliveryState === "incorporated").map(e => e.messageId)).toEqual(["first", "second"]);
+    expect(requests.map(r => r.method)).toEqual(["turn/steer", "turn/steer"]);
+    expect(requests[0].params).toMatchObject({ threadId: "thread", expectedTurnId: "turn" });
+  });
+
   it("offers session-scoped approval only when Codex supports it", () => {
     const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
     const events: RunEvent[] = [];

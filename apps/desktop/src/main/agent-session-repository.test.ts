@@ -15,6 +15,34 @@ function event(kind: RunEvent["kind"], text: string, phase?: RunEvent["phase"]):
 }
 
 describe("agent session SQLite storage", () => {
+  it("recovers pending steering without resending it and preserves confirmed receipts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-steering-recovery-"));
+    roots.push(root);
+    const first = new AgentSessionRepository(root);
+    await first.init();
+    const session = first.create("pi", root);
+    first.append(session.id, event("user", "original"));
+    first.append(session.id, event("status", "working", "running"));
+    for (const messageId of ["pending", "confirmed"]) first.append(session.id, {
+      ...event("user", "supplement"), messageId, deliveryMode: "steer", deliveryState: "submitting",
+    });
+    first.append(session.id, { ...event("delivery", "accepted"), messageId: "pending", deliveryState: "queued" });
+    first.append(session.id, { ...event("delivery", "incorporated"), messageId: "confirmed", deliveryState: "incorporated" });
+    first.close();
+    const reopened = new AgentSessionRepository(root);
+    await reopened.init();
+    expect(reopened.get(session.id).phase).toBe("idle");
+    const receipts = reopened.events(session.id).filter(e => e.kind === "delivery");
+    expect(receipts.filter(e => e.messageId === "pending").at(-1)?.deliveryState).toBe("unconfirmed");
+    expect(receipts.filter(e => e.messageId === "confirmed")).toHaveLength(1);
+    const count = reopened.events(session.id).length;
+    reopened.close();
+    const twice = new AgentSessionRepository(root);
+    await twice.init();
+    expect(twice.events(session.id)).toHaveLength(count);
+    twice.close();
+  });
+
   it("keeps sessions, native references, and independent event streams across reopen", async () => {
     const root = await mkdtemp(join(tmpdir(), "selfme-sessions-"));
     roots.push(root);

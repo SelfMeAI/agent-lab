@@ -18,6 +18,7 @@ const bridge: DesktopBridge = {
   purgeAgentSession: (sessionId) => ipcRenderer.invoke("selfme:purge-agent-session", sessionId),
   startAgentSession: (sessionId) => ipcRenderer.invoke("selfme:start-agent-session", sessionId),
   sendSessionPrompt: (sessionId, prompt) => ipcRenderer.invoke("selfme:send-session-prompt", sessionId, prompt),
+  steerSessionPrompt: (sessionId, prompt) => ipcRenderer.invoke("selfme:steer-session-prompt", sessionId, prompt),
   cancelSessionRun: (sessionId) => ipcRenderer.invoke("selfme:cancel-session-run", sessionId),
   respondSessionApproval: (sessionId, requestId, optionId) => ipcRenderer.invoke("selfme:respond-session-approval", sessionId, requestId, optionId),
   decideJevMove: (fen, style) => ipcRenderer.invoke("selfme:jev-decision", fen, style),

@@ -6,7 +6,7 @@ import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 
-type LiveSession = { adapter: HarnessAdapter; unsubscribe: () => void };
+type LiveSession = { adapter: HarnessAdapter; unsubscribe: () => void; runId?: string };
 type AdapterFactory = (runtimeId: AgentRuntimeId, sessionId: string) => HarnessAdapter;
 
 const busyPhases = new Set<RuntimePhase>(["starting", "running", "approval", "cancelling"]);
@@ -171,6 +171,29 @@ export class AgentSessionController {
     await live.adapter.cancel();
   }
 
+  async steer(id: string, prompt: string): Promise<void> {
+    const text = prompt.trim();
+    if (!text) throw new Error("请输入补充指令");
+    const runtimeId = this.repository.get(id).runtimeId;
+    await this.serial(runtimeId, async () => {
+      const live = this.live.get(id);
+      const record = this.repository.get(id);
+      // Explicit steering never falls back to start()/send() after a finish race.
+      if (!live || !["running", "approval"].includes(record.phase)) throw new Error("本轮已结束或正在取消，补充指令未提交");
+      const messageId = randomUUID();
+      const base = { runtimeId, runId: live.runId ?? "session", sequence: 0, at: new Date().toISOString(), source: "SelfMe Lab", messageId };
+      this.forward(id, { ...base, kind: "user", text, deliveryMode: "steer", deliveryState: "submitting" });
+      try { await live.adapter.steer(text, messageId); }
+      catch (error) {
+        // Adapter receipts already report transport uncertainty; fill only failures
+        // occurring before native admission (e.g. queue limit/turn finished race).
+        const receipt = this.repository.events(id).some((event) => event.kind === "delivery" && event.messageId === messageId);
+        if (!receipt) this.forward(id, { ...base, at: new Date().toISOString(), kind: "delivery", deliveryState: "rejected", text: error instanceof Error ? error.message : String(error) });
+        throw error;
+      }
+    });
+  }
+
   async respondApproval(id: string, requestId: string | number, optionId: string): Promise<void> {
     const live = this.live.get(id);
     if (!live) throw new Error("会话未在运行，审批已失效");
@@ -220,6 +243,10 @@ export class AgentSessionController {
   }
 
   private forward(id: string, event: RunEvent): void {
+    if (event.phase === "running") {
+      const live = this.live.get(id);
+      if (live) live.runId = event.runId;
+    }
     this.emit(this.repository.append(id, event));
   }
 }

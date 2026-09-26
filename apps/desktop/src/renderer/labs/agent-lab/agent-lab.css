@@ -111,6 +111,13 @@
 .dsh-entry__label { font-size: 13px; color: #d3fb52; letter-spacing: .08em; }
 .dsh-entry__heading time { flex: 0 0 auto; color: #819995; font-size: 11px; font-variant-numeric: tabular-nums; }
 .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
+.dsh-steering-receipt { display: inline-flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 11px; color: #96a5b2; }
+.dsh-steering-receipt i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.dsh-steering-receipt--incorporated { color: #9dc8b7; }
+.dsh-steering-receipt--unconfirmed, .dsh-steering-receipt--rejected { color: #ddb681; }
+.dsh-steering-receipt--submitting i, .dsh-steering-receipt--queued i { animation: steering-pulse 1.4s ease-in-out infinite; }
+@keyframes steering-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .dsh-steering-receipt i { animation: none; } }
 .dsh-entry__body p { margin: 9px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
 .dsh-markdown { margin-top: 9px; color: #e7efed; font: 14px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; overflow-wrap: anywhere; }
 .dsh-markdown > :first-child { margin-top: 0; }

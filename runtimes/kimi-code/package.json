@@ -1,0 +1,9 @@
+{
+  "name": "selfme-lab-kimi-code-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned official Kimi Code runtime with an app-owned ACP steering bridge",
+  "dependencies": {
+    "@moonshot-ai/kimi-code": "2.1.1"
+  }
+}

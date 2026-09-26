@@ -45,6 +45,7 @@ describe("bundled DSH ACP", () => {
       entryPoint: process.env.SELFME_DSH_ENTRY_POINT ?? join(root, "runtimes", "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
       homeDirectory,
       nodeExecutable: process.env.SELFME_DSH_NODE_EXECUTABLE ?? process.execPath,
+      steeringLoader: join(root, "runtimes/dsh/steering-loader.mjs"),
       provider: async () => ({ baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" }),
     });
     const events: string[] = [];

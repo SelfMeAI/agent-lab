@@ -68,11 +68,13 @@ function createWindow(): void {
 
 function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapter {
   const homeDirectory = join(app.getPath("userData"), "runtime-homes", runtimeId, sessionId);
+  const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   const entryPoint = app.isPackaged
     ? join(process.resourcesPath, "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
     : join(__dirname, "../../../../runtimes/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js");
   if (runtimeId === "dsh") return new DshAdapter({
     entryPoint, homeDirectory, nodeExecutable: process.execPath, provider: getDshProvider,
+    steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs"),
   });
   if (runtimeId === "codex") return new CodexAdapter({
     executable: app.isPackaged
@@ -82,9 +84,9 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
   });
   if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider });
   return new KimiAdapter({
-    executable: app.isPackaged
-      ? join(process.resourcesPath, "kimi-code", "bin", "kimi")
-      : join(__dirname, "../../../../runtimes/kimi-code/bin/kimi"),
+    entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"),
+    nodeExecutable: process.execPath,
+    steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs"),
     homeDirectory, provider: getKimiProvider,
   });
 }
@@ -217,6 +219,10 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:cancel-session-run", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.cancel(sessionId);
+  });
+  ipcMain.handle("selfme:steer-session-prompt", async (event, sessionId: string, prompt: string) => {
+    assertMainWindow(event);
+    await sessions!.steer(sessionId, prompt);
   });
   ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string) => {
     assertMainWindow(event);

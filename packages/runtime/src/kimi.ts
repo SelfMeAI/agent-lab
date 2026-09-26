@@ -8,7 +8,9 @@ export interface KimiProvider {
 }
 
 export interface KimiAdapterOptions {
-  executable: string;
+  entryPoint: string;
+  nodeExecutable: string;
+  steeringLoader: string;
   homeDirectory: string;
   provider(): Promise<KimiProvider>;
 }
@@ -18,7 +20,7 @@ export class KimiAdapter extends AcpAdapter {
     super({
       id: "kimi-code",
       label: "Kimi Code",
-      probePath: options.executable,
+      probePath: options.entryPoint,
       readyDetail: "随应用安装的 Kimi Code ACP",
       missingDetail: "项目内 Kimi Code 运行时尚未安装",
       launch: async () => {
@@ -34,7 +36,9 @@ export class KimiAdapter extends AcpAdapter {
         env.KIMI_MODEL_NAME = provider.model;
         env.KIMI_MODEL_API_KEY = provider.apiKey;
         env.KIMI_DISABLE_TELEMETRY = "1";
-        return { executable: options.executable, args: ["acp"], env, secret: provider.apiKey };
+        env.ELECTRON_RUN_AS_NODE = "1";
+        env.SELFME_ACP_STEERING = "1";
+        return { executable: options.nodeExecutable, args: ["--import", options.steeringLoader, options.entryPoint, "acp"], env, secret: provider.apiKey };
       },
     });
   }

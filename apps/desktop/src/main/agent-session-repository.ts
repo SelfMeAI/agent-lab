@@ -88,6 +88,20 @@ export class AgentSessionRepository {
       SELECT 1 FROM agent_events WHERE session_id = agent_sessions.id AND json_extract(payload, '$.kind') = 'user'
     )`).run();
     db.prepare("UPDATE agent_sessions SET phase = 'idle', status_text = '上次运行已中断，可继续会话' WHERE phase IN ('starting', 'running', 'approval', 'cancelling')").run();
+    // Persist recovery receipts as events too: a restart must not leave a false
+    // 'waiting' badge, nor re-send unconfirmed steering into a future task.
+    const pending = db.prepare(`SELECT payload FROM agent_events u
+      WHERE json_extract(u.payload, '$.deliveryMode') = 'steer'
+      AND NOT EXISTS (SELECT 1 FROM agent_events d WHERE d.session_id = u.session_id
+        AND json_extract(d.payload, '$.kind') = 'delivery'
+        AND json_extract(d.payload, '$.messageId') = json_extract(u.payload, '$.messageId')
+        AND json_extract(d.payload, '$.deliveryState') IN ('incorporated', 'unconfirmed', 'rejected'))
+      AND EXISTS (SELECT 1 FROM agent_sessions s WHERE s.id = u.session_id AND s.deleted_at IS NULL)`).all();
+    for (const row of pending) {
+      const event = JSON.parse(String(row.payload)) as AgentSessionEvent;
+      this.append(event.sessionId, { runtimeId: event.runtimeId, runId: event.runId, sequence: 0, at: new Date().toISOString(), source: "SelfMe Lab",
+        kind: "delivery", messageId: event.messageId, deliveryState: "unconfirmed", text: "上次连接已中断，未确认接入；不会自动重发" });
+    }
   }
 
   close(): void { this.db?.close(); this.db = null; }

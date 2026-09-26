@@ -6,6 +6,10 @@ files:
   - out/**/*
   - package.json
 extraResources:
+  - from: ../../runtimes/steering-bridge.mjs
+    to: steering-bridge.mjs
+  - from: ../../runtimes/dsh/steering-loader.mjs
+    to: dsh/steering-loader.mjs
   - from: ../../runtimes/dsh/node_modules
     to: dsh/node_modules
     filter:
@@ -16,6 +20,12 @@ extraResources:
       - "**/*"
   - from: ../../runtimes/kimi-code
     to: kimi-code
+    filter:
+      - "**/*"
+      - "!bin/**/*"
+      - "!node_modules/**/*"
+  - from: ../../runtimes/kimi-code/node_modules
+    to: kimi-code/node_modules
     filter:
       - "**/*"
 asar: true
