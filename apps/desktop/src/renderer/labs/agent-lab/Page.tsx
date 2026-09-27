@@ -12,12 +12,12 @@ const accents: Record<string, string> = {
   "qwen-code": "#e7bc73", "claude-code": "#bd8df7",
 };
 const descriptions: Record<string, string> = {
-  dsh: "本地任务与工具调用",
-  codex: "本地编程与工作区",
-  pi: "轻量 Agent 实验",
-  "kimi-code": "代码任务与工具实验",
-  "qwen-code": "代码任务与工具实验",
-  "claude-code": "原生 Claude Harness 实验",
+  dsh: "ACP · 独立运行时",
+  codex: "App Server · 独立运行时",
+  pi: "Agent SDK · 进程内嵌入",
+  "kimi-code": "ACP · 独立运行时",
+  "qwen-code": "ACP · 独立运行时",
+  "claude-code": "Agent SDK · 独立运行时",
 };
 
 export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: LabPageProps): JSX.Element {
