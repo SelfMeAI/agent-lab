@@ -11,8 +11,8 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: SettingsPanelProps): JSX.Element {
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
-  const [model, setModel] = useState("gpt-5.6");
+  const [baseUrl, setBaseUrl] = useState(runtimeId === "claude-code" ? "https://api.anthropic.com" : "https://api.deepseek.com");
+  const [model, setModel] = useState(runtimeId === "claude-code" ? "claude-sonnet-4-6" : "gpt-5.6");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
           <div className="settings-panel__intro">
             <span>LOCAL CONFIGURATION</span>
             <div className="settings-panel__title-row">
-              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : runtimeId === "kimi-code" ? "Kimi Code 模型连接" : runtimeId === "qwen-code" ? "Qwen Code 模型连接" : "JEV 决策连接"}</h3>
+              <h3>{runtimeId === "dsh" ? "DSH 模型连接" : runtimeId === "codex" ? "Codex 模型连接" : runtimeId === "pi" ? "Pi 模型连接" : runtimeId === "kimi-code" ? "Kimi Code 模型连接" : runtimeId === "qwen-code" ? "Qwen Code 模型连接" : runtimeId === "claude-code" ? "Claude 模型连接" : "JEV 决策连接"}</h3>
               {provider && <small>{provider.configured ? "已配置" : "未配置"}</small>}
             </div>
             <p>填写当前实验要使用的模型连接信息。各实验的设置互不影响。</p>
@@ -136,8 +136,8 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
             </div>
             <div className="settings-panel__note">
               <strong>连接说明</strong>
-              <p>{canDiscoverModels && runtimeId !== "codex" ? "填写支持 OpenAI Chat Completions 的 API 根地址、模型 ID 和 API Key。" : runtimeId === "codex" ? "填写支持 OpenAI Responses 的 API 根地址、模型 ID 和 API Key。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
-              {canDiscoverModels && <p>API 根地址不要包含 /chat/completions 或 /responses。模型列表仅供选择，能否运行以实际调用为准。</p>}
+              <p>{runtimeId === "claude-code" ? "填写支持 Anthropic Messages 的 API 根地址、Claude 模型 ID 和 API Key。" : canDiscoverModels && runtimeId !== "codex" ? "填写支持 OpenAI Chat Completions 的 API 根地址、模型 ID 和 API Key。" : runtimeId === "codex" ? "填写支持 OpenAI Responses 的 API 根地址、模型 ID 和 API Key。" : "填写 JEV API 根地址，不含 /v1/systemone。"}</p>
+              {canDiscoverModels && <p>{runtimeId === "claude-code" ? "API 根地址不要包含 /messages。模型列表仅供选择，能否运行以实际调用为准。" : "API 根地址不要包含 /chat/completions 或 /responses。模型列表仅供选择，能否运行以实际调用为准。"}</p>}
               <p>API Key 会加密保存在本机。以后修改设置时，密钥留空即可保持不变。{runtimeId !== "jev" && "保存后会重新连接。"}</p>
             </div>
             {error && <p className="settings-panel__error" role="alert">{error}</p>}

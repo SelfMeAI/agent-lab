@@ -35,7 +35,7 @@ export interface RuntimeStatus {
 
 export type RuntimePhase = "idle" | "starting" | "ready" | "running" | "approval" | "cancelling" | "error";
 
-export const agentRuntimeIds = ["dsh", "codex", "pi", "kimi-code", "qwen-code"] as const;
+export const agentRuntimeIds = ["dsh", "codex", "pi", "kimi-code", "qwen-code", "claude-code"] as const;
 export type AgentRuntimeId = typeof agentRuntimeIds[number];
 export function isAgentRuntimeId(value: unknown): value is AgentRuntimeId {
   return typeof value === "string" && (agentRuntimeIds as readonly string[]).includes(value);

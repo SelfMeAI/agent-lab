@@ -246,6 +246,7 @@ export const agentStores = {
   dsh: createAgentStore("dsh"), codex: createAgentStore("codex"),
   pi: createAgentStore("pi"), "kimi-code": createAgentStore("kimi-code"),
   "qwen-code": createAgentStore("qwen-code"),
+  "claude-code": createAgentStore("claude-code"),
 };
 
 let unsubscribeBridge: (() => void) | null = null;

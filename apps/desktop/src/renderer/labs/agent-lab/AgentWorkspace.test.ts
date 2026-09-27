@@ -17,6 +17,12 @@ function approval(runtimeId: AgentRuntimeId, title: string): string {
 }
 
 describe("Pi command permission notice", () => {
+  it("shows Claude's independent Anthropic connection rather than OpenAI instructions", () => {
+    const markup = renderToStaticMarkup(createElement(SettingsPanel, { info: null, runtimeId: "claude-code", onClose: () => {}, onProviderSaved: () => {} }));
+    expect(markup).toContain("Claude 模型连接"); expect(markup).toContain("Anthropic Messages");
+    expect(markup).toContain("MODEL ID"); expect(markup).toContain("获取模型");
+    expect(markup).not.toContain("OpenAI Chat Completions"); expect(markup).not.toContain("沿用 DSH");
+  });
   it("keeps Qwen settings consistent and localizes native permission scope without changing option IDs", () => {
     const markup = renderToStaticMarkup(createElement(SettingsPanel, {
       info: null, runtimeId: "qwen-code", onClose: () => {}, onProviderSaved: () => {},

@@ -4,6 +4,13 @@ import { discoverModels, modelListUrl } from "./model-discovery";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("model discovery", () => {
+  it("uses Anthropic's versioned endpoint and authentication for Claude", async () => {
+    expect(modelListUrl("https://claude.example", "anthropic")).toBe("https://claude.example/v1/models");
+    expect(modelListUrl("https://claude.example/v1/", "anthropic")).toBe("https://claude.example/v1/models");
+    const request = vi.fn(async () => Response.json({ data: [{ id: "claude-sonnet-4-6" }] })); vi.stubGlobal("fetch", request);
+    expect(await discoverModels("https://claude.example", "test-key", "anthropic")).toEqual(["claude-sonnet-4-6"]);
+    expect(request).toHaveBeenCalledWith("https://claude.example/v1/models", expect.objectContaining({ headers: { Authorization: "Bearer test-key", "x-api-key": "test-key", "anthropic-version": "2023-06-01" } }));
+  });
   it("appends /models to the entered API root and returns distinct model IDs", async () => {
     const request = vi.fn(async () => Response.json({ data: [{ id: "model-b" }, { id: "model-a" }, { id: "model-a" }] }));
     vi.stubGlobal("fetch", request);

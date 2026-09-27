@@ -223,23 +223,25 @@
 .agent-workspace--pi { --agent-accent: #b9ddf0; }
 .agent-workspace--kimi-code { --agent-accent: #f38f8e; }
 .agent-workspace--qwen-code { --agent-accent: #e7bc73; }
+.agent-workspace--claude-code { --agent-accent: #bd8df7; }
 
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-workspace__identity svg,
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-conversation__empty svg,
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-entry__avatar,
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-entry__label { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-workspace__path:hover,
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-conversation__empty button { border-color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-rail__heading button:hover:not(:disabled) { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-entry__avatar--user { color: #b9c9c5; }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-conversation__empty button { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-rail__task { border-color: var(--agent-accent); background: #10252b; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-workspace__identity svg,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-conversation__empty svg,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-entry__avatar,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-entry__label { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-workspace__path:hover,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-conversation__empty button { border-color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-rail__heading button:hover:not(:disabled) { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-entry__avatar--user { color: #b9c9c5; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-conversation__empty button { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-rail__task { border-color: var(--agent-accent); background: #10252b; }
 .agent-workspace--kimi-code .dsh-rail__task { background: #251b21; }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-rail__task i,
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-activity__dots i { background: var(--agent-accent); box-shadow: 0 0 7px var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-activity { color: var(--agent-accent); }
-:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code) .dsh-scroll-jump:hover { border-color: var(--agent-accent); }
+.agent-workspace--claude-code .dsh-rail__task { background: #211b2e; }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-rail__task i,
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-activity__dots i { background: var(--agent-accent); box-shadow: 0 0 7px var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-activity { color: var(--agent-accent); }
+:is(.agent-workspace--codex, .agent-workspace--pi, .agent-workspace--kimi-code, .agent-workspace--qwen-code, .agent-workspace--claude-code) .dsh-scroll-jump:hover { border-color: var(--agent-accent); }
 
 @media (max-width: 1150px) {
   .agent-grid { gap: 17px; }

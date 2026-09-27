@@ -36,6 +36,20 @@ export function codexQuestions(value: unknown): AgentQuestion[] {
   return result;
 }
 
+/** Claude's native AskUserQuestion keys answers by the complete question text. */
+export function claudeQuestions(value: unknown): AgentQuestion[] {
+  if (!Array.isArray(value) || !value.length || value.length > 4) return [];
+  const result: AgentQuestion[] = [];
+  for (const [index, item] of value.entries()) {
+    const q = object(item), options = choices(q.options);
+    if (!text(q.question).trim() || !options || options.length < 2 || options.length > 4
+      || result.some(previous => previous.question === q.question)) return [];
+    result.push({ id: String(index), header: text(q.header), question: text(q.question),
+      options, multiSelect: q.multiSelect === true, allowCustom: true });
+  }
+  return result;
+}
+
 export function dshQuestions(value: unknown): AgentQuestion[] {
   if (!Array.isArray(value) || !value.length || value.length > 16) return [];
   const result: AgentQuestion[] = [];

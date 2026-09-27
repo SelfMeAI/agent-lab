@@ -3,6 +3,25 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 export type Obj = Record<string, any>;
 
+/** Anthropic Messages SSE, exercised through the official native Claude process. */
+export function anthropic(res: ServerResponse, tool?: { name: string; args: Obj }, text = "done") {
+  const id = `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const emit = (type: string, extra: Obj) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...extra })}\n\n`);
+  const usage = { input_tokens: 20, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  res.writeHead(200, { "content-type": "text/event-stream" });
+  emit("message_start", { message: { id, type: "message", role: "assistant", model: "claude-sonnet-4-6", content: [], stop_reason: null, stop_sequence: null, usage } });
+  emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: `toolu_${id}`, name: tool.name, input: {} } : { type: "text", text: "" } });
+  if (tool) emit("content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: JSON.stringify(tool.args) } });
+  else {
+    const middle = Math.floor(text.length / 2);
+    for (const fragment of [text.slice(0, middle), text.slice(middle)]) emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: fragment } });
+  }
+  emit("content_block_stop", { index: 0 });
+  emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { ...usage, output_tokens: 12 } });
+  emit("message_stop", {});
+  res.end();
+}
+
 /** Keep deterministic tests focused on the active turn, not hidden memory jobs. */
 export function prepareQwenTestHome(homeDirectory: string): string {
   mkdirSync(homeDirectory, { recursive: true });

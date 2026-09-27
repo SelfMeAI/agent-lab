@@ -45,4 +45,5 @@ export const sessionInteractions: Record<AgentRuntimeId, ReturnType<typeof creat
   dsh: createSessionInteractions(), codex: createSessionInteractions(),
   pi: createSessionInteractions(), "kimi-code": createSessionInteractions(),
   "qwen-code": createSessionInteractions(),
+  "claude-code": createSessionInteractions(),
 };

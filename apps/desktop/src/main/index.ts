@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
@@ -7,11 +7,13 @@ import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
 import { PiAdapter } from "../../../../packages/runtime/src/pi";
 import { QwenAdapter } from "../../../../packages/runtime/src/qwen";
+import { ClaudeAdapter } from "../../../../packages/runtime/src/claude";
 import {
   getCodexProvider, getCodexProviderStatus, getDshProvider, getDshProviderStatus,
   getJevProviderStatus, getKimiProvider, getKimiProviderStatus, getPiProvider, getPiProviderStatus,
   saveCodexProvider, saveDshProvider, saveJevProvider, saveKimiProvider, savePiProvider,
   getQwenProvider, getQwenProviderStatus, saveQwenProvider,
+  getClaudeProvider, getClaudeProviderStatus, saveClaudeProvider,
 } from "./provider-store";
 import { discoverModels, modelListUrl } from "./model-discovery";
 import { decideJevMove } from "./jev-decision";
@@ -76,7 +78,7 @@ function createWindow(): void {
 }
 
 function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapter {
-  const nodeExecutable = runtimeId === "codex" || runtimeId === "pi" ? process.execPath : harnessNodeExecutable(process.execPath);
+  const nodeExecutable = ["codex", "pi", "claude-code"].includes(runtimeId) ? process.execPath : harnessNodeExecutable(process.execPath);
   const homeDirectory = join(app.getPath("userData"), "runtime-homes", runtimeId, sessionId);
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   const entryPoint = app.isPackaged
@@ -93,6 +95,10 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
     homeDirectory, provider: getCodexProvider,
   });
   if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider });
+  if (runtimeId === "claude-code") return new ClaudeAdapter({
+    executable: join(runtimeRoot, "claude", "bin", process.platform === "win32" ? "claude.exe" : "claude"),
+    homeDirectory, provider: getClaudeProvider,
+  });
   if (runtimeId === "qwen-code") return new QwenAdapter({
     entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js"),
     nodeExecutable, homeDirectory, provider: getQwenProvider,
@@ -145,6 +151,7 @@ void app.whenReady().then(async () => {
     if (runtimeId === "pi") return getPiProviderStatus();
     if (runtimeId === "kimi-code") return getKimiProviderStatus();
     if (runtimeId === "qwen-code") return getQwenProviderStatus();
+    if (runtimeId === "claude-code") return getClaudeProviderStatus();
     if (runtimeId === "jev") return getJevProviderStatus();
     throw new Error("此运行时暂不支持模型配置");
   });
@@ -154,15 +161,16 @@ void app.whenReady().then(async () => {
       throw new Error("无效的模型列表请求");
     }
     let apiKey = config.apiKey?.trim();
+    const protocol = runtimeId === "claude-code" ? "anthropic" : "openai";
     if (!apiKey) {
       const saved = runtimeId === "dsh" ? await getDshProvider()
         : runtimeId === "codex" ? await getCodexProvider()
           : runtimeId === "pi" ? await getPiProvider()
-            : runtimeId === "qwen-code" ? await getQwenProvider() : await getKimiProvider();
-      if (modelListUrl(config.baseUrl) !== modelListUrl(saved.baseUrl)) throw new Error("API 地址已更改，请先填写该地址的 API Key");
+            : runtimeId === "qwen-code" ? await getQwenProvider() : runtimeId === "claude-code" ? await getClaudeProvider() : await getKimiProvider();
+      if (modelListUrl(config.baseUrl, protocol) !== modelListUrl(saved.baseUrl, protocol)) throw new Error("API 地址已更改，请先填写该地址的 API Key");
       apiKey = saved.apiKey;
     }
-    return discoverModels(config.baseUrl, apiKey ?? "");
+    return discoverModels(config.baseUrl, apiKey ?? "", protocol, net.fetch);
   });
   ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
     assertMainWindow(event);
@@ -181,6 +189,7 @@ void app.whenReady().then(async () => {
     if (runtimeId === "qwen-code") {
       return sessions!.reconfigure("qwen-code", () => saveQwenProvider(config));
     }
+    if (runtimeId === "claude-code") return sessions!.reconfigure("claude-code", () => saveClaudeProvider(config));
     if (runtimeId === "jev") return saveJevProvider(config);
     throw new Error("此运行时暂不支持模型配置");
   });

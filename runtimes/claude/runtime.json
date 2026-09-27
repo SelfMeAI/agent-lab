@@ -1,0 +1,8 @@
+{
+  "distribution": "@anthropic-ai/claude-agent-sdk",
+  "sdkVersion": "0.3.283",
+  "claudeVersion": "2.1.283",
+  "entryPoint": "bin/claude",
+  "source": "https://github.com/anthropics/claude-agent-sdk-typescript",
+  "license": "LICENSE.md"
+}

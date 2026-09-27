@@ -15,6 +15,7 @@
     "package:mac": "npm run build && node ../../scripts/clean-mac-output.mjs before && electron-builder --mac --dir && node ../../scripts/clean-mac-output.mjs after"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.283",
     "@earendil-works/pi-coding-agent": "0.87.1",
     "@weshell/xiangqi.js": "^1.0.3",
     "diff": "^9.0.0",

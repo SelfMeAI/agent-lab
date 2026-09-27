@@ -134,14 +134,14 @@ export class AgentSessionController {
       const unsubscribe = adapter.onEvent((event) => this.forward(id, event));
       this.live.set(id, { adapter, unsubscribe });
       try {
-        // Codex and Qwen do not persist empty sessions until the first input.
+        // These runtimes do not persist empty sessions until the first input.
         // An allocated native id alone is not a recoverable conversation.
-        const resumeRef = ["codex", "qwen-code"].includes(record.runtimeId) && record.lastPromptAt === null
+        const resumeRef = ["codex", "qwen-code", "claude-code"].includes(record.runtimeId) && record.lastPromptAt === null
           ? undefined : record.nativeRef ?? undefined;
         await adapter.start(record.workspace, resumeRef);
         const nativeRef = adapter.getResumeRef();
         if (!nativeRef) throw new Error("运行时未返回可恢复的会话标识");
-        if (!["codex", "qwen-code"].includes(record.runtimeId)) this.repository.setNativeRef(id, nativeRef);
+        if (!["codex", "qwen-code", "claude-code"].includes(record.runtimeId)) this.repository.setNativeRef(id, nativeRef);
       } catch (error) {
         await this.stop(id);
         throw error;
@@ -177,7 +177,7 @@ export class AgentSessionController {
       });
       const adapter = this.live.get(id)!.adapter;
       await adapter.send(text);
-      if (["codex", "qwen-code"].includes(runtimeId)) {
+      if (["codex", "qwen-code", "claude-code"].includes(runtimeId)) {
         const nativeRef = adapter.getResumeRef();
         if (!nativeRef) throw new Error(`${adapter.label} 首轮任务未返回可恢复的会话标识`);
         this.repository.setNativeRef(id, nativeRef);

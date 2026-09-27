@@ -15,6 +15,6 @@ export const agentLab: LabModule = {
     { id: "pi", label: "Pi", designId: "agent.pi.workspace" },
     { id: "kimi-code", label: "Kimi Code", designId: "agent.kimi-code.workspace" },
     { id: "qwen-code", label: "Qwen Code", designId: "agent.qwen-code.workspace" },
-    { id: "claude-code", label: "Claude Code", designId: "agent.claude-code.workspace" },
+    { id: "claude-code", label: "Claude Agent", designId: "agent.claude-code.workspace" },
   ],
 };

@@ -1,6 +1,6 @@
 const maxResponseBytes = 2 * 1024 * 1024;
 
-export function modelListUrl(baseUrl: string): string {
+export function modelListUrl(baseUrl: string, protocol: "openai" | "anthropic" = "openai"): string {
   let url: URL;
   try {
     url = new URL(baseUrl.trim());
@@ -11,19 +11,19 @@ export function modelListUrl(baseUrl: string): string {
     throw new Error("API 地址必须是不含查询参数的 http(s) 根地址");
   }
   const path = url.pathname.replace(/\/+$/u, "");
-  if (/\/(?:chat\/completions|responses|models)$/u.test(path)) throw new Error("请填写 API 根地址，不要包含具体接口路径");
-  url.pathname = `${path}/models`;
+  if (/\/(?:chat\/completions|responses|models|messages)$/u.test(path)) throw new Error("请填写 API 根地址，不要包含具体接口路径");
+  url.pathname = `${path}${protocol === "anthropic" && !path.endsWith("/v1") ? "/v1" : ""}/models`;
   return url.toString();
 }
 
-export async function discoverModels(baseUrl: string, apiKey: string): Promise<string[]> {
+export async function discoverModels(baseUrl: string, apiKey: string, protocol: "openai" | "anthropic" = "openai", request: (url: string, options?: RequestInit) => Promise<Response> = fetch): Promise<string[]> {
   const key = apiKey.trim();
   if (!key || key.length > 4096 || /[\r\n\0]/u.test(key)) throw new Error("请填写有效的 API Key");
-  const endpoint = modelListUrl(baseUrl);
+  const endpoint = modelListUrl(baseUrl, protocol);
   let response: Response;
   try {
-    response = await fetch(endpoint, {
-      headers: { Authorization: `Bearer ${key}` },
+    response = await request(endpoint, {
+      headers: protocol === "anthropic" ? { Authorization: `Bearer ${key}`, "x-api-key": key, "anthropic-version": "2023-06-01" } : { Authorization: `Bearer ${key}` },
       redirect: "error",
       signal: AbortSignal.timeout(10000),
     });

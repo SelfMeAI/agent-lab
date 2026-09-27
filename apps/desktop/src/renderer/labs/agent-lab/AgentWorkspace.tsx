@@ -14,7 +14,7 @@ import "./follow-up.css";
 import { calendarDayKey, clockTime, dateDividerLabel, durationMsBetween, elapsedTime, exactTime, sessionTimeLabel, toolDuration, turnDuration } from "./conversation-time";
 import { presentEntry, visibleTranscriptEntries } from "./tool-presentation";
 
-const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE", "qwen-code": "QWEN CODE" } as const;
+const names = { dsh: "DSH", codex: "CODEX", pi: "PI", "kimi-code": "KIMI CODE", "qwen-code": "QWEN CODE", "claude-code": "CLAUDE AGENT" } as const;
 const busyPhases = new Set<RuntimePhase>(["starting", "running", "approval", "cancelling"]);
 
 function sessionStateLabel(phase: RuntimePhase, statusText?: string): string {
@@ -576,7 +576,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
           <div className="dsh-conversation__scroll" ref={outputRef} onScroll={trackOutputScroll}>
             {snapshot.entries.length === 0 && <div className="dsh-conversation__empty">
               <LabIcon runtimeId={runtimeId} /><h2>准备好让 {names[runtimeId]} 开始工作</h2>
-              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : runtimeId === "qwen-code" ? "选择一个工作目录，作为任务的工作区。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
+              <p>{!workspace ? runtimeId === "pi" ? "选择工作目录；Pi 的文件工具限定在此，命令执行另需审批。" : runtimeId === "qwen-code" || runtimeId === "claude-code" ? "选择一个工作目录，作为任务的工作区。" : "选择一个工作目录，运行会限定在该目录中。" : !provider?.configured ? "配置模型地址和 API Key 后即可开始。" : connecting ? `正在连接本地 ${names[runtimeId]} 运行时…` : "描述一项任务，实时查看输出、工具调用与审批。"}</p>
               {!workspace && <button onClick={() => void chooseWorkspace()} type="button">选择工作目录</button>}
               {workspace && !provider?.configured && <button onClick={onOpenSettings} type="button">配置模型</button>}
             </div>}

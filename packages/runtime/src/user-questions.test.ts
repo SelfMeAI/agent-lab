@@ -4,10 +4,15 @@ import type { RunEvent } from "../../contracts/src/index";
 import { AcpAdapter } from "./acp";
 import { CodexAdapter } from "./codex";
 import { DshAdapter } from "./dsh";
-import { codexQuestions, dshQuestions, kimiFormQuestions, qwenQuestions, validateQuestionAnswers } from "./user-questions";
+import { claudeQuestions, codexQuestions, dshQuestions, kimiFormQuestions, qwenQuestions, validateQuestionAnswers } from "./user-questions";
 
 const nativeQuestions = [{ header: "游戏类型", question: "想加哪个游戏？", options: [{ label: "2048", description: "数字合并" }, { label: "扫雷", description: "推理" }], multiSelect: false }];
 describe("native human-question contracts", () => {
+  it("preserves Claude's multi-select and Other while rejecting duplicate answer keys", () => {
+    expect(claudeQuestions([{ ...nativeQuestions[0], multiSelect: true }])).toMatchObject([{ id: "0", multiSelect: true, allowCustom: true }]);
+    expect(claudeQuestions([nativeQuestions[0], nativeQuestions[0]])).toEqual([]);
+    expect(claudeQuestions([{ ...nativeQuestions[0], options: [] }])).toEqual([]);
+  });
   it("recognizes Qwen's explicit metadata without mistaking approvals for questions", () => {
     expect(qwenQuestions({ title: "Ask user 1 question" })).toBeUndefined();
     expect(qwenQuestions({ _meta: { qwenInteractionKind: "user_question", qwenQuestions: nativeQuestions } })).toMatchObject([{ id: "0", question: "想加哪个游戏？", allowCustom: true }]);

@@ -9,7 +9,8 @@ import { DshAdapter } from "../../../../packages/runtime/src/dsh";
 import { PiAdapter } from "../../../../packages/runtime/src/pi";
 import { KimiAdapter } from "../../../../packages/runtime/src/kimi";
 import { QwenAdapter } from "../../../../packages/runtime/src/qwen";
-import { chat, responses, shellTool, prepareQwenTestHome, type Obj } from "../../../../packages/runtime/src/test-support/mock-model";
+import { ClaudeAdapter } from "../../../../packages/runtime/src/claude";
+import { anthropic, chat, responses, shellTool, prepareQwenTestHome, type Obj } from "../../../../packages/runtime/src/test-support/mock-model";
 import { AgentSessionController } from "./agent-session-controller";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
@@ -21,7 +22,7 @@ const queueMarker = "SELFME_FOLLOW_UP_QUEUE_826";
 const steerMarker = "SELFME_STEER_CURRENT_TURN_973";
 
 describe("real bundled harnesses: queued turn versus mid-turn Steer", () => {
-  const cases = (["codex", "dsh", "pi", "kimi-code", "qwen-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
+  const cases = (["codex", "dsh", "pi", "kimi-code", "qwen-code", "claude-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
   it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(cases)("$id queue and Steer (cancel=$cancel)", async ({ id, cancel }) => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/queue-native-"));
@@ -31,22 +32,24 @@ describe("real bundled harnesses: queued turn versus mid-turn Steer", () => {
     const server = createServer(async (req, res) => {
       try {
         let raw = ""; for await (const chunk of req) raw += String(chunk);
+        if (id === "claude-code" && (!req.url?.includes("/messages") || req.url.includes("count_tokens"))) { res.writeHead(200); res.end('{"input_tokens":20}'); return; }
         const body = JSON.parse(raw) as Obj; requests.push({ body, originalEnded });
         if (requests.length > 5) throw new Error("Unexpected model request loop");
-        const respond = req.url?.includes("responses") ? responses : chat;
+        const respond = id === "claude-code" ? anthropic : req.url?.includes("responses") ? responses : chat;
         if (requests.length === 1) respond(res, shellTool(body));
         else respond(res, undefined, `mock turn ${requests.length} completed`);
       } catch (error) { providerError = error; res.writeHead(500); res.end(JSON.stringify({ error: { message: String(error) } })); }
     });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const port = (server.address() as { port: number }).port;
-    const provider = async () => ({ baseUrl: `http://127.0.0.1:${port}/v1`, apiKey: "sk-local-queue-check", model: "deepseek-v4-flash" });
+    const provider = async () => ({ baseUrl: `http://127.0.0.1:${port}/v1`, apiKey: "sk-local-queue-check", model: id === "claude-code" ? "claude-sonnet-4-6" : "deepseek-v4-flash" });
     const repository = new AgentSessionRepository(join(scratch, "data")); await repository.init();
     const config = new AppConfigStore(join(scratch, "data")); await config.init();
     const events: AgentSessionEvent[] = [];
     let liveRun: string | undefined, sessionId = "", queued = false, submitted: Promise<void> | undefined;
     const c = new AgentSessionController(repository, config, (_runtime, sid) => {
       const homeDirectory = join(scratch, "home", sid);
+      if (id === "claude-code") return new ClaudeAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "claude/bin/claude") });
       if (id === "codex") return new CodexAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "codex/bin/codex") });
       if (id === "pi") return new PiAdapter({ homeDirectory, provider });
       if (id === "dsh") return new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });

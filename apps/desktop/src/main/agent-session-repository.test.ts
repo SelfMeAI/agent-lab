@@ -159,7 +159,7 @@ describe("agent session SQLite storage", () => {
     await repo.init();
     const sessions = Array.from({ length: 160 }, () => repo.create("dsh", root));
     expect(repo.list("dsh")).toHaveLength(160);
-    repo.append(sessions[0].id, { ...event("user", "older session, new work"), runtimeId: "dsh", at: "2026-09-26T23:00:00Z" });
+    repo.append(sessions[0].id, { ...event("user", "older session, new work"), runtimeId: "dsh", at: new Date(Date.now() + 1000).toISOString() });
     expect(repo.list("dsh")[0].id).toBe(sessions[0].id);
     repo.close();
   });

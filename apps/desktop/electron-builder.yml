@@ -5,7 +5,12 @@ directories:
 files:
   - out/**/*
   - package.json
+  - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**/*"
 extraResources:
+  - from: ../../runtimes/claude
+    to: claude
+    filter:
+      - "**/*"
   - from: ../../runtimes/steering-bridge.mjs
     to: steering-bridge.mjs
   - from: ../../runtimes/dsh/steering-loader.mjs

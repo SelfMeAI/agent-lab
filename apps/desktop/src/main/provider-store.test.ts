@@ -18,11 +18,27 @@ import {
   getDshProvider, getDshProviderStatus, getKimiProvider, getKimiProviderStatus, getPiProvider, getPiProviderStatus,
   saveDshProvider, saveKimiProvider, savePiProvider,
   getQwenProvider, getQwenProviderStatus, saveQwenProvider,
+  getClaudeProvider, getClaudeProviderStatus, saveClaudeProvider,
 } from "./provider-store";
 
 afterEach(async () => {
   if (state.userData) await rm(state.userData, { recursive: true, force: true });
   state.userData = "";
+});
+
+describe("Claude independent encrypted provider", () => {
+  it("never adopts OpenAI/DSH credentials and preserves the encrypted key during edits", async () => {
+    state.userData = await mkdtemp(join(tmpdir(), "selfme-claude-provider-"));
+    await saveDshProvider({ baseUrl: "https://deepseek.example", apiKey: "dsh-private" });
+    expect((await getClaudeProviderStatus()).configured).toBe(false);
+    await expect(getClaudeProvider()).rejects.toThrow(/请先配置 Claude/);
+    await saveClaudeProvider({ baseUrl: "https://claude.example/", model: "claude-sonnet-4-6", apiKey: "claude-private" });
+    expect(await readFile(join(state.userData, "claude-provider.json"), "utf8")).not.toContain("claude-private");
+    await saveClaudeProvider({ baseUrl: "https://claude.example/v1", model: "custom-claude", apiKey: "" });
+    expect(await getClaudeProvider()).toEqual({ baseUrl: "https://claude.example/v1", model: "custom-claude", apiKey: "claude-private" });
+    expect((await getDshProvider()).apiKey).toBe("dsh-private");
+    await expect(saveClaudeProvider({ baseUrl: "https://claude.example/v1/messages" })).rejects.toThrow(/根地址/);
+  });
 });
 
 describe("Qwen Code independent provider configuration", () => {

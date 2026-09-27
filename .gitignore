@@ -1,5 +1,6 @@
 node_modules/
 runtimes/codex/bin/
+runtimes/claude/bin/
 runtimes/codex/codex-resources/
 runtimes/codex/codex-path/
 runtimes/kimi-code/bin/

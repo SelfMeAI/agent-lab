@@ -8,6 +8,7 @@ import type { DshProvider } from "../../../../packages/runtime/src/dsh";
 import type { KimiProvider } from "../../../../packages/runtime/src/kimi";
 import type { PiProvider } from "../../../../packages/runtime/src/pi";
 import type { QwenProvider } from "../../../../packages/runtime/src/qwen";
+import type { ClaudeProvider } from "../../../../packages/runtime/src/claude";
 
 interface StoredProvider {
   baseUrl: string;
@@ -151,6 +152,50 @@ interface StoredModelProvider extends StoredProvider {
 }
 
 const defaultPiModel = "deepseek-v4-pro";
+
+async function readClaudeProvider(): Promise<StoredModelProvider> {
+  try {
+    const stored = JSON.parse(await readFile(join(app.getPath("userData"), "claude-provider.json"), "utf8")) as StoredModelProvider;
+    return { baseUrl: normalizeBaseUrl(stored.baseUrl), model: normalizeModel(stored.model),
+      encryptedApiKey: typeof stored.encryptedApiKey === "string" ? stored.encryptedApiKey : undefined };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-6" };
+    throw error;
+  }
+}
+
+export async function getClaudeProviderStatus(): Promise<ProviderStatus> {
+  const stored = await readClaudeProvider();
+  return { baseUrl: stored.baseUrl, model: stored.model, configured: Boolean(stored.encryptedApiKey) };
+}
+
+export async function getClaudeProvider(): Promise<ClaudeProvider> {
+  const stored = await readClaudeProvider();
+  if (!stored.encryptedApiKey) throw new Error("请先配置 Claude 模型 API Key");
+  const result = await safeStorage.decryptStringAsync(Buffer.from(stored.encryptedApiKey, "base64"));
+  return { baseUrl: stored.baseUrl, model: stored.model, apiKey: result.result };
+}
+
+export async function saveClaudeProvider(input: { baseUrl: string; model?: string; apiKey?: string }): Promise<ProviderStatus> {
+  const baseUrl = normalizeBaseUrl(input.baseUrl);
+  if (/\/(?:messages|chat\/completions|responses|models)$/u.test(new URL(baseUrl).pathname)) throw new Error("请填写 Anthropic API 根地址，不要包含具体接口路径");
+  const previous = await readClaudeProvider();
+  const model = normalizeModel(input.model ?? previous.model);
+  const apiKey = input.apiKey?.trim();
+  let encryptedApiKey = previous.encryptedApiKey;
+  if (apiKey) {
+    if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
+    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+  }
+  if (!encryptedApiKey) throw new Error("请填写 Claude API Key");
+  const path = join(app.getPath("userData"), "claude-provider.json");
+  await mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify({ baseUrl, model, encryptedApiKey }), { mode: 0o600 });
+  await rename(temporary, path);
+  return { baseUrl, model, configured: true };
+}
 
 function piProviderPath(): string {
   return join(app.getPath("userData"), "pi-provider.json");

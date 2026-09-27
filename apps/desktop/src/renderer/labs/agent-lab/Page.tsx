@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type JSX } from "react";
-import type { RuntimeStatus } from "../../../../../../packages/contracts/src/index";
+import { isAgentRuntimeId, type RuntimeStatus } from "../../../../../../packages/contracts/src/index";
 import { goToLab } from "../../app/navigation";
 import { LabIcon } from "../../shell/LabIcon";
 import { PendingLabPage } from "../shared/PendingLabPage";
@@ -17,7 +17,7 @@ const descriptions: Record<string, string> = {
   pi: "轻量 Agent 实验",
   "kimi-code": "代码任务与工具实验",
   "qwen-code": "代码任务与工具实验",
-  "claude-code": "外部编程助手实验",
+  "claude-code": "原生 Claude Harness 实验",
 };
 
 export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: LabPageProps): JSX.Element {
@@ -34,7 +34,7 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
         <div className="agent-grid">
           {lab.views.map((item) => {
             const status = runtimeStatuses.find((entry) => entry.id === item.id);
-            const label = status?.availability === "ready" ? "READY" : status?.availability === "missing" ? "SETUP" : item.id === "claude-code" ? "EXTERNAL" : "PLANNED";
+            const label = status?.availability === "ready" ? "READY" : status?.availability === "missing" ? "SETUP" : "PLANNED";
             return <button className="agent-tile" key={item.id} onClick={() => goToLab(lab.id, item.id)} style={{ "--tile-accent": accents[item.id] } as CSSProperties} type="button">
               <LabIcon runtimeId={item.id} className="agent-tile__icon" />
               <span className="agent-tile__text"><strong>{item.label.toUpperCase()}</strong><small>{descriptions[item.id] ?? "Harness 接入实验"}</small><em>{label}</em></span>
@@ -46,7 +46,7 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
     );
   }
 
-  if (viewId === "dsh" || viewId === "codex" || viewId === "pi" || viewId === "kimi-code" || viewId === "qwen-code") return <AgentWorkspace runtimeId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
+  if (isAgentRuntimeId(viewId)) return <AgentWorkspace runtimeId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
 
   return (
     <div className="agent-pending">
