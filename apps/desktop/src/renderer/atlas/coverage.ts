@@ -375,9 +375,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
     state: "usable",
     upstream: "unknown",
     passedChecks: [0],
-    evidence: ["apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx", "apps/desktop/src/renderer/labs/agent-lab/agent-store.test.ts", "apps/desktop/src/renderer/labs/agent-lab/error-history.test.ts"],
+    evidence: ["apps/desktop/src/renderer/labs/agent-lab/AgentWorkspace.tsx", "apps/desktop/src/renderer/labs/agent-lab/agent-store.test.ts", "apps/desktop/src/renderer/labs/agent-lab/error-history.test.ts", "apps/desktop/src/renderer/labs/agent-lab/follow-up.test.ts", "apps/desktop/src/main/agent-session-controller.test.ts", "apps/desktop/src/main/claude-error-recovery.integration.test.ts"],
     checkedAt: "2026-09-27",
-    note: "界面显示最近活动、审批或提问等待；不显示无根据的百分比。重新连接确实成功后，先前错误折叠为带时间的历史记录，原始详情保留；连接失败或新故障仍为明确警报，不将任务完成伪装成连接恢复。",
+    note: "界面显示最近活动、审批或提问等待；不显示无根据的百分比。重新连接确实成功后，先前错误折叠为带时间的历史记录，原始详情保留；连接失败或新故障仍为明确警报，不将任务完成伪装成连接恢复。错误或空闲时可直接发送新消息，由主进程重建运行时并恢复原生上下文，无需切换会话；有暂停队列时仍按既有队列规则处理，不自动重发旧消息。",
   },
   {
     capabilityId: "consent-experience.approval-card",

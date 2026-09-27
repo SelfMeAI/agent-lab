@@ -44,6 +44,7 @@ class FakeAdapter implements HarnessAdapter {
   }
   async stop(): Promise<void> { this.stopped = true; this.emit("status", "已停止", "idle"); }
   complete(): void { this.emit("status", "完成", "ready"); }
+  fail(): void { this.emit("error", "模型服务连接失败", "error"); }
   awaitApproval(): void { this.emit("approval", "需要确认", "approval"); }
   ask(approval: ApprovalRequest): void {
     const event: RunEvent = { runtimeId: this.id, runId: "run", sequence: ++this.sequence, at: new Date().toISOString(), source: this.label, kind: "approval", phase: "approval", approval };
@@ -56,6 +57,31 @@ class FakeAdapter implements HarnessAdapter {
 }
 
 describe("parallel multi-session lifecycle", () => {
+  it.each(["dsh", "codex", "pi", "kimi-code", "qwen-code", "claude-code"] as const)("reconnects failed %s on send without switching sessions, repeating old input or disturbing another session", async runtimeId => {
+    const root = await testRoot("controller-error-recovery-");
+    const repository = new AgentSessionRepository(root); await repository.init();
+    const config = new AppConfigStore(root); await config.init();
+    const adapters = new Map<string, FakeAdapter[]>();
+    const controller = new AgentSessionController(repository, config, (id, sid) => {
+      const adapter = new FakeAdapter(id, sid), all = adapters.get(sid) ?? [];
+      all.push(adapter); adapters.set(sid, all); return adapter;
+    }, () => {});
+    try {
+      const a = await controller.create(runtimeId, root), b = await controller.create(runtimeId, root);
+      await controller.select(a.id);
+      await Promise.all([controller.send(a.id, "之前的任务"), controller.send(b.id, "另一个会话" )]);
+      const failed = adapters.get(a.id)![0], other = adapters.get(b.id)![0]; failed.fail();
+      expect(repository.get(a.id).phase).toBe("error");
+      await controller.send(a.id, "继续，先检查上次的状态");
+      expect(failed.stopped).toBe(true); expect(other.stopped).toBe(false);
+      expect(adapters.get(a.id)).toHaveLength(2);
+      expect(adapters.get(a.id)![1].starts[0].resumeRef).toBe(`native-${a.id}`);
+      expect(repository.get(a.id).phase).toBe("running"); expect(repository.get(b.id).phase).toBe("running");
+      expect(controller.catalog(runtimeId).selectedSessionId).toBe(a.id);
+      expect(repository.events(a.id).filter(e => e.kind === "user").map(e => e.text)).toEqual(["之前的任务", "继续，先检查上次的状态"]);
+      expect(repository.events(a.id).filter(e => e.kind === "error")).toHaveLength(1);
+    } finally { await controller.stopAll(); repository.close(); }
+  });
   it("passes answers to only their native session and persists a redacted, replayable result", async () => {
     const root = await testRoot("controller-question-");
     const repository = new AgentSessionRepository(root); await repository.init();

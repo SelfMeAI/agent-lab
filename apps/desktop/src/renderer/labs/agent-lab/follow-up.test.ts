@@ -14,7 +14,19 @@ describe("follow-up composer and transcript", () => {
     expect(composerAction("starting", empty, "queue")).toBe("wait"); expect(composerAction("cancelling", empty, "queue")).toBe("wait");
     expect(composerAction("cancelling", queue, "steer")).toBe("wait"); expect(composerAction("ready", empty, "steer")).toBe("send");
     expect(composerAction("ready", { ...queue, paused: true }, "steer")).toBe("queue"); expect(composerAction("error", queue, "queue")).toBe("queue");
-    expect(composerAction("error", empty, "queue")).toBe("wait");
+    expect(composerAction("error", empty, "queue")).toBe("send");
+  });
+
+  it.each(["error", "idle"] as const)("allows a fresh message to recover %s without bypassing pending work or lifecycle locks", phase => {
+    for (const mode of ["queue", "steer"] as const) {
+      expect(composerAction(phase, empty, mode)).toBe("send");
+      expect(followUpAvailability(phase).canSubmit).toBe(true);
+      expect(followUpAvailability(phase).canSteer).toBe(false);
+      expect(followUpAvailability(phase, { connecting: true }).canSubmit).toBe(false);
+      expect(followUpAvailability(phase, { submitting: true }).canSubmit).toBe(false);
+      expect(followUpAvailability(phase, { stopping: true }).canSubmit).toBe(false);
+      expect(composerAction(phase, { ...queue, paused: true }, mode)).toBe("queue");
+    }
   });
 
   it("locks conflicting actions during startup, stop requests and message handoffs", () => {

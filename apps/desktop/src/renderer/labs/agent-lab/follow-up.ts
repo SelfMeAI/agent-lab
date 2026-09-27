@@ -7,7 +7,9 @@ export function composerAction(phase: RuntimePhase, queue: AgentSessionQueue, mo
   if (phase === "starting" || phase === "cancelling") return "wait";
   // A saved backlog must not be bypassed by a fresh composer message.
   if (queue.messages.some((item) => item.state !== "awaiting")) return "queue";
-  return phase === "ready" ? "send" : "wait";
+  // sendSessionPrompt already restarts failed/idle adapters and resumes their
+  // native context. Don't require a page/session switch to unlock recovery.
+  return ["ready", "idle", "error"].includes(phase) ? "send" : "wait";
 }
 
 /** UI locks are separate from saved follow-up preference and queue pause. */
