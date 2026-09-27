@@ -32,6 +32,8 @@ export interface AcpAdapterOptions {
   steeringDrainMethod?: string;
   closeSession?: boolean;
   promptMeta?(text: string): JsonObject;
+  /** Persist an explicitly chosen native permission before releasing the action. */
+  rememberPermission?(option: ApprovalOption): void;
   launch(workspace: string): Promise<AcpLaunch>;
 }
 
@@ -223,7 +225,10 @@ export class AcpAdapter implements HarnessAdapter {
           ? { action: "accept", content: kimiFormAnswerContent(approval.questions, checked, approval.form) }
           : { ...result, answers: Object.fromEntries(Object.entries(checked).map(([id, values]) => [id, values.join(", ")])) };
       } else if (approval.form) result = { action: "cancel" };
-    } else if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
+    } else {
+      if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
+      this.options.rememberPermission?.(approval.options.find(option => option.optionId === optionId)!);
+    }
     this.write({ jsonrpc: "2.0", id: approval.requestId, result });
     this.approvals.delete(String(requestId));
     this.emitStatus("running", approval.questions !== undefined ? optionId === "cancel" ? "已取消回答" : "答案已提交，继续执行" : "审批已提交，继续执行");

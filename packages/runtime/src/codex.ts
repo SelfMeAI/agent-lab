@@ -7,6 +7,8 @@ import type { AgentQuestion, AgentQuestionAnswers, ApprovalOption, RunEvent, Run
 import type { HarnessAdapter } from "./index";
 import { SteeringTracker, steeringError } from "./steering";
 import { codexQuestions, validateQuestionAnswers } from "./user-questions";
+import { ExactNativePermissions } from "./exact-native-permissions";
+import type { SessionPermissionStore } from "./session-permissions";
 
 type JsonObject = Record<string, unknown>;
 type Pending = { resolve(value: JsonObject): void; reject(error: Error): void };
@@ -21,6 +23,7 @@ export interface CodexAdapterOptions {
   executable: string;
   homeDirectory: string;
   provider(): Promise<CodexProvider>;
+  permissions?: SessionPermissionStore;
 }
 
 function object(value: unknown): JsonObject {
@@ -48,7 +51,9 @@ export class CodexAdapter implements HarnessAdapter {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly listeners = new Set<(event: RunEvent) => void>();
   private readonly pending = new Map<number, Pending>();
-  private readonly approvals = new Map<string, { requestId: number | string; options: ApprovalOption[]; questions?: AgentQuestion[] }>();
+  private readonly approvals = new Map<string, { requestId: number | string; options: ApprovalOption[]; questions?: AgentQuestion[]; permissionKey?: string; decisions?: Map<string, unknown> }>();
+  private readonly fileApprovalTargets = new Map<string, unknown[]>();
+  private readonly permissions: ExactNativePermissions;
   private readonly toolText = new Map<string, string>();
   private readonly activeTools = new Set<string>();
   private readonly messageDeltaIds = new Set<string>();
@@ -63,7 +68,7 @@ export class CodexAdapter implements HarnessAdapter {
   private apiKey: string | null = null;
   private stderrTail: string[] = [];
 
-  constructor(private readonly options: CodexAdapterOptions) {}
+  constructor(private readonly options: CodexAdapterOptions) { this.permissions = new ExactNativePermissions("codex-native-approvals-v1", options.permissions); }
 
   async probe(): Promise<RuntimeStatus> {
     try {
@@ -136,6 +141,8 @@ export class CodexAdapter implements HarnessAdapter {
     });
     this.child = child;
     this.workspace = workspace;
+    this.permissions.load(workspace);
+    this.fileApprovalTargets.clear();
     this.threadId = null;
     this.turnId = null;
     this.approvals.clear();
@@ -232,11 +239,12 @@ export class CodexAdapter implements HarnessAdapter {
   async respondApproval(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const approval = this.approvals.get(String(requestId));
     if (!approval || !approval.options.some((option) => option.optionId === optionId)) throw new Error("审批请求已失效或选项无效");
-    let result: JsonObject = { decision: optionId };
+    let result: JsonObject = { decision: approval.decisions?.get(optionId) ?? optionId };
     if (approval.questions !== undefined) {
       const checked = optionId === "submit" ? validateQuestionAnswers(approval.questions, answers) : {};
       result = { answers: Object.fromEntries(Object.entries(checked).map(([id, values]) => [id, { answers: values }])) };
     } else if (answers !== undefined) throw new Error("授权请求不能提交问题答案");
+    if (optionId === "acceptForSession" && approval.permissionKey) this.permissions.remember(approval.permissionKey);
     this.write({ id: approval.requestId, result });
     this.approvals.delete(String(requestId));
     this.emitStatus("running", approval.questions !== undefined ? optionId === "cancel" ? "已取消回答" : "答案已提交，继续执行" : "审批已提交，继续执行");
@@ -248,6 +256,7 @@ export class CodexAdapter implements HarnessAdapter {
     this.threadId = null;
     this.turnId = null;
     this.workspace = null;
+    this.fileApprovalTargets.clear();
     this.approvals.clear();
     this.toolText.clear();
     this.activeTools.clear();
@@ -324,14 +333,41 @@ export class CodexAdapter implements HarnessAdapter {
       this.emit("error", { text: `Codex 请求了尚未支持的交互：${method}` });
       return;
     }
-    const options: ApprovalOption[] = [
+    const defaults: ApprovalOption[] = [
       { optionId: "accept", name: "允许一次", kind: "allow" },
       { optionId: "acceptForSession", name: "本会话始终允许", kind: "allow_session" },
       { optionId: "decline", name: "拒绝", kind: "reject" },
     ];
+    const offered = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
+    const decisions = new Map<string, unknown>();
+    const options: ApprovalOption[] = offered ? offered.flatMap((value): ApprovalOption[] => {
+      if (typeof value === "string") {
+        const known = defaults.find(option => option.optionId === value);
+        if (known) { decisions.set(value, value); return [known]; }
+        if (value === "cancel") { decisions.set(value, value); return [{ optionId: value, name: "取消", kind: "reject_once" }]; }
+      } else {
+        const amendment = object(object(value).acceptWithExecpolicyAmendment).execpolicy_amendment;
+        if (Array.isArray(amendment) && amendment.length && amendment.every(token => typeof token === "string")) {
+          decisions.set("acceptWithExecpolicyAmendment", value);
+          return [{ optionId: "acceptWithExecpolicyAmendment", name: "本会话允许此命令前缀", kind: "allow_session", detail: `仅当前会话的原生规则：${amendment.join(" ")}` }];
+        }
+      }
+      return [];
+    }) : defaults;
     const title = method.includes("commandExecution") ? "命令执行授权" : "文件修改授权";
     const detail = string(params.reason) ?? string(params.command) ?? string(params.cwd) ?? title;
-    this.approvals.set(String(requestId), { requestId, options });
+    const targets = this.fileApprovalTargets.get(String(params.itemId));
+    // No restoration without a meaningful native target. Never approve an
+    // opaque request solely because its UI title/option says "same operation".
+    const canRestore = method.includes("commandExecution") ? Boolean(string(params.command)) : Boolean(string(params.grantRoot) || targets?.length);
+    const permissionKey = canRestore ? this.permissions.fingerprint(method, params, targets) : undefined;
+    if (permissionKey && this.permissions.has(permissionKey) && (!offered || offered.includes("acceptForSession"))) {
+      this.write({ id: requestId, result: { decision: "acceptForSession" } });
+      this.emit("approval_result", { title: "已恢复会话授权", approval: { requestId, title, options, toolCallId: string(params.itemId) },
+        approvalDecision: options.find(option => option.optionId === "acceptForSession"), approvalDecisionSource: "restored" });
+      return;
+    }
+    this.approvals.set(String(requestId), { requestId, options, permissionKey, decisions });
     this.emitStatus("approval", "等待你的审批");
     this.emit("approval", {
       title,
@@ -366,6 +402,7 @@ export class CodexAdapter implements HarnessAdapter {
       const status = string(turn.status);
       for (const itemId of this.activeTools) this.emit("tool", { toolCallId: itemId, toolStatus: status === "completed" ? "finished" : "interrupted" });
       this.activeTools.clear();
+      this.fileApprovalTargets.clear();
       if (status === "failed") this.emitError(errorText(turn.error));
       else this.emitStatus("ready", status === "interrupted" ? "本轮已取消" : "本轮已完成");
       return;
@@ -392,6 +429,9 @@ export class CodexAdapter implements HarnessAdapter {
     }
     if (method === "item/fileChange/patchUpdated") {
       const itemId = string(params.itemId);
+      if (itemId && Array.isArray(params.changes)) this.fileApprovalTargets.set(itemId, params.changes.map(change => {
+        const file = object(change); return { path: file.path, kind: file.kind };
+      }));
       if (itemId) this.emit("tool", {
         toolCallId: itemId,
         title: "文件修改",
@@ -431,6 +471,12 @@ export class CodexAdapter implements HarnessAdapter {
   private handleItem(item: JsonObject, completed: boolean): void {
     const type = string(item.type);
     const itemId = string(item.id);
+    if (type === "fileChange" && itemId) {
+      if (completed) this.fileApprovalTargets.delete(itemId);
+      else if (Array.isArray(item.changes)) this.fileApprovalTargets.set(itemId, item.changes.map(change => {
+        const file = object(change); return { path: file.path, kind: file.kind };
+      }));
+    }
     if (type === "agentMessage") {
       if (completed && itemId && !this.messageDeltaIds.has(itemId) && string(item.text)) this.emit("message", { text: string(item.text) });
       return;

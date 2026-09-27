@@ -45,7 +45,7 @@ class FakeAdapter implements HarnessAdapter {
   async stop(): Promise<void> { this.stopped = true; this.emit("status", "已停止", "idle"); }
   complete(): void { this.emit("status", "完成", "ready"); }
   fail(): void { this.emit("error", "模型服务连接失败", "error"); }
-  awaitApproval(): void { this.emit("approval", "需要确认", "approval"); }
+  awaitApproval(): void { this.ask({ requestId: 1, title: "需要确认", options: [{ optionId: "allow", name: "允许一次", kind: "allow_once" }] }); }
   ask(approval: ApprovalRequest): void {
     const event: RunEvent = { runtimeId: this.id, runId: "run", sequence: ++this.sequence, at: new Date().toISOString(), source: this.label, kind: "approval", phase: "approval", approval };
     for (const listener of this.listeners) listener(event);
@@ -57,6 +57,24 @@ class FakeAdapter implements HarnessAdapter {
 }
 
 describe("parallel multi-session lifecycle", () => {
+  it.each(["dsh", "codex", "pi", "kimi-code", "qwen-code", "claude-code"] as const)("%s records the exact permission decision without confusing it with a question or cancellation", async runtimeId => {
+    const root = await testRoot("approval-receipts-");
+    const repository = new AgentSessionRepository(root); await repository.init();
+    const config = new AppConfigStore(root); await config.init();
+    let adapter!: FakeAdapter;
+    const controller = new AgentSessionController(repository, config, (id, sid) => adapter = new FakeAdapter(id, sid), () => {});
+    try {
+      const session = await controller.create(runtimeId, root); await controller.send(session.id, "权限测试");
+      const options = [{ optionId: "once", name: "允许一次", kind: "allow_once" }, { optionId: "session", name: "本会话允许", kind: "allow_session" }, { optionId: "deny", name: "拒绝", kind: "reject_once" }];
+      for (const [index, option] of options.entries()) {
+        adapter.ask({ requestId: index, title: "权限", options });
+        await controller.respondApproval(session.id, index, option.optionId);
+      }
+      expect(repository.events(session.id).filter(e => e.kind === "approval_result").map(e => e.approvalDecision)).toEqual(options);
+      await expect(controller.respondApproval(session.id, "expired", "session")).rejects.toThrow(/失效/);
+      expect(adapter.approvals).toHaveLength(3);
+    } finally { await controller.stopAll(); repository.close(); }
+  });
   it.each(["dsh", "codex", "pi", "kimi-code", "qwen-code", "claude-code"] as const)("reconnects failed %s on send without switching sessions, repeating old input or disturbing another session", async runtimeId => {
     const root = await testRoot("controller-error-recovery-");
     const repository = new AgentSessionRepository(root); await repository.init();

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { AgentRuntimeId, AgentSessionEvent, AgentSessionSummary, AgentSessionQueue, FollowUpMode, PendingAgentMessage, RunEvent, RuntimePhase } from "../../../../packages/contracts/src/index";
 import { agentRuntimeIds } from "../../../../packages/contracts/src/index";
+import type { SessionPermissionStore } from "../../../../packages/runtime/src/session-permissions";
 
 export interface StoredAgentSession extends AgentSessionSummary {
   nativeRef: string | null;
@@ -86,6 +87,12 @@ export class AgentSessionRepository {
         state TEXT NOT NULL CHECK (state IN ('queued', 'sending', 'awaiting', 'unconfirmed')),
         detail TEXT
       ) STRICT;
+      CREATE TABLE IF NOT EXISTS agent_session_permissions (
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        key TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        PRIMARY KEY (session_id, key)
+      ) STRICT;
     `);
     const columns = new Set(db.prepare("PRAGMA table_info(agent_sessions)").all().map((row) => String(row.name)));
     if (!columns.has("last_prompt_at")) db.exec("ALTER TABLE agent_sessions ADD COLUMN last_prompt_at TEXT");
@@ -139,6 +146,22 @@ export class AgentSessionRepository {
   }
 
   close(): void { this.db?.close(); this.db = null; }
+
+  permissionStore(id: string): SessionPermissionStore {
+    this.get(id);
+    return {
+      get: key => {
+        this.get(id);
+        const row = this.database().prepare("SELECT payload FROM agent_session_permissions WHERE session_id = ? AND key = ?").get(id, key);
+        return row ? JSON.parse(String(row.payload)) : undefined;
+      },
+      set: (key, value) => {
+        this.get(id);
+        this.database().prepare(`INSERT INTO agent_session_permissions (session_id, key, payload) VALUES (?, ?, ?)
+          ON CONFLICT(session_id, key) DO UPDATE SET payload = excluded.payload`).run(id, key, JSON.stringify(value));
+      },
+    };
+  }
 
   queue(id: string): AgentSessionQueue {
     this.get(id);

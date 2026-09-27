@@ -7,6 +7,7 @@ import type { HarnessAdapter } from "./index";
 import { FileChangeTracker } from "./file-change-tracker";
 import { SteeringTracker, steeringError } from "./steering";
 import { PiUserQuestions } from "./pi-user-questions";
+import type { SessionPermissionStore } from "./session-permissions";
 
 type JsonObject = Record<string, unknown>;
 type ApprovalDecision = "allow_once" | "allow_session" | "deny";
@@ -20,6 +21,7 @@ export interface PiProvider {
 export interface PiAdapterOptions {
   homeDirectory: string;
   provider(): Promise<PiProvider>;
+  permissions?: SessionPermissionStore;
 }
 
 interface PendingApproval {
@@ -97,6 +99,7 @@ export class PiAdapter implements HarnessAdapter {
   private messageHadDelta = false;
   private apiKey: string | null = null;
   private sessionFile: string | null = null;
+  private permissionWorkspace: string | null = null;
 
   constructor(private readonly options: PiAdapterOptions) {}
 
@@ -199,7 +202,13 @@ export class PiAdapter implements HarnessAdapter {
       this.sessionFile = session.sessionFile ?? null;
       this.workspace = workspace;
       this.fileTracker = new FileChangeTracker(workspace);
-      this.allowedForSession.clear();
+      if (this.permissionWorkspace !== workspace) this.allowedForSession.clear();
+      this.permissionWorkspace = workspace;
+      const saved = this.options.permissions?.get("pi-tool-permissions-v1") as { workspace?: unknown; tools?: unknown } | undefined;
+      if (saved?.workspace === workspace && Array.isArray(saved.tools)) {
+        this.allowedForSession.clear();
+        for (const tool of saved.tools) if (["bash", "edit", "write"].includes(tool)) this.allowedForSession.add(tool);
+      }
       this.toolInputs.clear();
       this.unsubscribe = session.subscribe((event) => this.handleEvent(event));
       this.emitStatus("ready", "Pi 已就绪");
@@ -282,7 +291,6 @@ export class PiAdapter implements HarnessAdapter {
     this.unsubscribe = null;
     this.userQuestions.cancelAll();
     this.denyApprovals();
-    this.allowedForSession.clear();
     this.toolInputs.clear();
     this.fileTracker?.clear();
     this.fileTracker = null;
@@ -302,9 +310,13 @@ export class PiAdapter implements HarnessAdapter {
     const title = toolName === "bash" ? "命令执行授权" : "文件修改授权";
     return new Promise<void>((resolveApproval, rejectApproval) => {
       const finish = (decision: ApprovalDecision): void => {
+        if (decision === "allow_session" && !signal?.aborted) {
+          const tools = [...new Set([...this.allowedForSession, toolName])];
+          this.options.permissions?.set("pi-tool-permissions-v1", { workspace: this.workspace, tools });
+          this.allowedForSession.add(toolName);
+        }
         signal?.removeEventListener("abort", abort);
         this.approvals.delete(requestId);
-        if (decision === "allow_session") this.allowedForSession.add(toolName);
         if (decision === "deny" || signal?.aborted) rejectApproval(new Error("用户已拒绝或取消此操作"));
         else resolveApproval();
       };

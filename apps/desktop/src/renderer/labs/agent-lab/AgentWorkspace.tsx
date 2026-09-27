@@ -194,7 +194,7 @@ export function TranscriptItem({ entry, runtimeId, workspace, onApprove, approva
             disabled={approvalBusy}
             key={option.optionId}
             onClick={() => onApprove(entry.approval!.requestId, option.optionId)}
-            title={option.kind === "allow_session" ? "仅当前会话有效，新会话会重新询问" : undefined}
+            title={option.detail ?? (option.kind === "allow_session" ? "仅当前会话有效，新会话会重新询问" : undefined)}
             type="button"
           >{approvalOptionLabel(option.name)}</button>
         ))}

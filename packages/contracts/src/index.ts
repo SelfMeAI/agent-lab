@@ -94,6 +94,7 @@ export interface ApprovalOption {
   optionId: string;
   name: string;
   kind: string;
+  detail?: string;
 }
 
 export interface ApprovalRequest {
@@ -144,6 +145,9 @@ export interface RunEvent {
   title?: string;
   phase?: RuntimePhase;
   approval?: ApprovalRequest;
+  /** Exact selected option, absent for expiry/cancellation and legacy receipts. */
+  approvalDecision?: ApprovalOption;
+  approvalDecisionSource?: "user" | "restored";
   toolCallId?: string;
   toolStatus?: string;
   raw?: unknown;

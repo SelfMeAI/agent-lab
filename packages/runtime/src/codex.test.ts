@@ -3,6 +3,36 @@ import type { RunEvent } from "../../contracts/src/index";
 import { CodexAdapter } from "./codex";
 
 describe("Codex diff notifications", () => {
+  it("uses only offered native decisions and forwards the exact persistent amendment", async () => {
+    const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
+    const events: RunEvent[] = [], replies: unknown[] = []; adapter.onEvent(event => events.push(event));
+    const server = adapter as unknown as { handleServerRequest(message: Record<string, unknown>, method: string): void; write(value: unknown): void };
+    server.write = reply => replies.push(reply);
+    const decision = { acceptWithExecpolicyAmendment: { execpolicy_amendment: ["/bin/zsh", "-lc", "npm test"] } };
+    server.handleServerRequest({ id: 9, params: { command: "npm test", cwd: "/workspace", availableDecisions: ["accept", decision, "cancel"] } }, "item/commandExecution/requestApproval");
+    expect(events.find(event => event.kind === "approval")!.approval!.options.map(option => option.optionId)).toEqual(["accept", "acceptWithExecpolicyAmendment", "cancel"]);
+    await expect(adapter.respondApproval(9, "acceptForSession")).rejects.toThrow(/无效/);
+    await adapter.respondApproval(9, "acceptWithExecpolicyAmendment");
+    expect(replies).toEqual([{ id: 9, result: { decision } }]);
+  });
+  it("does not auto-approve a changed scope, an opaque request or a native once-only prompt", async () => {
+    const rows = new Map<string, unknown>();
+    const options = { executable: "unused", homeDirectory: "unused", permissions: { get: (key: string) => rows.get(key), set: (key: string, value: unknown) => { rows.set(key, structuredClone(value)); } }, provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) };
+    const fixture = () => {
+      const adapter = new CodexAdapter(options), events: RunEvent[] = [], replies: unknown[] = []; adapter.onEvent(event => events.push(event));
+      const native = adapter as unknown as { permissions: { load(workspace: string): void }; handleServerRequest(message: Record<string, unknown>, method: string): void; write(value: unknown): void };
+      native.permissions.load("/workspace"); native.write = reply => replies.push(reply);
+      return { adapter, events, replies, native };
+    };
+    const params = { command: "npm test", cwd: "/workspace", itemId: "one", turnId: "old", startedAtMs: 1, additionalPermissions: { network: { enabled: false } }, availableDecisions: ["accept", "acceptForSession", "decline"] };
+    const first = fixture(); first.native.handleServerRequest({ id: 1, params }, "item/commandExecution/requestApproval"); await first.adapter.respondApproval(1, "acceptForSession");
+    const next = fixture(); next.native.handleServerRequest({ id: 2, params: { ...params, itemId: "two", turnId: "new", startedAtMs: 2 } }, "item/commandExecution/requestApproval");
+    expect(next.events.some(event => event.kind === "approval")).toBe(false); expect(next.replies).toEqual([{ id: 2, result: { decision: "acceptForSession" } }]);
+    for (const request of [{ ...params, command: "npm install" }, { ...params, additionalPermissions: { network: { enabled: true } } }, { ...params, availableDecisions: ["accept", "decline"] }, { reason: "opaque action" }]) {
+      const check = fixture(); check.native.handleServerRequest({ id: 3, params: request }, "item/commandExecution/requestApproval");
+      expect(check.events.some(event => event.kind === "approval")).toBe(true); expect(check.replies).toEqual([]);
+    }
+  });
   it("does not overwrite a completed cancellation with the later interrupt RPC reply", async () => {
     const adapter = new CodexAdapter({ executable: "unused", homeDirectory: "unused", provider: async () => ({ baseUrl: "", model: "", apiKey: "" }) });
     const internals = adapter as unknown as {

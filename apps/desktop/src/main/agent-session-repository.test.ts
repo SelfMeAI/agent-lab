@@ -15,6 +15,25 @@ function event(kind: RunEvent["kind"], text: string, phase?: RunEvent["phase"]):
 }
 
 describe("agent session SQLite storage", () => {
+  it("persists isolated permission records, retains them through soft-delete and removes them on purge", async () => {
+    const root = await mkdtemp(join(tmpdir(), "selfme-permissions-")); roots.push(root);
+    const first = new AgentSessionRepository(root); await first.init();
+    const a = first.create("claude-code", root), b = first.create("claude-code", root), pi = first.create("pi", root);
+    const record = { workspace: root, updates: [{ type: "setMode", mode: "acceptEdits", destination: "session" }] };
+    first.permissionStore(a.id).set("native-v1", record);
+    expect(first.permissionStore(b.id).get("native-v1")).toBeUndefined();
+    expect(first.permissionStore(pi.id).get("native-v1")).toBeUndefined();
+    first.close();
+    const reopened = new AgentSessionRepository(root); await reopened.init();
+    expect(reopened.permissionStore(a.id).get("native-v1")).toEqual(record);
+    reopened.softDelete(a.id);
+    expect(() => reopened.permissionStore(a.id)).toThrow();
+    reopened.restore(a.id); expect(reopened.permissionStore(a.id).get("native-v1")).toEqual(record);
+    reopened.softDelete(a.id); reopened.purge(a.id);
+    reopened.close();
+    const db = new DatabaseSync(join(root, "agent-sessions.sqlite"), { readOnly: true });
+    expect(db.prepare("SELECT COUNT(*) AS count FROM agent_session_permissions WHERE session_id = ?").get(a.id)?.count).toBe(0); db.close();
+  });
   it("recovers pending steering without resending it and preserves confirmed receipts", async () => {
     const root = await mkdtemp(join(tmpdir(), "selfme-steering-recovery-"));
     roots.push(root);

@@ -324,6 +324,8 @@ export class AgentSessionController {
     const live = this.live.get(id);
     if (!live) throw new Error("会话未在运行，审批已失效");
     const request = this.repository.events(id).reverse().find(event => event.kind === "approval" && event.approval?.requestId === requestId && event.runId === live.runId);
+    const decision = request?.approval?.options.find(option => option.optionId === optionId);
+    if (!request?.approval || !decision) throw new Error("审批已失效或选项无效");
     await live.adapter.respondApproval(requestId, optionId, answers);
     if (request?.approval) {
       const questions = request.approval.questions;
@@ -333,7 +335,7 @@ export class AgentSessionController {
         : undefined;
       this.forward(id, { runtimeId: request.runtimeId, source: request.source, runId: request.runId,
         sequence: request.sequence, at: new Date().toISOString(), kind: "approval_result", title: "你的回答", text,
-        approval: request.approval });
+        approval: request.approval, approvalDecision: decision, approvalDecisionSource: "user" });
     }
   }
 

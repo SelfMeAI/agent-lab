@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { AcpAdapter } from "./acp";
+import type { SessionPermissionStore } from "./session-permissions";
 
 export interface QwenProvider { apiKey: string; baseUrl: string; model: string }
 export interface QwenAdapterOptions {
@@ -9,11 +10,13 @@ export interface QwenAdapterOptions {
   nodeExecutable: string;
   homeDirectory: string;
   provider(): Promise<QwenProvider>;
+  permissions?: SessionPermissionStore;
 }
 
 /** Official, bundled Qwen Code CLI, using its native ACP and mid-turn input. */
 export class QwenAdapter extends AcpAdapter {
   constructor(options: QwenAdapterOptions) {
+    let workspace: string | null = null;
     super({
       id: "qwen-code", label: "Qwen Code", probePath: options.entryPoint,
       readyDetail: "随应用安装的 Qwen Code ACP",
@@ -21,7 +24,15 @@ export class QwenAdapter extends AcpAdapter {
       steeringDrainMethod: "craft/drainMidTurnQueue",
       closeSession: false,
       promptMeta: (text) => ({ "qwen.submittedPrompt": text }),
-      launch: async () => {
+      rememberPermission: option => {
+        if (workspace && option.optionId === "proceed_always" && option.name === "Allow All Edits" && option.kind === "allow_always") {
+          options.permissions?.set("qwen-file-mode-v1", { workspace, mode: "auto-edit" });
+        }
+      },
+      launch: async currentWorkspace => {
+        workspace = currentWorkspace;
+        const saved = options.permissions?.get("qwen-file-mode-v1") as { workspace?: unknown; mode?: unknown } | undefined;
+        const approvalMode = saved?.workspace === workspace && saved.mode === "auto-edit" ? "auto-edit" : "default";
         const provider = await options.provider();
         await mkdir(options.homeDirectory, { recursive: true, mode: 0o700 });
         const path = join(options.homeDirectory, "settings.json");
@@ -46,7 +57,7 @@ export class QwenAdapter extends AcpAdapter {
           OPENAI_API_KEY: provider.apiKey, OPENAI_BASE_URL: provider.baseUrl,
           OPENAI_MODEL: provider.model, ELECTRON_RUN_AS_NODE: "1" });
         return { executable: options.nodeExecutable,
-          args: [options.entryPoint, "--acp", "--auth-type", "openai", "--model", provider.model, "--approval-mode", "default", "--chat-recording"],
+          args: [options.entryPoint, "--acp", "--auth-type", "openai", "--model", provider.model, "--approval-mode", approvalMode, "--chat-recording"],
           env, secret: provider.apiKey };
       },
     });

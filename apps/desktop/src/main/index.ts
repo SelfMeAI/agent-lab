@@ -80,6 +80,7 @@ function createWindow(): void {
 function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapter {
   const nodeExecutable = ["codex", "pi", "claude-code"].includes(runtimeId) ? process.execPath : harnessNodeExecutable(process.execPath);
   const homeDirectory = join(app.getPath("userData"), "runtime-homes", runtimeId, sessionId);
+  const permissions = sessionId === "probe" ? undefined : sessionRepository!.permissionStore(sessionId);
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   const entryPoint = app.isPackaged
     ? join(process.resourcesPath, "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
@@ -92,16 +93,17 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
     executable: app.isPackaged
       ? join(process.resourcesPath, "codex", "bin", "codex")
       : join(__dirname, "../../../../runtimes/codex/bin/codex"),
-    homeDirectory, provider: getCodexProvider,
+    homeDirectory, provider: getCodexProvider, permissions,
   });
-  if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider });
+  if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider, permissions });
   if (runtimeId === "claude-code") return new ClaudeAdapter({
     executable: join(runtimeRoot, "claude", "bin", process.platform === "win32" ? "claude.exe" : "claude"),
     homeDirectory, provider: getClaudeProvider,
+    permissions,
   });
   if (runtimeId === "qwen-code") return new QwenAdapter({
     entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js"),
-    nodeExecutable, homeDirectory, provider: getQwenProvider,
+    nodeExecutable, homeDirectory, provider: getQwenProvider, permissions,
   });
   return new KimiAdapter({
     entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"),

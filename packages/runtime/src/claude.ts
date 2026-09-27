@@ -7,6 +7,8 @@ import { ClaudeInput } from "./claude-input";
 import { FileChangeTracker } from "./file-change-tracker";
 import { claudeQuestions, validateQuestionAnswers } from "./user-questions";
 import { SteeringTracker, steeringError } from "./steering";
+import { ClaudeSessionPermissions } from "./claude-permissions";
+import type { SessionPermissionStore } from "./session-permissions";
 
 type Obj = Record<string, unknown>;
 const object = (value: unknown): Obj => value && typeof value === "object" && !Array.isArray(value) ? value as Obj : {};
@@ -19,6 +21,7 @@ export interface ClaudeAdapterOptions {
   executable: string;
   homeDirectory: string;
   provider(): Promise<ClaudeProvider>;
+  permissions?: SessionPermissionStore;
 }
 interface PendingApproval {
   request: ApprovalRequest;
@@ -54,8 +57,9 @@ export class ClaudeAdapter implements HarnessAdapter {
   private backgroundTasks = new Set<string>();
   private turnFinished = false;
   private nativeQueuedTurns = 0;
+  private readonly permissions: ClaudeSessionPermissions;
 
-  constructor(private readonly options: ClaudeAdapterOptions) {}
+  constructor(private readonly options: ClaudeAdapterOptions) { this.permissions = new ClaudeSessionPermissions(options.permissions); }
   onEvent(listener: (event: RunEvent) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   getResumeRef(): string | null { return this.nativeRef; }
 
@@ -100,6 +104,7 @@ export class ClaudeAdapter implements HarnessAdapter {
     // a user-entered trailing /v1 without producing /v1/v1/messages.
     const apiRoot = provider.baseUrl.replace(/\/+$/u, "").replace(/\/v1$/u, "");
     const connection = { ANTHROPIC_BASE_URL: apiRoot, ANTHROPIC_AUTH_TOKEN: provider.apiKey };
+    const { permissions, ...permissionOptions } = this.permissions.load(workspace);
     const options: Options = {
       cwd: workspace,
       pathToClaudeCodeExecutable: this.options.executable,
@@ -107,13 +112,13 @@ export class ClaudeAdapter implements HarnessAdapter {
       model: provider.model,
       systemPrompt: { type: "preset", preset: "claude_code" },
       settingSources: ["project", "local"],
-      permissionMode: "default",
+      ...permissionOptions,
       includePartialMessages: true,
       forwardSubagentText: true,
       env: { ...env, ...connection, CLAUDE_CONFIG_DIR: this.options.homeDirectory, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1" },
       // Pin routing in the highest user settings layer; keep the credential
       // only in the process environment, never in CLI arguments or files.
-      settings: { env: { ANTHROPIC_BASE_URL: apiRoot } },
+      settings: { env: { ANTHROPIC_BASE_URL: apiRoot }, permissions },
       extraArgs: { "replay-user-messages": null },
       canUseTool: (name, args, context) => this.requireApproval(name, args, context),
       hooks: {
@@ -226,6 +231,7 @@ export class ClaudeAdapter implements HarnessAdapter {
       }
     } else {
       if (answers !== undefined) throw new Error("权限请求不接受问题答案");
+      if (optionId === "allow_session") this.permissions.remember(pending.suggestions);
       result = optionId === "deny" ? { behavior: "deny", message: "用户拒绝了本次操作" }
         : { behavior: "allow", updatedInput: pending.input,
           ...(optionId === "allow_session" ? { updatedPermissions: pending.suggestions.map(suggestion => ({ ...suggestion, destination: "session" })) } : {}) };
@@ -243,7 +249,9 @@ export class ClaudeAdapter implements HarnessAdapter {
       ...(questions ? { questions } : {}),
       options: questions ? [{ optionId: "submit", name: "提交答案", kind: "allow_once" }, { optionId: "cancel", name: "取消", kind: "reject_once" }]
         : [{ optionId: "allow_once", name: "允许一次", kind: "allow_once" },
-          ...(!context.suppressAlwaysAllowRule && context.suggestions?.length ? [{ optionId: "allow_session", name: "本会话允许同类操作", kind: "allow_session" }] : []),
+          ...(!context.suppressAlwaysAllowRule && this.permissions.canRemember(context.suggestions ?? [])
+            && (!this.apiKey || !JSON.stringify(context.suggestions).includes(this.apiKey))
+            ? [{ optionId: "allow_session", name: context.suggestions?.some(update => update.type === "setMode" && update.mode === "acceptEdits") ? "本会话允许所有文件编辑" : "本会话允许同类操作", kind: "allow_session" }] : []),
           { optionId: "deny", name: "拒绝", kind: "reject_once" }],
     };
     return new Promise<PermissionResult>(resolve => {
