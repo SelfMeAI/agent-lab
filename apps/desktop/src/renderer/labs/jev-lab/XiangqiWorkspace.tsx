@@ -8,7 +8,7 @@ type Mode = "human-vs-jev" | "jev-vs-jev";
 type Piece = { square: string; type: string; color: Side };
 type Move = { color: Side; from: string; to: string; piece: string; captured?: string; zh: string; lan: string; isCheck: boolean };
 type HistoryEntry = { ply: number; side: Side; zh: string; lan: string; source: "human" | "jev" | "local-fallback"; captured?: string; isCheck: boolean };
-type Trace = JevDecision & { side: Side };
+type Trace = JevDecision & { side: Side; fen: string };
 
 const MAX_AUTO_PLIES = 80;
 const glyphs: Record<Side, Record<string, string>> = {
@@ -18,6 +18,8 @@ const glyphs: Record<Side, Record<string, string>> = {
 const styleNames: Record<JevStyle, string> = { balanced: "均衡", aggressive: "进攻", positional: "稳健" };
 const sideName = (side: Side): string => side === "w" ? "红方" : "黑方";
 const percentage = (value: number): string => `${Math.round(value * 100)}%`;
+const optionalPercentage = (value: number | null | undefined): string => value == null ? "—" : percentage(value);
+const optionalNumber = (value: number | null | undefined): string => value == null ? "—" : String(value);
 const snapshot = (chess: Chess) => ({
   fen: chess.fen(), board: chess.board() as unknown as (Piece | null)[][],
   turn: chess.turn() as Side, check: chess.isCheck(), over: chess.isGameOver(), draw: chess.isDraw(),
@@ -52,7 +54,18 @@ export function XiangqiWorkspace({ onOpenSettings, providerRevision }: Props): J
 
   const legalMoves = useMemo(() => game.current.moves({ verbose: true }) as unknown as Move[], [position.fen]);
   const legalTargets = useMemo(() => new Set(legalMoves.filter((move) => move.from === selected).map((move) => move.to)), [legalMoves, selected]);
-  const candidates = useMemo(() => trace ? trace.telemetry.candidates.map((candidate) => ({ ...candidate, probability: trace.telemetry.probabilities[candidate.id] ?? 0 })).sort((a, b) => b.probability - a.probability).slice(0, 5) : [], [trace]);
+  const candidates = useMemo(() => {
+    if (!trace) return [];
+    const sorted = trace.telemetry.candidates
+      .map((candidate) => ({ ...candidate, probability: trace.telemetry.probabilities[candidate.id] ?? null }))
+      .sort((a, b) => (b.probability ?? -1) - (a.probability ?? -1) || Number(b.id === trace.move.id) - Number(a.id === trace.move.id));
+    const visible = sorted.slice(0, 5);
+    if (!visible.some((candidate) => candidate.id === trace.move.id)) {
+      const chosen = sorted.find((candidate) => candidate.id === trace.move.id);
+      if (chosen) visible[visible.length - 1] = chosen;
+    }
+    return visible;
+  }, [trace]);
   const humanTurn = mode === "human-vs-jev" && position.turn === "w" && !thinking && !position.over;
   const modelCanMove = !position.over && !thinking && (mode === "jev-vs-jev" || position.turn === "b");
 
@@ -83,7 +96,7 @@ export function XiangqiWorkspace({ onOpenSettings, providerRevision }: Props): J
       const valid = (game.current.moves({ verbose: true }) as unknown as Move[]).some((move) => move.from === result.move.from && move.to === result.move.to);
       if (!valid) throw new Error("返回着法未通过本地棋规校验");
       const move = commitMove(result.move.from, result.move.to, result.telemetry.source);
-      setTrace({ ...result, side });
+      setTrace({ ...result, side, fen });
       setWarning(result.warning ?? null);
       if (result.telemetry.source === "local-fallback") setAutoPlay(false);
       setStatus(game.current.isGameOver() ? game.current.isDraw() ? "和棋，棋局结束" : `${sideName(side)}获胜` : `${sideName(side)}落子 ${move.zh}`);
@@ -160,9 +173,9 @@ export function XiangqiWorkspace({ onOpenSettings, providerRevision }: Props): J
           {position.board.flat().map((piece, index) => { const row = Math.floor(index / 9), column = index % 9; const square = piece?.square ?? `${String.fromCharCode(97 + column)}${9 - row}`; const target = legalTargets.has(square); const interactive = humanTurn && (piece?.color === "w" || target); return <button key={square} type="button" className={`jev-square${selected === square ? " selected" : ""}${target ? " target" : ""}`} style={{ "--file": column, "--rank": row } as CSSProperties} onClick={() => clickSquare(square, piece)} disabled={!interactive} aria-label={`${square} ${piece ? glyphs[piece.color][piece.type] : "空位"}`}>{piece && <span className={`jev-piece ${piece.color === "w" ? "red" : "black"}`}><span className="jev-piece__glyph">{glyphs[piece.color][piece.type]}</span></span>}</button>; })}
         </div></div></div><div className="jev-board-panel__footer"><span className={trace?.telemetry.source === "jev" ? "online" : ""}>{trace ? trace.telemetry.source === "jev" ? "● JEV ONLINE" : "● LOCAL FALLBACK" : "● WAITING FOR DECISION"}</span><span>{position.over ? "FINISHED" : autoPlay ? "RUNNING" : "PAUSED"}</span></div></section>
       <aside className="jev-panel jev-trace"><div className="jev-panel__heading">DECISION TRACE</div><div className="jev-trace__inner"><div className="jev-trace__callout"><strong>{trace?.move.zh ?? "等待首次决策"}</strong><span>{trace ? `${trace.telemetry.source === "jev" ? "JEV ONLINE" : "LOCAL FALLBACK"} · ${sideName(trace.side)}` : "模型落子后显示真实结果"}</span></div>
-        <div className="jev-metrics"><div><span>Choice confidence</span><strong>{trace ? percentage(trace.telemetry.choiceConfidence) : "—"}</strong></div><div><span>Tactical pressure</span><strong>{trace ? percentage(trace.telemetry.tacticalPressure) : "—"}</strong></div><div><span>Position score</span><strong>{trace ? `${trace.telemetry.positionScore.toFixed(2)} / 4` : "—"}</strong></div><div><span>Score confidence</span><strong>{trace ? percentage(trace.telemetry.positionConfidence) : "—"}</strong></div></div>
-        <div className="jev-candidates"><h2>CANDIDATE MOVES <small>{trace ? `${trace.telemetry.candidates.length} LEGAL` : "—"}</small></h2>{candidates.length ? candidates.map((candidate, index) => <div key={candidate.id} className={`jev-candidate${candidate.id === trace?.move.id ? " chosen" : ""}`}><span>{index + 1}.</span><strong>{candidate.zh}</strong><div className="jev-candidate__bar"><i style={{ width: `${Math.max(candidate.probability * 100, 2)}%` }} /></div><b>{percentage(candidate.probability)}</b></div>) : <p>等待决策数据</p>}</div>
-        <button className="jev-details-toggle" type="button" onClick={() => setDetailsOpen((value) => !value)}>DETAILS <span>{detailsOpen ? "⌃" : "⌄"}</span></button>{detailsOpen && <div className="jev-details"><p>模型：{trace?.telemetry.model ?? "—"}</p><p>延迟：{trace ? `${trace.telemetry.durationMs} ms` : "—"}</p><p>输入 / 输出：{trace ? `${trace.telemetry.inputTokens} / ${trace.telemetry.outputTokens} tokens` : "—"}</p><p>FEN：<code>{position.fen}</code></p>{trace?.warning && <p>回退原因：{trace.warning}</p>}</div>}
+        <div className="jev-metrics"><div><span>Choice confidence</span><strong>{optionalPercentage(trace?.telemetry.choiceConfidence)}</strong></div><div><span>Tactical pressure</span><strong>{optionalPercentage(trace?.telemetry.tacticalPressure)}</strong></div><div><span>Position score</span><strong>{trace?.telemetry.positionScore == null ? "—" : `${trace.telemetry.positionScore.toFixed(2)} / 4`}</strong></div><div><span>Score confidence</span><strong>{optionalPercentage(trace?.telemetry.positionConfidence)}</strong></div></div>
+        <div className="jev-candidates"><h2>CANDIDATE MOVES <small>{trace ? `${trace.telemetry.candidates.length} LEGAL` : "—"}</small></h2>{candidates.length ? candidates.map((candidate, index) => <div key={candidate.id} className={`jev-candidate${candidate.id === trace?.move.id ? " chosen" : ""}`}><span>{index + 1}.</span><strong>{candidate.zh}</strong><div className="jev-candidate__bar"><i style={{ width: candidate.probability == null || candidate.probability === 0 ? "0%" : `${Math.max(candidate.probability * 100, 2)}%` }} /></div><b>{optionalPercentage(candidate.probability)}</b></div>) : <p>等待决策数据</p>}</div>
+        <button className="jev-details-toggle" type="button" onClick={() => setDetailsOpen((value) => !value)}>DETAILS <span>{detailsOpen ? "⌃" : "⌄"}</span></button>{detailsOpen && <div className="jev-details"><p>模型：{trace?.telemetry.model ?? "—"}</p><p>延迟：{trace ? `${trace.telemetry.durationMs} ms` : "—"}</p><p>输入 / 输出：{optionalNumber(trace?.telemetry.inputTokens)} / {optionalNumber(trace?.telemetry.outputTokens)} tokens</p><p>决策前 FEN：<code>{trace?.fen ?? "—"}</code></p>{trace?.warning && <p>回退原因：{trace.warning}</p>}</div>}
       </div></aside>
     </div>
     <section className="jev-history"><h2>MOVE HISTORY</h2><div>{history.length ? history.map((entry) => <span key={entry.ply} className="jev-history__move"><b className={entry.side === "w" ? "red" : "black"}>{entry.side === "w" ? "帅" : "将"}</b><strong>{entry.ply}. {entry.zh}</strong><em>{entry.source === "human" ? "HUMAN" : entry.source === "jev" ? "JEV" : "LOCAL"}</em><small>({sideName(entry.side)})</small></span>) : <span className="jev-history__empty">新局 · 尚无着法</span>}</div></section>

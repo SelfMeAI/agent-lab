@@ -86,23 +86,22 @@ function fallbackDecision(candidates: JevCandidate[], style: JevStyle, startedAt
     move: local.top,
     telemetry: {
       source: "local-fallback", model: "Local deterministic fallback",
-      durationMs: Math.round(performance.now() - startedAt), inputTokens: 0, outputTokens: 0,
+      durationMs: Math.round(performance.now() - startedAt), inputTokens: null, outputTokens: null,
       choiceConfidence: local.confidence, probabilities: local.probabilities,
-      positionScore: 2, positionConfidence: 0, tacticalPressure: 0, candidates,
+      positionScore: null, positionConfidence: null, tacticalPressure: null, candidates,
     },
     warning,
   };
 }
 
-function finite(value: unknown, fallbackValue = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallbackValue;
+function finite(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function probabilitiesFor(raw: Record<string, number> | undefined, candidates: JevCandidate[], local: Record<string, number>): Record<string, number> {
-  if (!raw) return local;
+function probabilitiesFor(raw: Record<string, number> | undefined, candidates: JevCandidate[]): Record<string, number> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const allowed = new Set(candidates.map((candidate) => candidate.id));
-  const entries = Object.entries(raw).filter(([id, probability]) => allowed.has(id) && Number.isFinite(probability));
-  if (entries.length !== candidates.length) return local;
+  const entries = Object.entries(raw).filter(([id, probability]) => allowed.has(id) && typeof probability === "number" && Number.isFinite(probability) && probability >= 0 && probability <= 1);
   return Object.fromEntries(entries);
 }
 
@@ -163,7 +162,6 @@ export async function decideJevMove(fen: string, style: JevStyle): Promise<JevDe
     if (!response.ok || !payload.answers?.selected_move?.choice) throw new Error(payload.detail?.message ?? `JEV HTTP ${response.status}`);
     const selected = candidates.find((candidate) => candidate.id === payload.answers?.selected_move?.choice);
     if (!selected) throw new Error("JEV 返回了不在合法候选列表中的着法");
-    const local = fallback(candidates, style);
     return {
       move: selected,
       telemetry: {
@@ -171,7 +169,7 @@ export async function decideJevMove(fen: string, style: JevStyle): Promise<JevDe
         durationMs: Math.round(performance.now() - startedAt),
         inputTokens: finite(payload.usage?.input_tokens), outputTokens: finite(payload.usage?.output_tokens),
         choiceConfidence: finite(payload.answers.selected_move.confidence),
-        probabilities: probabilitiesFor(payload.answers.selected_move.probabilities, candidates, local.probabilities),
+        probabilities: probabilitiesFor(payload.answers.selected_move.probabilities, candidates),
         positionScore: finite(payload.answers.position_outlook?.score),
         positionConfidence: finite(payload.answers.position_outlook?.confidence),
         tacticalPressure: finite(payload.answers.tactical_pressure?.noul),
