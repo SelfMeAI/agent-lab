@@ -1,5 +1,6 @@
 import { Chess } from "@weshell/xiangqi.js";
 import type { JevCandidate, JevDecision, JevStyle } from "../../../../packages/contracts/src/index";
+import { postJevSystemOne } from "./jev-api";
 import { getJevProvider } from "./provider-store";
 
 type Color = "w" | "b";
@@ -13,7 +14,6 @@ type JevPayload = {
   model?: string;
   answers?: { selected_move?: JevAnswer; position_outlook?: JevAnswer; tactical_pressure?: JevAnswer };
   usage?: { input_tokens?: number; output_tokens?: number };
-  detail?: { message?: string };
 };
 
 const pieceNames: Record<string, string> = {
@@ -119,13 +119,8 @@ export async function decideJevMove(fen: string, style: JevStyle): Promise<JevDe
 
   const side = chess.turn() === "w" ? "Red" : "Black";
   const criteria = Object.fromEntries(candidates.map((candidate) => [candidate.id, candidate.description]));
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(`${provider.baseUrl}/v1/systemone`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const payload = await postJevSystemOne<JevPayload>(provider, {
         model: provider.model,
         state: {
           game: "Chinese chess (Xiangqi)", side_to_move: side, fen: chess.fen(), board: describeBoard(chess),
@@ -154,12 +149,8 @@ export async function decideJevMove(fen: string, style: JevStyle): Promise<JevDe
             instructions: `Does ${side} have immediate tactical pressure against the opposing general in the current position?`,
           },
         },
-      }),
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    const payload = await response.json() as JevPayload;
-    if (!response.ok || !payload.answers?.selected_move?.choice) throw new Error(payload.detail?.message ?? `JEV HTTP ${response.status}`);
+      });
+    if (!payload.answers?.selected_move?.choice) throw new Error("JEV 未返回所选着法");
     const selected = candidates.find((candidate) => candidate.id === payload.answers?.selected_move?.choice);
     if (!selected) throw new Error("JEV 返回了不在合法候选列表中的着法");
     return {
@@ -179,7 +170,5 @@ export async function decideJevMove(fen: string, style: JevStyle): Promise<JevDe
   } catch (error) {
     const message = error instanceof Error ? error.message : "JEV 请求失败";
     return fallbackDecision(candidates, style, startedAt, message.replaceAll(provider.apiKey, "[redacted]"));
-  } finally {
-    clearTimeout(timer);
   }
 }

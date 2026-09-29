@@ -44,6 +44,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 
 .app-viewport--workspace { overflow: hidden; }
 .app-viewport--jev-workspace { overflow: hidden; }
+.app-viewport--jev-experiment { overflow: hidden; }
 
 .topbar {
   height: var(--topbar-height);

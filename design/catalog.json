@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "visual-reference",
-  "notes": "Approved mockups guide implementation; sample numbers and transcripts are not product data.",
+  "notes": "Mockups guide implementation; sample numbers and transcripts are not product data.",
   "screens": [
     { "id": "home.index", "legacyNumber": 1, "file": "screens/home/index.png" },
     { "id": "agent.index", "legacyNumber": 2, "file": "screens/agent-lab/index.png" },
@@ -15,6 +15,7 @@
     { "id": "local-model.ollama.playground", "legacyNumber": 10, "file": "screens/local-model-lab/ollama/playground.png" },
     { "id": "local-model.ollama.compare", "legacyNumber": 11, "file": "screens/local-model-lab/ollama/compare.png" },
     { "id": "jev.xiangqi.workspace", "legacyNumber": 12, "file": "screens/jev-lab/xiangqi/workspace.png" },
+    { "id": "jev.experiments.workbench", "legacyNumber": 24, "file": "screens/jev-lab/experiments/workbench.png" },
     { "id": "forge.design", "legacyNumber": 13, "file": "screens/harness-forge/design.png" },
     { "id": "forge.run", "legacyNumber": 14, "file": "screens/harness-forge/run.png" },
     { "id": "forge.compare", "legacyNumber": 15, "file": "screens/harness-forge/compare.png" },

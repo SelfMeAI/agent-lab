@@ -78,7 +78,7 @@ export const atlasModules: readonly AtlasModule[] = [
   {
     id: "jev-lab",
     title: "JEV Lab",
-    description: "决策模型与象棋测试",
+    description: "决策模型的象棋与业务场景实验",
     domainIds: [
       "reasoning",
       "agent-loop",
@@ -92,7 +92,7 @@ export const atlasModules: readonly AtlasModule[] = [
       "evaluation",
       "verticals",
     ],
-    note: "象棋实验已有可运行界面；JEV 服务与本地回退结果在界面中应继续严格区分。",
+    note: "象棋之外新增 Agent 运行质检、客服行动和单据分流三个独立实验；新实验只观察在线决策，不驱动真实业务动作。象棋中的 JEV 服务与本地回退继续明确区分。",
   },
   {
     id: "harness-forge",
@@ -458,6 +458,21 @@ export const coverageRecords: readonly CoverageRecord[] = [
     note: "协议存在不等于 SelfMe 已有独立的 MCP 目录、连接和权限管理。",
   },
   {
+    capabilityId: "evaluation.golden-tasks",
+    moduleId: "jev-lab",
+    platform: "desktop",
+    state: "integrated",
+    upstream: "tested",
+    passedChecks: [0, 1],
+    evidence: [
+      "apps/desktop/src/jev-experiments/catalog.ts",
+      "apps/desktop/src/main/jev-experiment.test.ts",
+      "apps/desktop/src/renderer/labs/jev-lab/ExperimentWorkbench.tsx",
+    ],
+    checkedAt: "2026-09-29",
+    note: "三个新实验各有四个可编辑的合成案例和预设期望动作，覆盖正常与异常；已从桌面正式入口各完成一次真实 JEV 请求。期望只是对照，不是人工认证的正确答案；尚无批量评测、结果持久化或跨版本统计。",
+  },
+  {
     capabilityId: "verticals.games",
     moduleId: "jev-lab",
     platform: "desktop",
@@ -481,8 +496,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
     evidence: [
       "apps/desktop/src/renderer/labs/jev-lab",
       "apps/desktop/src/main/jev-decision.ts",
+      "apps/desktop/src/main/jev-experiment.ts",
     ],
-    checkedAt: "2026-09-25",
+    checkedAt: "2026-09-29",
     note: "JEV 响应的用量信息进入界面；跨模块成本归因未实现。",
   },
 ];

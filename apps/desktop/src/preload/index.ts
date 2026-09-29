@@ -31,6 +31,7 @@ const bridge: DesktopBridge = {
   cancelSessionRun: (sessionId) => ipcRenderer.invoke("selfme:cancel-session-run", sessionId),
   respondSessionApproval: (sessionId, requestId, optionId, answers) => ipcRenderer.invoke("selfme:respond-session-approval", sessionId, requestId, optionId, answers),
   decideJevMove: (fen, style) => ipcRenderer.invoke("selfme:jev-decision", fen, style),
+  runJevExperiment: (experimentId, state) => ipcRenderer.invoke("selfme:jev-experiment", experimentId, state),
   onRunEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
     ipcRenderer.on("selfme:run-event", handler);

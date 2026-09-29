@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, net, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
-import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode } from "../../../../packages/contracts/src/index";
+import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode, type JevExperimentId } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
 import { CodexAdapter } from "../../../../packages/runtime/src/codex";
 import { DshAdapter } from "../../../../packages/runtime/src/dsh";
@@ -17,6 +17,7 @@ import {
 } from "./provider-store";
 import { discoverModels, modelListUrl } from "./model-discovery";
 import { decideJevMove } from "./jev-decision";
+import { runJevExperiment } from "./jev-experiment";
 import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 import { AgentSessionController } from "./agent-session-controller";
@@ -198,6 +199,10 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:jev-decision", async (event, fen: string, style: "balanced" | "aggressive" | "positional") => {
     assertMainWindow(event);
     return decideJevMove(fen, style);
+  });
+  ipcMain.handle("selfme:jev-experiment", async (event, experimentId: JevExperimentId, state: string) => {
+    assertMainWindow(event);
+    return runJevExperiment(experimentId, state);
   });
   ipcMain.handle("selfme:agent-session-catalog", async (event, runtimeId: AgentRuntimeId) => {
     assertMainWindow(event);

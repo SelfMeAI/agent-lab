@@ -166,6 +166,21 @@ export interface AppInfo {
 }
 
 export type JevStyle = "balanced" | "aggressive" | "positional";
+export type JevExperimentId = "agent-review" | "customer-action" | "invoice-routing";
+
+export interface JevExperimentDecision {
+  experimentId: JevExperimentId;
+  actionId: string;
+  confidence: number | null;
+  probabilities: Record<string, number>;
+  urgencyScore: number | null;
+  urgencyConfidence: number | null;
+  anomalyProbability: number | null;
+  model: string;
+  durationMs: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
 
 export interface JevCandidate {
   id: string;
@@ -229,6 +244,7 @@ export interface DesktopBridge {
   cancelSessionRun(sessionId: string): Promise<void>;
   respondSessionApproval(sessionId: string, requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void>;
   decideJevMove(fen: string, style: JevStyle): Promise<JevDecision>;
+  runJevExperiment(experimentId: JevExperimentId, state: string): Promise<JevExperimentDecision>;
   onRunEvent(listener: (event: AgentSessionEvent) => void): () => void;
   onAgentQueueChange(listener: (change: AgentQueueChange) => void): () => void;
 }

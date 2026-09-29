@@ -1,0 +1,64 @@
+.jev-lab-page--experiment { height: 100%; min-height: 0; padding: 0; overflow: hidden; }
+.jev-experiment-page { width: min(100%, 1720px); height: 100%; min-height: 0; margin: 0 auto; padding: 0 24px 18px; display: flex; flex-direction: column; color: #f1f4f9; font-family: Inter, "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.jev-experiment-page button, .jev-experiment-page select, .jev-experiment-page textarea { font-family: inherit; }
+.jev-experiment-heading { height: 70px; flex: 0 0 70px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #334153; }
+.jev-experiment-heading svg { width: 40px; height: 40px; color: #d599ef; }
+.jev-experiment-heading h1 { margin: 0; font-size: 22px; letter-spacing: .04em; }
+.jev-experiment-heading > span { margin-left: 7px; padding-left: 20px; border-left: 1px solid #5e6c80; color: #b9a8e7; font-size: 13px; letter-spacing: .08em; }
+.jev-experiment-toolbar { min-height: 77px; flex: 0 0 77px; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.jev-experiment-tabs { min-width: 0; display: flex; gap: 9px; }
+.jev-experiment-tabs button { min-width: 145px; height: 42px; padding: 0 15px; border: 1px solid #28394d; border-radius: 6px; background: #101d2dd9; color: #c4d0df; font-size: 12px; font-weight: 700; letter-spacing: .035em; white-space: nowrap; }
+.jev-experiment-tabs button:hover { border-color: #7563b0; color: #f6f3ff; }
+.jev-experiment-tabs button.active { border-color: #896af1; background: linear-gradient(135deg, #3d337b, #292653); box-shadow: inset 0 0 0 1px #6f58c07a; color: #fff; }
+.jev-experiment-safety { max-width: 285px; min-height: 48px; padding: 7px 12px; display: flex; align-items: center; gap: 9px; border: 1px solid #35445e; border-radius: 5px; background: #101b2acb; }
+.jev-experiment-safety > span { color: #a986ff; font-size: 24px; line-height: 1; }
+.jev-experiment-safety div { display: grid; gap: 3px; }
+.jev-experiment-safety strong { color: #beabff; font-size: 10px; letter-spacing: .08em; }
+.jev-experiment-safety small { color: #adb9ca; font-size: 10px; }
+.jev-experiment-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(360px, .93fr) minmax(590px, 1.45fr); gap: 14px; }
+.jev-experiment-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #2d3d51; border-radius: 6px; background: #0d1928ed; box-shadow: 0 14px 40px #02060d50; }
+.jev-experiment-panel__title { height: 53px; flex: 0 0 53px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #2b394c; }
+.jev-experiment-panel__title h2 { margin: 0; font-size: 14px; letter-spacing: .045em; }
+.jev-experiment-panel__title span { overflow: hidden; color: #9eb1c6; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.jev-experiment-input__body { min-height: 0; flex: 1; padding: 18px; display: flex; flex-direction: column; overflow-y: auto; }
+.jev-experiment-description { margin: 0 0 17px; color: #aebccb; font-size: 12px; line-height: 1.6; }
+.jev-experiment-input label { margin: 0 0 8px; color: #d7e0ed; font-size: 12px; font-weight: 650; }
+.jev-experiment-input label small { margin-left: 7px; color: #8ea0b6; font-weight: 400; }
+.jev-experiment-input select, .jev-experiment-input textarea { width: 100%; border: 1px solid #3c4d63; border-radius: 5px; outline: none; background: #0c1726; color: #f1f4fb; font-size: 12px; }
+.jev-experiment-input select { height: 41px; flex: 0 0 41px; margin-bottom: 20px; padding: 0 12px; }
+.jev-experiment-input textarea { flex: 1; min-height: 140px; padding: 13px 14px; resize: none; font-family: "SFMono-Regular", Menlo, "PingFang SC", monospace; font-size: 12px; line-height: 1.75; overflow-y: auto; }
+.jev-experiment-input select:focus, .jev-experiment-input textarea:focus { border-color: #9478fa; box-shadow: 0 0 0 2px #805df43a; }
+.jev-experiment-input__bottom { margin-top: 7px; display: flex; justify-content: space-between; gap: 10px; color: #91a3b8; font-size: 10px; }
+.jev-experiment-privacy { margin: 17px 0 13px; color: #a5b5c9; font-size: 11px; line-height: 1.5; }
+.jev-experiment-run { min-height: 47px; flex: 0 0 47px; border: 1px solid #987aff; border-radius: 5px; background: linear-gradient(115deg, #7759ed, #5b43de); color: white; font-size: 13px; font-weight: 700; letter-spacing: .03em; box-shadow: 0 6px 19px #4a36ad42; }
+.jev-experiment-run:hover:not(:disabled) { filter: brightness(1.12); }
+.jev-experiment-run:disabled { cursor: not-allowed; opacity: .53; }
+.jev-experiment-config { min-height: 30px; align-self: flex-start; border: 0; background: transparent; color: #d3b8ff; font-size: 11px; }
+.jev-experiment-error { margin: 12px 0 0; padding: 9px 11px; border: 1px solid #985d65; border-radius: 4px; background: #38252e; color: #ffd1d5; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.jev-experiment-output__body { min-height: 0; flex: 1; padding: 17px; overflow-y: auto; }
+.jev-experiment-summary { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(195px, .7fr); gap: 11px; }
+.jev-experiment-choice, .jev-experiment-expected { min-width: 0; min-height: 126px; padding: 15px 16px; display: flex; flex-direction: column; gap: 10px; border: 1px solid #334257; border-radius: 5px; background: #172437; }
+.jev-experiment-choice { border-left: 3px solid #8967f2; }
+.jev-experiment-choice.has-result { background: linear-gradient(115deg, #153139, #19283b); border-left-color: #69d9b5; }
+.jev-experiment-expected { border-left: 3px solid #7d65da; }
+.jev-experiment-choice small, .jev-experiment-expected small { color: #abbbcf; font-size: 10px; font-weight: 700; letter-spacing: .07em; }
+.jev-experiment-choice strong, .jev-experiment-expected strong { overflow: hidden; color: #f6f7fc; font-size: clamp(19px, 1.45vw, 26px); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.jev-experiment-choice span, .jev-experiment-expected span { color: #aebed0; font-size: 11px; line-height: 1.5; }
+.jev-experiment-probabilities { margin-top: 13px; padding: 15px 15px 9px; border: 1px solid #2f3e51; border-radius: 5px; background: #101d2df0; }
+.jev-experiment-section-title { margin-bottom: 11px; display: flex; align-items: center; justify-content: space-between; }
+.jev-experiment-section-title h3 { margin: 0; font-size: 13px; letter-spacing: .045em; }
+.jev-experiment-section-title small { color: #899fb7; font-size: 10px; }
+.jev-experiment-probability { min-height: 38px; display: grid; grid-template-columns: minmax(90px, .9fr) minmax(120px, 1.45fr) 38px; align-items: center; gap: 10px; padding: 0 9px; border-radius: 4px; color: #c1cede; font-size: 12px; }
+.jev-experiment-probability.chosen { background: #2924518a; color: #f2edff; }
+.jev-experiment-probability__bar { height: 5px; background: #26384e; }
+.jev-experiment-probability__bar i { height: 100%; display: block; background: linear-gradient(90deg, #7555ed, #a988ff); }
+.jev-experiment-probability b { text-align: right; font-weight: 550; }
+.jev-experiment-empty { margin: 16px 0 19px; color: #8fa2b8; font-size: 12px; }
+.jev-experiment-metrics { margin-top: 13px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.jev-experiment-metrics > div { min-width: 0; min-height: 78px; padding: 12px 13px; display: grid; gap: 10px; border: 1px solid #2e4055; border-radius: 5px; background: #172539cf; }
+.jev-experiment-metrics small { color: #9eb1c5; font-size: 10px; letter-spacing: .025em; }
+.jev-experiment-metrics strong { font-size: 19px; font-weight: 600; }
+.jev-experiment-details-toggle { width: 100%; height: 39px; margin-top: 13px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #293b51; border-radius: 5px; background: #1b2a3c; color: #e6edf8; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.jev-experiment-details { margin-top: 7px; padding: 10px 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 14px; color: #a9bbcf; font-size: 11px; }
+@media (max-width: 1180px) { .jev-experiment-body { grid-template-columns: minmax(315px, .9fr) minmax(500px, 1.3fr); }.jev-experiment-safety { display: none; }.jev-experiment-page { padding: 0 16px 16px; } }
+@media (max-width: 940px) { .app-viewport--jev-experiment { overflow-y: auto; }.jev-lab-page--experiment { height: auto; min-height: 100%; overflow: visible; }.jev-experiment-page { height: auto; min-height: 100%; }.jev-experiment-body { display: flex; flex-direction: column; }.jev-experiment-input textarea { min-height: 220px; }.jev-experiment-output__body { overflow: visible; }.jev-experiment-tabs { overflow-x: auto; }.jev-experiment-tabs button { min-width: 135px; } }
