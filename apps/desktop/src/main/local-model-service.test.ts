@@ -58,7 +58,7 @@ describe("local model experiments", () => {
     const first = service.startRun(request()); await expect(service.startRun(request())).rejects.toThrow("当前实验"); await first;
     await vi.waitFor(() => expect(service.store.latest()?.status).toBe("complete"));
   });
-  it("downloads exact progress, refreshes installed models, allows resuming after cancellation", async () => {
+  it("downloads exact progress, refreshes installed models and permits a new pull after cancellation", async () => {
     const { service, client } = await prepare();
     vi.spyOn(client, "pull").mockImplementationOnce(async (_n, _signal, receive) => { receive({ status: "pulling digest", digest: "one", total: 100, completed: 100 }); receive({ status: "success" }); })
       .mockImplementation(async (_n, signal) => { await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })); });
@@ -66,6 +66,44 @@ describe("local model experiments", () => {
     expect((await service.getState()).download).toMatchObject({ completed: 100, total: 100 }); expect(service.store.preferences.selectedModel).toBe("a:latest");
     await service.pull("b:latest"); await vi.waitFor(() => expect(client.pull).toHaveBeenCalledTimes(2)); service.stopDownload();
     await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("stopped"));
+    vi.mocked(client.pull).mockImplementationOnce(async (name, _signal, receive) => { expect(name).toBe("b:latest"); receive({ status: "pulling digest", digest: "two", total: 100, completed: 100 }); receive({ status: "success" }); });
+    await service.pull("b:latest"); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("complete"));
+    expect(client.pull).toHaveBeenCalledTimes(3);
+    // Byte-range resumption belongs to Ollama; this mock proves the app unlocks
+    // and reissues the exact model, not that a real transfer resumes its bytes.
+  });
+  it("deletes installed weights without deleting experiment history and permits a subsequent download", async () => {
+    const { service, client } = await prepare();
+    await service.savePreferences({ ...service.store.preferences, selectedModel: "a:latest", modelA: "a:latest", modelB: "b:latest" });
+    const recorded = { ...request("playground"), id: "prior-run", prompt: "已完成的实验", createdAt: new Date().toISOString(), completedAt: new Date().toISOString(), status: "complete" as const, outputs: [] };
+    service.store.saveRun(recorded);
+    const remove = vi.spyOn(client, "remove").mockResolvedValue();
+    vi.mocked(client.models).mockResolvedValue(models.filter((model) => model.name !== "a:latest"));
+    await service.deleteModel("a:latest");
+    expect(client.unload).toHaveBeenCalledWith("a:latest"); expect(remove).toHaveBeenCalledWith("a:latest");
+    expect(service.store.preferences).toMatchObject({ selectedModel: null, modelA: null, modelB: "b:latest" });
+    expect(service.getRun(recorded.id)).toMatchObject({ id: "prior-run", status: "complete" });
+    vi.spyOn(client, "pull").mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
+    vi.mocked(client.models).mockResolvedValue(models);
+    await service.pull("a:latest"); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("complete"));
+    expect((await service.getState()).models.map((model) => model.name)).toContain("a:latest");
+    expect(service.store.history()).toHaveLength(1);
+  });
+  it("blocks deletion during an experiment or download and releases the guard after stopping", async () => {
+    const { service, client } = await prepare(); const remove = vi.spyOn(client, "remove").mockResolvedValue();
+    const chat = vi.spyOn(client, "chat").mockImplementation(async (_name, _prompt, _system, _parameters, signal) => {
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    });
+    const run = await service.startRun(request("playground")); await vi.waitFor(() => expect(chat).toHaveBeenCalledOnce());
+    await expect(service.deleteModel("a:latest")).rejects.toThrow("当前实验"); expect(remove).not.toHaveBeenCalled();
+    service.stopRun(); await vi.waitFor(() => expect(service.getRun(run.id).status).toBe("stopped"));
+    const pull = vi.spyOn(client, "pull").mockImplementation(async (_name, signal) => {
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    });
+    await service.pull("b:latest"); await vi.waitFor(() => expect(pull).toHaveBeenCalledOnce());
+    await expect(service.deleteModel("a:latest")).rejects.toThrow("停止模型下载"); expect(remove).not.toHaveBeenCalled();
+    service.stopDownload(); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("stopped"));
+    await service.deleteModel("a:latest"); expect(remove).toHaveBeenCalledOnce();
   });
   it("never fabricates absent metrics or divides by zero", () => {
     expect(ollamaMetrics({}, null, 4)).toEqual({ firstOutputMs: null, durationMs: 4, loadMs: null, inputTokens: null, outputTokens: null, tokensPerSecond: null });

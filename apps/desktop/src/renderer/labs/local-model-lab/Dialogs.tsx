@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from "react";
 import type { LocalModelDetails, LocalModelInfo, LocalModelRun } from "../../../../../../packages/contracts/src/local-model";
 import { localModelBridge, formatBytes, localModelError, localModelStatus, refreshLocalModels, useLocalModels } from "./local-model-store";
+import { localModelCatalog } from "./model-catalog";
 
-export function LocalModelDialog({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose(): void; wide?: boolean }): JSX.Element {
+export function LocalModelDialog({ title, children, onClose, wide = false, className = "" }: { title: string; children: ReactNode; onClose(): void; wide?: boolean; className?: string }): JSX.Element {
   const id = useId(); const ref = useRef<HTMLElement>(null);
   const close = useRef(onClose); close.current = onClose;
   useEffect(() => {
@@ -20,7 +21,7 @@ export function LocalModelDialog({ title, children, onClose, wide = false }: { t
     return () => { document.removeEventListener("keydown", key); previous?.focus(); };
   }, []);
   return <div className="modal-backdrop lm-backdrop" onMouseDown={onClose}>
-    <section ref={ref} className={`settings-panel lm-dialog${wide ? " lm-dialog--wide" : ""}`} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={id} onMouseDown={(e) => e.stopPropagation()}>
+    <section ref={ref} className={`settings-panel lm-dialog${wide ? " lm-dialog--wide" : ""}${className ? ` ${className}` : ""}`} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={id} onMouseDown={(e) => e.stopPropagation()}>
       <header className="settings-panel__heading"><h2 id={id}>{title}</h2><button type="button" aria-label="关闭面板" onClick={onClose}>✕</button></header>
       <div className="settings-panel__body">{children}</div>
     </section>
@@ -44,25 +45,38 @@ export function LocalModelSettings({ onClose }: { onClose(): void }): JSX.Elemen
   </LocalModelDialog>;
 }
 
-const modelSuggestions = [
-  { name: "qwen3:0.6b", note: "轻量文本模型 · 支持思考输出" },
-  { name: "gemma3:1b", note: "轻量文本模型 · 适合基础对照" },
-  { name: "qwen3:8b", note: "更大模型 · 需要更多可用内存" },
-  { name: "gemma3:4b", note: "本轮仅使用文本输入" },
-  { name: "llama3.2:3b", note: "文本生成 · 3B 参数规模" },
-];
-
 export function PullModelDialog({ onClose }: { onClose(): void }): JSX.Element {
   const { data } = useLocalModels(); const [name, setName] = useState("qwen3:0.6b"); const [error, setError] = useState(""); const [starting, setStarting] = useState(false);
+  const [family, setFamily] = useState("all");
   const download = data?.download; const busy = starting || download?.status === "downloading";
-  async function pull(): Promise<void> { setError(""); setStarting(true); try { await localModelBridge().pullLocalModel(name.trim()); } catch (cause) { setError(localModelError(cause)); } finally { setStarting(false); } }
+  const installed = new Set(data?.models.map((model) => model.name) ?? []);
+  const groups = family === "all" ? localModelCatalog : localModelCatalog.filter((group) => group.id === family);
+  const selected = localModelCatalog.flatMap((group) => group.models).find((model) => model.name === name.trim());
+  async function pull(): Promise<void> {
+    if (busy) return;
+    if (selected?.availability === "import-required") { setError("该 GGUF 候选尚未接入，请选择可下载的 Ollama 型号。"); return; }
+    setError(""); setStarting(true);
+    try { await localModelBridge().pullLocalModel(name.trim()); } catch (cause) { setError(localModelError(cause)); } finally { setStarting(false); }
+  }
   const percent = download?.total ? Math.min(100, (download.completed ?? 0) / download.total * 100) : null;
-  return <LocalModelDialog title="PULL MODEL" onClose={onClose}>
-    <div className="settings-panel__intro"><span>OLLAMA MODEL LIBRARY</span><div className="settings-panel__title-row"><h3>下载本地模型</h3></div><p>填写 Ollama 模型名称和版本。只下载所选模型，不随应用捆绑模型权重。</p></div>
+  return <LocalModelDialog title="PULL MODEL" onClose={onClose} className="lm-pull-dialog">
+    <div className="settings-panel__intro"><span>OLLAMA MODEL LIBRARY</span><div className="settings-panel__title-row"><h3>下载本地模型</h3><small>按需下载</small></div><p>按系列选择小模型，也可填写其他 Ollama 型号。参考大小是下载体积，不是运行内存。</p></div>
     <form className="settings-panel__form" onSubmit={(e) => { e.preventDefault(); void pull(); }}>
       <div className="settings-panel__field"><label htmlFor="lm-pull-name">MODEL NAME</label><input id="lm-pull-name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} maxLength={160} autoComplete="off" spellCheck={false} required placeholder="例如 qwen3:0.6b" /></div>
-      <div className="lm-model-suggestions">{modelSuggestions.map((m) => <button key={m.name} type="button" disabled={busy} onClick={() => setName(m.name)} className={name === m.name ? "is-selected" : ""}><strong>{m.name}</strong><small>{m.note}</small></button>)}</div>
-      <button className="settings-panel__save" disabled={busy || !name.trim() || data?.runtime.status !== "ready"} type="submit">{busy ? "下载中…" : "下载模型"}</button>
+      <div className="lm-catalog-filters" role="group" aria-label="按模型系列筛选">
+        {[{ id: "all", title: "全部" }, ...localModelCatalog].map((group) => <button key={group.id} type="button" aria-pressed={family === group.id} className={family === group.id ? "is-active" : ""} onClick={() => setFamily(group.id)}>{group.title}</button>)}
+      </div>
+      <div className="lm-catalog-scroll" role="region" aria-label="小模型下载列表" tabIndex={0}>
+        {groups.map((group) => <section className="lm-catalog-group" key={group.id} aria-labelledby={`lm-family-${group.id}`}>
+          <header><h4 id={`lm-family-${group.id}`}>{group.title}</h4><span>{group.description}</span></header>
+          <div className="lm-model-suggestions">{group.models.map((model) => <button key={model.name} type="button" disabled={busy || model.availability !== "ollama"} aria-pressed={name === model.name} onClick={() => setName(model.name)} className={`${name === model.name ? "is-selected" : ""}${model.availability !== "ollama" ? " is-unavailable" : ""}`}>
+            <span className="lm-catalog-model-heading"><strong>{model.title}</strong><span className="lm-catalog-size">≈ {formatBytes(model.downloadBytes)}</span></span>
+            <code>{model.name}</code><small>{model.note}</small>
+            {model.availability !== "ollama" ? <span className="lm-catalog-badge">GGUF 候选 · 尚未接入</span> : installed.has(model.name) ? <span className="lm-catalog-badge is-installed">已下载</span> : null}
+          </button>)}</div>
+        </section>)}
+      </div>
+      <div className="lm-catalog-submit"><p>只下载所选模型。候选已核对发布信息，未逐款在本应用验收。</p><button className="settings-panel__save" disabled={busy || !name.trim() || data?.runtime.status !== "ready" || selected?.availability === "import-required"} type="submit">{busy ? "下载中…" : installed.has(name.trim()) ? "检查模型更新" : "下载模型"}</button></div>
     </form>
     {download && <div className="lm-download" role="status"><strong>{download.model}</strong><span>{download.message}</span>{download.status === "downloading" && <><progress max="100" {...(percent === null ? {} : { value: percent })} /><small>{percent === null ? "准备下载…" : `${formatBytes(download.completed)} / ${formatBytes(download.total)} · ${Math.floor(percent)}%`}</small><button className="lm-secondary" type="button" onClick={() => void localModelBridge().stopLocalModelDownload().catch((cause) => setError(localModelError(cause)))}>停止下载</button></>}{download.error && <p className="settings-panel__error">{download.error}</p>}</div>}
     {error && <p className="settings-panel__error" role="alert">{error}</p>}

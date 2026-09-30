@@ -73,7 +73,7 @@ export const atlasModules: readonly AtlasModule[] = [
       "telemetry",
       "resilience",
     ],
-    note: "已接通随应用打包的官方 Ollama 运行时；qwen3:0.6b 与 gemma3:1b 已做真实推理、对照、停止与重试验证。仅文本实验，不是本地 Agent；原生桌面视觉验收因检查工具不可用仍待人工确认。",
+    note: "已接通随应用打包的官方 Ollama 运行时；qwen3:0.6b 与 gemma3:1b 已做真实推理、对照、停止与重试验证。仅文本实验，不是本地 Agent；下载面板的分组、型号选择与独立滚动已在打包版原生桌面检查，整体视觉仍以用户验收为准。",
   },
   {
     id: "jev-lab",
@@ -162,8 +162,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "providers.model-catalog", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
-    evidence: ["packages/runtime/src/ollama.ts", "packages/runtime/src/ollama.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Dialogs.tsx"], checkedAt: "2026-09-30",
-    note: "已下载列表、尺寸、参数规模、量化、内存载入状态、模型能力及上下文来自 tags / ps / show。未知字段显示 —；手动刷新，下载与运行结束自动刷新。支持真实下载进度、停止续传、释放内存和确认删除，不用设计稿示例冒充已安装模型。",
+    evidence: ["packages/runtime/src/ollama.ts", "packages/runtime/src/ollama.test.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/model-catalog.ts", "apps/desktop/src/renderer/labs/local-model-lab/model-catalog.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Dialogs.tsx"], checkedAt: "2026-09-30",
+    note: "已下载列表、尺寸、参数规模、量化、内存载入状态、模型能力及上下文来自 tags / ps / show。未知字段显示 —；手动刷新，下载与运行结束自动刷新。小模型候选按七个系列分组，18 个 Ollama 型号显示参考下载大小与真实已下载标记，3 个 GGUF 候选明确未接入；来源随代码保存，不将候选当作已安装或逐款已验证。支持下载进度、停止后重新发起下载、释放内存和确认删除；字节续传依赖 Ollama 原生分片缓存，未做本应用真实断网续传验收。暂无独立暂停/继续、下载任务持久化、速度/剩余时间或多任务队列，不宣称完整下载管理器。",
   },
   {
     capabilityId: "providers.model-selection", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",

@@ -40,6 +40,23 @@ describe("local model desktop presentation and state", () => {
     const markup = renderToStaticMarkup(createElement(LocalModelSettings, { onClose: () => {} }));
     expect(markup).toContain("MODELS DIRECTORY"); expect(markup).toContain("无需 API Key"); expect(markup).toContain("更换目录不会移动或删除原模型"); expect(markup).not.toContain("API BASE URL"); expect(markup).not.toContain("填写 API Key");
   });
+  it("renders the grouped download catalog with real installed badges, estimated sizes and disabled GGUF candidates", async () => {
+    const store = await import("./local-model-store"); const { PullModelDialog } = await import("./Dialogs"); store.acceptLocalModelEvent({ type: "state", state: fixture() });
+    const markup = renderToStaticMarkup(createElement(PullModelDialog, { onClose: () => {} }));
+    expect(markup).toContain("按模型系列筛选"); expect(markup).toContain("小模型下载列表");
+    expect(markup).toContain("523 MB"); expect(markup).toContain("105 MB");
+    expect(markup.match(/is-installed/g)).toHaveLength(2);
+    expect(markup.match(/is-unavailable/g)).toHaveLength(3);
+    expect(markup).toContain("GGUF 候选 · 尚未接入"); expect(markup).toContain("检查模型更新");
+    expect(markup).toContain("未逐款在本应用验收"); expect(markup).not.toContain("qwen3:8b");
+    for (const candidate of markup.matchAll(/<button[^>]*class="[^"]*is-unavailable[^"]*"[^>]*>/g)) expect(candidate[0]).toContain('disabled=""');
+  });
+  it("keeps the expanded catalog scroll separate from the input, filters and download action", () => {
+    const css = readFileSync(new URL("./local-model.css", import.meta.url), "utf8");
+    expect(css.split(".lm-pull-dialog .settings-panel__body {")[1]?.split("}")[0]).toContain("overflow: hidden");
+    expect(css.split(".lm-catalog-scroll {")[1]?.split("}")[0]).toContain("overflow-y: auto");
+    for (const selector of [".lm-catalog-filters", ".lm-catalog-submit"]) expect(css.split(`${selector} {`)[1]?.split("}")[0]).toContain("flex: 0 0 auto");
+  });
   it("keeps streaming output during page navigation and makes terminal errors runnable", async () => {
     const store = await import("./local-model-store"); store.acceptLocalModelEvent({ type: "state", state: fixture() });
     const run: LocalModelRun = { id: "run", mode: "playground", prompt: "p", systemPrompt: "", parameters: preferences.parameters, createdAt: new Date().toISOString(), completedAt: null, status: "running", outputs: [] };

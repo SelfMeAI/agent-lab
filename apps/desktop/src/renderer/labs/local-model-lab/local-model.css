@@ -164,9 +164,38 @@
 .lm-note { margin: 23px 0; }
 .lm-model-suggestions { display: flex; flex-direction: column; gap: 6px; }
 .lm-model-suggestions > button { display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border: 1px solid #33444d; border-radius: 4px; color: #cdd9df; background: #132028; text-align: left; }
+.lm-model-suggestions > button:hover:not(:disabled) { border-color: #6b7b8b; background: #1b2732; }
 .lm-model-suggestions > button.is-selected { border-color: #8291a2; background: #28323e; }
 .lm-model-suggestions strong { font: 12px Menlo, monospace; }
 .lm-model-suggestions small { font-size: 11px; color: #81959e; }
+.lm-pull-dialog { width: min(100%, 620px); }
+.lm-pull-dialog .settings-panel__body { display: flex; flex-direction: column; overflow: hidden; }
+.lm-pull-dialog .settings-panel__intro { flex: 0 0 auto; padding-bottom: 18px; }
+.lm-pull-dialog .settings-panel__form { flex: 1; min-height: 0; gap: 14px; padding-top: 18px; }
+.lm-pull-dialog .settings-panel__field { flex: 0 0 auto; }
+.lm-catalog-filters { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.lm-catalog-filters button { padding: 6px 9px; border: 1px solid #33424f; border-radius: 4px; color: #98a9b8; background: #111b24; font-size: 11px; }
+.lm-catalog-filters button:hover { border-color: #697889; color: #dce4ed; }
+.lm-catalog-filters button.is-active { border-color: #8997a9; background: #293441; color: #e4ebf3; }
+.lm-catalog-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #4c5c67 transparent; padding: 2px 5px 4px 0; outline-offset: -2px; }
+.lm-catalog-group + .lm-catalog-group { margin-top: 22px; }
+.lm-catalog-group > header { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.lm-catalog-group h4 { margin: 0; color: #ccd7e2; font: 13px Menlo, monospace; }
+.lm-catalog-group header > span { color: #8293a4; font-size: 11px; }
+.lm-catalog-group .lm-model-suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lm-catalog-group .lm-model-suggestions > button { min-width: 0; gap: 8px; }
+.lm-catalog-model-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.lm-catalog-model-heading strong { font: 550 12px -apple-system, "PingFang SC", sans-serif; }
+.lm-catalog-size { flex: 0 0 auto; color: #aab8c8; font: 10px Menlo, monospace; }
+.lm-model-suggestions code { color: #92a6b8; font: 10px/1.6 Menlo, monospace; overflow-wrap: anywhere; }
+.lm-catalog-group .lm-model-suggestions small { line-height: 1.6; }
+.lm-catalog-badge { align-self: flex-start; margin-top: auto; padding: 3px 5px; border: 1px solid #4c535d; border-radius: 3px; color: #9da6b1; font-size: 9px; }
+.lm-catalog-badge.is-installed { border-color: #496152; color: #a0c9ad; background: #19302666; }
+.lm-model-suggestions > button.is-unavailable:disabled { opacity: .7; }
+.lm-catalog-submit { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid #2d3b47; }
+.lm-catalog-submit p { margin: 0; color: #8595a6; font-size: 10px; line-height: 1.6; }
+.lm-pull-dialog .lm-download { flex: 0 0 auto; margin-top: 14px; padding: 12px; gap: 8px; }
+.lm-pull-dialog .settings-panel__error { max-height: 72px; overflow-y: auto; overflow-wrap: anywhere; }
 .lm-download { margin-top: 25px; padding: 16px; border: 1px solid #3f4e61; border-radius: 4px; background: #23304150; display: flex; flex-direction: column; gap: 12px; }
 .lm-download strong { font: 13px Menlo, monospace; overflow-wrap: anywhere; }
 .lm-download span, .lm-download small { color: #a8b6c7; font-size: 11px; }
