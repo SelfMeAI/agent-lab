@@ -7,6 +7,8 @@ import { HomePage } from "../shell/HomePage";
 import { SettingsPanel } from "../shell/SettingsPanel";
 import { TopBar } from "../shell/TopBar";
 import { attachAgentEvents } from "../labs/agent-lab/agent-store";
+import { attachLocalModelEvents } from "../labs/local-model-lab/local-model-store";
+import { LocalModelSettings } from "../labs/local-model-lab/Dialogs";
 import { goHome, goToLab, parseHash } from "./navigation";
 import starfield from "../../../../../assets/backgrounds/lab-space.png";
 
@@ -19,6 +21,7 @@ export function App(): JSX.Element {
   const jevWorkspace = route.lab?.id === "jev-lab" && route.viewId === "xiangqi";
   const jevExperiment = route.lab?.id === "jev-lab" && Boolean(route.viewId) && route.viewId !== "xiangqi";
   const jevView = jevWorkspace || jevExperiment;
+  const localModelView = route.lab?.id === "local-model-lab";
   const macDesktop = Boolean(window.selfmeLab) && /Macintosh/.test(navigator.userAgent);
 
   useEffect(() => {
@@ -28,16 +31,17 @@ export function App(): JSX.Element {
       void window.selfmeLab.getAppInfo().then(setInfo).catch(() => setInfo(null));
     }
     const detachAgents = attachAgentEvents();
-    return () => { window.removeEventListener("hashchange", syncRoute); detachAgents(); };
+    const detachLocalModels = attachLocalModelEvents();
+    return () => { window.removeEventListener("hashchange", syncRoute); detachAgents(); detachLocalModels(); };
   }, []);
 
   return (
     <div className={`app-shell${macDesktop ? " app-shell--mac" : ""}`} style={{ "--space-art": `url(${starfield})` } as CSSProperties}>
-      <TopBar inLab={Boolean(route.lab || route.atlas)} showSettings={agentWorkspace || jevView} onBack={() => route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
-      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}${jevExperiment ? " app-viewport--jev-experiment" : ""}`} key={`${route.atlas ? "atlas" : route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
+      <TopBar inLab={Boolean(route.lab || route.atlas)} showSettings={agentWorkspace || jevView || localModelView} onBack={() => localModelView ? goHome() : route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
+      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}${jevExperiment ? " app-viewport--jev-experiment" : ""}${localModelView ? " app-viewport--local-model" : ""}`} key={`${route.atlas ? "atlas" : route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
         {route.atlas ? <AtlasPage /> : route.lab ? <LabPage lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
       </div>
-      {settingsOpen && <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : jevView ? "jev" : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />}
+      {settingsOpen && (localModelView ? <LocalModelSettings onClose={() => setSettingsOpen(false)} /> : <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : jevView ? "jev" : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />)}
     </div>
   );
 }

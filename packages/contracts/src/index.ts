@@ -1,3 +1,6 @@
+import type { LocalModelDetails, LocalModelEvent, LocalModelPreferences, LocalModelRun, LocalModelRunRequest, LocalModelSnapshot } from "./local-model";
+export * from "./local-model";
+
 export type LabId =
   | "agent-lab"
   | "remote-agent-lab"
@@ -215,6 +218,20 @@ export interface JevDecision {
 }
 
 export interface DesktopBridge {
+  getLocalModelState(): Promise<LocalModelSnapshot>;
+  getLocalModelDetails(model: string): Promise<LocalModelDetails>;
+  saveLocalModelPreferences(preferences: LocalModelPreferences): Promise<LocalModelPreferences>;
+  startLocalModelRun(request: LocalModelRunRequest): Promise<LocalModelRun>;
+  stopLocalModelRun(): Promise<void>;
+  pullLocalModel(model: string): Promise<void>;
+  stopLocalModelDownload(): Promise<void>;
+  unloadLocalModel(model: string): Promise<void>;
+  deleteLocalModel(model: string): Promise<void>;
+  getLocalModelRun(id: string): Promise<LocalModelRun>;
+  deleteLocalModelRun(id: string): Promise<void>;
+  chooseLocalModelDirectory(): Promise<string | null>;
+  openLocalModelDirectory(): Promise<void>;
+  onLocalModelEvent(listener: (event: LocalModelEvent) => void): () => void;
   getAppInfo(): Promise<AppInfo>;
   openExternal(url: string): Promise<void>;
   chooseWorkspace(): Promise<string | null>;

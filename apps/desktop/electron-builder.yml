@@ -7,6 +7,10 @@ files:
   - package.json
   - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**/*"
 extraResources:
+  - from: ../../runtimes/ollama
+    to: ollama
+    filter:
+      - "**/*"
   - from: ../../runtimes/claude
     to: claude
     filter:

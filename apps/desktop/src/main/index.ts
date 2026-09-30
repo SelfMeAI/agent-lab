@@ -23,12 +23,20 @@ import { AppConfigStore } from "./app-config";
 import { AgentSessionController } from "./agent-session-controller";
 import { installAppShutdown } from "./app-shutdown";
 import { harnessNodeExecutable } from "./harness-node";
+import { LocalModelStore } from "./local-model-store";
+import { LocalModelService } from "./local-model-service";
+import type { LocalModelPreferences, LocalModelRunRequest } from "../../../../packages/contracts/src/local-model";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
 let sessionRepository: AgentSessionRepository | null = null;
+let localModels: LocalModelService | null = null;
 const shutdown = installAppShutdown(app,
-  async () => { await sessions?.stopAll(); },
+  async () => {
+    const results = await Promise.allSettled([sessions?.stopAll(), localModels?.shutdown()]);
+    const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+    if (failures.length) throw new AggregateError(failures, "停止本地运行时失败");
+  },
   () => sessionRepository?.close(),
   (error) => console.error("停止本地运行时失败：", error));
 
@@ -121,6 +129,10 @@ void app.whenReady().then(async () => {
   sessionRepository = new AgentSessionRepository(root);
   await sessionRepository.init(appConfig.getLegacyFollowUpMode());
   await appConfig.clearLegacyFollowUpMode();
+  const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
+  localModels = new LocalModelService(new LocalModelStore(root), join(runtimeRoot, "ollama/native/ollama"),
+    (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:local-model-event", event); });
+  await localModels.init();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event),
     join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
@@ -203,6 +215,27 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:jev-experiment", async (event, experimentId: JevExperimentId, state: string) => {
     assertMainWindow(event);
     return runJevExperiment(experimentId, state);
+  });
+  ipcMain.handle("selfme:local-model-state", (event) => { assertMainWindow(event); return localModels!.getState(); });
+  ipcMain.handle("selfme:local-model-details", (event, model: string) => { assertMainWindow(event); return localModels!.details(model); });
+  ipcMain.handle("selfme:local-model-preferences", (event, value: LocalModelPreferences) => { assertMainWindow(event); return localModels!.savePreferences(value); });
+  ipcMain.handle("selfme:local-model-run", (event, value: LocalModelRunRequest) => { assertMainWindow(event); return localModels!.startRun(value); });
+  ipcMain.handle("selfme:local-model-stop", (event) => { assertMainWindow(event); localModels!.stopRun(); });
+  ipcMain.handle("selfme:local-model-pull", (event, model: string) => { assertMainWindow(event); return localModels!.pull(model); });
+  ipcMain.handle("selfme:local-model-stop-download", (event) => { assertMainWindow(event); localModels!.stopDownload(); });
+  ipcMain.handle("selfme:local-model-unload", (event, model: string) => { assertMainWindow(event); return localModels!.unload(model); });
+  ipcMain.handle("selfme:local-model-delete", (event, model: string) => { assertMainWindow(event); return localModels!.deleteModel(model); });
+  ipcMain.handle("selfme:local-model-history-run", (event, id: string) => { assertMainWindow(event); return localModels!.getRun(id); });
+  ipcMain.handle("selfme:local-model-delete-run", (event, id: string) => { assertMainWindow(event); localModels!.deleteRun(id); });
+  ipcMain.handle("selfme:local-model-choose-directory", async (event): Promise<string | null> => {
+    assertMainWindow(event);
+    const result = await dialog.showOpenDialog(mainWindow!, { title: "选择模型存储目录", defaultPath: localModels!.store.modelsDirectory, properties: ["openDirectory", "createDirectory"] });
+    const path = result.canceled ? null : result.filePaths[0] ?? null;
+    if (path) await localModels!.changeDirectory(path);
+    return path;
+  });
+  ipcMain.handle("selfme:local-model-open-directory", async (event): Promise<void> => {
+    assertMainWindow(event); const error = await shell.openPath(localModels!.store.modelsDirectory); if (error) throw new Error(error);
   });
   ipcMain.handle("selfme:agent-session-catalog", async (event, runtimeId: AgentRuntimeId) => {
     assertMainWindow(event);

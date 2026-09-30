@@ -32,6 +32,24 @@ const bridge: DesktopBridge = {
   respondSessionApproval: (sessionId, requestId, optionId, answers) => ipcRenderer.invoke("selfme:respond-session-approval", sessionId, requestId, optionId, answers),
   decideJevMove: (fen, style) => ipcRenderer.invoke("selfme:jev-decision", fen, style),
   runJevExperiment: (experimentId, state) => ipcRenderer.invoke("selfme:jev-experiment", experimentId, state),
+  getLocalModelState: () => ipcRenderer.invoke("selfme:local-model-state"),
+  getLocalModelDetails: (model) => ipcRenderer.invoke("selfme:local-model-details", model),
+  saveLocalModelPreferences: (value) => ipcRenderer.invoke("selfme:local-model-preferences", value),
+  startLocalModelRun: (value) => ipcRenderer.invoke("selfme:local-model-run", value),
+  stopLocalModelRun: () => ipcRenderer.invoke("selfme:local-model-stop"),
+  pullLocalModel: (model) => ipcRenderer.invoke("selfme:local-model-pull", model),
+  stopLocalModelDownload: () => ipcRenderer.invoke("selfme:local-model-stop-download"),
+  unloadLocalModel: (model) => ipcRenderer.invoke("selfme:local-model-unload", model),
+  deleteLocalModel: (model) => ipcRenderer.invoke("selfme:local-model-delete", model),
+  getLocalModelRun: (id) => ipcRenderer.invoke("selfme:local-model-history-run", id),
+  deleteLocalModelRun: (id) => ipcRenderer.invoke("selfme:local-model-delete-run", id),
+  chooseLocalModelDirectory: () => ipcRenderer.invoke("selfme:local-model-choose-directory"),
+  openLocalModelDirectory: () => ipcRenderer.invoke("selfme:local-model-open-directory"),
+  onLocalModelEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
+    ipcRenderer.on("selfme:local-model-event", handler);
+    return () => ipcRenderer.removeListener("selfme:local-model-event", handler);
+  },
   onRunEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
     ipcRenderer.on("selfme:run-event", handler);

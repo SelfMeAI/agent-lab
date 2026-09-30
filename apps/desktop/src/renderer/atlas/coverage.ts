@@ -63,7 +63,7 @@ export const atlasModules: readonly AtlasModule[] = [
   {
     id: "local-model-lab",
     title: "Local Model",
-    description: "Ollama 等本地模型实验",
+    description: "Ollama 本地模型管理、单次推理与双模型对照",
     domainIds: [
       "providers",
       "reasoning",
@@ -73,7 +73,7 @@ export const atlasModules: readonly AtlasModule[] = [
       "telemetry",
       "resilience",
     ],
-    note: "目前仍是入口与设计；具体模型和运行时需单独验证。",
+    note: "已接通随应用打包的官方 Ollama 运行时；qwen3:0.6b 与 gemma3:1b 已做真实推理、对照、停止与重试验证。仅文本实验，不是本地 Agent；原生桌面视觉验收因检查工具不可用仍待人工确认。",
   },
   {
     id: "jev-lab",
@@ -153,6 +153,60 @@ export const atlasModules: readonly AtlasModule[] = [
 // Hand-reviewed against repository code on checkedAt. This is a curated
 // baseline, not automatic runtime telemetry or an end-to-end certification.
 export const coverageRecords: readonly CoverageRecord[] = [
+  {
+    capabilityId: "providers.local-model", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1],
+    evidence: ["runtimes/ollama/runtime.json", "scripts/ensure-ollama-runtime.mjs", "packages/runtime/src/ollama.ts", "apps/desktop/src/main/ollama-process.ts", "apps/desktop/src/main/local-model-integration.test.ts"], checkedAt: "2026-09-30",
+    note: "固定官方 Ollama 0.35.0，下载包校验 SHA-256，随 macOS 包分发。独立本机端口与模型目录，不依赖预装 Ollama，不停止用户其他 Ollama。禁用云端模型路由；已验证两个真实轻量文本模型及资源错误的用户文案，不宣称所有模型或其他系统已验证。",
+  },
+  {
+    capabilityId: "providers.model-catalog", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
+    evidence: ["packages/runtime/src/ollama.ts", "packages/runtime/src/ollama.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Dialogs.tsx"], checkedAt: "2026-09-30",
+    note: "已下载列表、尺寸、参数规模、量化、内存载入状态、模型能力及上下文来自 tags / ps / show。未知字段显示 —；手动刷新，下载与运行结束自动刷新。支持真实下载进度、停止续传、释放内存和确认删除，不用设计稿示例冒充已安装模型。",
+  },
+  {
+    capabilityId: "providers.model-selection", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
+    evidence: ["apps/desktop/src/renderer/labs/local-model-lab/Page.tsx", "apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-store.test.ts"], checkedAt: "2026-09-30",
+    note: "单次实验选择一个模型，对照显式分配 A/B；运行输出保留实际模型名、digest、参数规模和量化。历史可重新装载输入与参数；已有权重更新时不会保证旧 digest 能重新下载。",
+  },
+  {
+    capabilityId: "reasoning.streaming", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
+    evidence: ["packages/runtime/src/ollama.test.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/main/local-model-integration.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Page.tsx"], checkedAt: "2026-09-30",
+    note: "NDJSON 按任意 UTF-8 分段增量读取；仅展示模型实际返回的回答与可折叠 thinking。停止保留部分输出，缺完成标记记为异常。此处只有模型推理，不声称工具调用或 Agent Loop。",
+  },
+  {
+    capabilityId: "reasoning.stop-reasons", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
+    evidence: ["apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Page.tsx"], checkedAt: "2026-09-30",
+    note: "区分等待、生成、完成、用户停止、错误与重启中断；保存原始结束原因，达到输出上限时提醒可能截断。失败或停止后可重新运行，不需要切页解除锁定。",
+  },
+  {
+    capabilityId: "evaluation.comparative", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0],
+    evidence: ["apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/main/local-model-integration.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Page.tsx"], checkedAt: "2026-09-30",
+    note: "同一 prompt、System prompt、参数与 Seed，先 A 后 B，每次冷加载；两列并排观察输出与实测指标，保留模型 digest。分词、默认模板和模型自身差异仍存在；不自动评分，不以速度代表质量，也不保证 Seed 跨模型可复现。",
+  },
+  {
+    capabilityId: "telemetry.usage", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 2],
+    evidence: ["apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Page.tsx"], checkedAt: "2026-09-30",
+    note: "输入/生成 Token 和解码速度来自 Ollama 完成帧，未返回时显示 —，不做费用估算。思考 Token 可能包含在生成 Token 中；不同模型分词不可直接等同。",
+  },
+  {
+    capabilityId: "telemetry.latency", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0],
+    evidence: ["apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-integration.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Page.tsx"], checkedAt: "2026-09-30",
+    note: "实测首段输出和总耗时，加载耗时来自 Ollama，生成速度按 eval_count / eval_duration 计算；小于 0.1 秒不显示虚假 0.0。对照分别记录两模型，暂无历史趋势图或硬件利用率监控。",
+  },
+  {
+    capabilityId: "resilience.crash-recovery", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 2],
+    evidence: ["apps/desktop/src/main/local-model-store.ts", "apps/desktop/src/main/local-model-store.test.ts", "apps/desktop/src/main/local-model-integration.test.ts"], checkedAt: "2026-09-30",
+    note: "实验存 SQLite WAL，默认参数与模型目录存独立配置 JSON；增量定期落库，结束状态强制保存。重启将未完成记录标为中断，保留已有部分输出，不自动重发。仅支持重新运行，不宣称从中途 Token 接续。",
+  },
   {
     capabilityId: "consent-experience.ask-user",
     moduleId: "agent-lab", harnessId: "DSH / Codex / Pi / Kimi Code / Qwen Code / Claude Agent", platform: "desktop",

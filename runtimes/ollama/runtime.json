@@ -1,0 +1,8 @@
+{
+  "version": "0.35.0",
+  "source": "https://github.com/ollama/ollama",
+  "platform": "darwin",
+  "archive": "https://github.com/ollama/ollama/releases/download/v0.35.0/ollama-darwin.tgz",
+  "sha256": "2608dbb0a0f0136a198db9d48b4f74ece55f452314a39452fca35b7cf20c2589",
+  "notes": "Official standalone runtime and its companion libraries. Recreated with npm run ensure:ollama; generated native files are not committed. Model weights live in the application's persistent data directory."
+}
