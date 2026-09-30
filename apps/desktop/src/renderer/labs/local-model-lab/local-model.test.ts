@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +10,7 @@ function fixture(): LocalModelSnapshot {
   return { runtime: { status: "ready", version: "0.35.0", endpoint: "http://127.0.0.1:1", error: null }, modelsDirectory: "/app-data/models", preferences: structuredClone(preferences), download: null, history: [], latestRun: null, activeRun: null,
     models: ["qwen3:0.6b", "gemma3:1b"].map((name) => ({ name, digest: "abcdef123456", size: 1000000000, parameterSize: "1B", quantization: "Q4", loaded: false, memoryBytes: null })) };
 }
-const lab: LabModule = { id: "local-model-lab", title: "LOCAL MODEL LAB", group: "runtimes", accent: "#cfed72", symbol: "", purpose: "", views: [] };
+const lab: LabModule = { id: "local-model-lab", title: "LOCAL MODEL LAB", group: "runtimes", accent: "#c7d1de", symbol: "", purpose: "", views: [] };
 beforeEach(() => vi.resetModules());
 afterEach(() => vi.unstubAllGlobals());
 describe("local model desktop presentation and state", () => {
@@ -17,8 +18,22 @@ describe("local model desktop presentation and state", () => {
     const store = await import("./local-model-store"); const { LocalModelPage } = await import("./Page"); store.acceptLocalModelEvent({ type: "state", state: fixture() });
     const playground = renderToStaticMarkup(createElement(LocalModelPage, { lab, viewId: "playground" }));
     expect(playground).toContain("RUN PROMPT"); expect(playground).toContain("qwen3:0.6b"); expect(playground).toContain("0 个已载入"); expect(playground).not.toContain("38 tok/s"); expect(playground).toContain("独立实验");
+    expect(playground).toContain('class="lm-model is-selected"'); expect(playground).not.toContain('class="lm-model is-selected is-a"'); expect(playground).not.toContain('class="lm-model is-selected is-b"');
     const compare = renderToStaticMarkup(createElement(LocalModelPage, { lab, viewId: "compare" }));
     expect(compare).toContain("RUN COMPARISON"); expect(compare).toContain("选 A"); expect(compare).toContain("选 B"); expect(compare).toContain("先 A 后 B"); expect(compare).toContain("SHARED SETTINGS"); expect(compare).not.toContain("4.9 GB");
+    expect(compare).toContain('class="lm-model is-selected is-a"'); expect(compare).toContain('class="lm-model is-selected is-b"');
+  });
+  it("shares the silver module accent with the workspace and keeps comparison identities separate", async () => {
+    const { localModelLab } = await import("./index"); const { LabPage } = await import("../LabPage");
+    expect(localModelLab.accent).toBe("#c7d1de");
+    expect(renderToStaticMarkup(createElement(LabPage, { lab: localModelLab, viewId: "playground" }))).toContain(`style="--accent:${localModelLab.accent}"`);
+    const css = readFileSync(new URL("./local-model.css", import.meta.url), "utf8");
+    expect(css).toContain(`--lm-accent: var(--accent, ${localModelLab.accent})`);
+    for (const selector of [".lm-heading > svg", ".lm-tabs > button.is-active", ".lm-run", '.lm-setting input[type="range"]', ".lm-download progress::-webkit-progress-value"]) {
+      const declaration = css.split(`${selector} {`)[1]?.split("}")[0];
+      expect(declaration, selector).toContain("var(--lm-accent)");
+    }
+    expect(css).toContain("--lm-model-a: #c5f454"); expect(css).toContain("--lm-model-b: #49d8e8");
   });
   it("does not conflate model runtime settings with a cloud provider", async () => {
     const store = await import("./local-model-store"); const { LocalModelSettings } = await import("./Dialogs"); store.acceptLocalModelEvent({ type: "state", state: fixture() });

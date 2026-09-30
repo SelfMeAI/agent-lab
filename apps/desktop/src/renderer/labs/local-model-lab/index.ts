@@ -5,7 +5,7 @@ export const localModelLab: LabModule = {
   id: "local-model-lab",
   title: "LOCAL MODEL LAB",
   group: "runtimes",
-  accent: "#cfed72",
+  accent: "#c7d1de",
   symbol: "⬡",
   purpose: "通过 Ollama 测试和对照本地开源模型。",
   Page: LocalModelPage,
