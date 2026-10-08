@@ -162,14 +162,14 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "providers.model-catalog", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
-    evidence: ["packages/runtime/src/ollama.ts", "packages/runtime/src/ollama.test.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/model-catalog.ts", "apps/desktop/src/renderer/labs/local-model-lab/model-catalog.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Dialogs.tsx"], checkedAt: "2026-09-30",
-    note: "已下载列表、尺寸、参数规模、量化、内存载入状态、模型能力及上下文来自 tags / ps / show。未知字段显示 —；手动刷新，下载与运行结束自动刷新。小模型候选按七个系列分组，18 个 Ollama 型号显示参考下载大小与真实已下载标记，3 个 GGUF 候选明确未接入；来源随代码保存，不将候选当作已安装或逐款已验证。支持下载进度、停止后重新发起下载、释放内存和确认删除；字节续传依赖 Ollama 原生分片缓存，未做本应用真实断网续传验收。暂无独立暂停/继续、下载任务持久化、速度/剩余时间或多任务队列，不宣称完整下载管理器。",
+    evidence: ["packages/runtime/src/ollama.ts", "packages/runtime/src/ollama.test.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/main/local-model-download.test.ts", "apps/desktop/src/main/local-model-integration.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/model-catalog.ts", "apps/desktop/src/renderer/labs/local-model-lab/model-catalog.test.ts", "apps/desktop/src/renderer/labs/local-model-lab/Dialogs.tsx"], checkedAt: "2026-10-08",
+    note: "已下载列表、尺寸、参数规模、量化、内存载入状态、能力及上下文来自 tags / ps / show。七个系列含 18 个 Ollama 型号和 3 个公开 HF GGUF，参考大小与来源随代码保存；18 个官方清单已逐项检查，不等于逐款推理验收。HF GGUF 通过 Ollama 的 hf.co 通路下载，LFM2.5 350M 的真实测试卡在附属文件，尚未完整验收。支持真实分层进度、速度/剩余时间、暂停/继续、取消/重试、释放内存和确认删除；停滞两分钟进入可重试错误，不虚报完成或离谱 ETA。单个下载任务存 SQLite，按模型目录隔离。SmolLM2 135M 已真实验证暂停时原生分片保留、退出重开、首次续传进度复用缓存、推理、删除和重新下载；暂无多任务下载队列，不宣称所有网络故障均通过验收。",
   },
   {
     capabilityId: "providers.model-selection", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
-    evidence: ["apps/desktop/src/renderer/labs/local-model-lab/Page.tsx", "apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-store.test.ts"], checkedAt: "2026-09-30",
-    note: "单次实验选择一个模型，对照显式分配 A/B；运行输出保留实际模型名、digest、参数规模和量化。历史可重新装载输入与参数；已有权重更新时不会保证旧 digest 能重新下载。",
+    evidence: ["apps/desktop/src/renderer/labs/local-model-lab/Page.tsx", "apps/desktop/src/renderer/labs/local-model-lab/local-model.test.ts", "apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-store.test.ts"], checkedAt: "2026-10-08",
+    note: "单次实验选择一个模型，对照显式分配 A/B；输出保留实际模型名、digest、参数规模和量化。历史可重新装载输入与参数；缺失的历史模型明确提示并提供下载入口，不静默换成别的模型重跑。所选模型下载时禁用运行；本地服务未就绪与空模型库分别显示。权重更新后不保证旧 digest 能重新下载。",
   },
   {
     capabilityId: "reasoning.streaming", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
@@ -204,8 +204,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "resilience.crash-recovery", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 2],
-    evidence: ["apps/desktop/src/main/local-model-store.ts", "apps/desktop/src/main/local-model-store.test.ts", "apps/desktop/src/main/local-model-integration.test.ts"], checkedAt: "2026-09-30",
-    note: "实验存 SQLite WAL，默认参数与模型目录存独立配置 JSON；增量定期落库，结束状态强制保存。重启将未完成记录标为中断，保留已有部分输出，不自动重发。仅支持重新运行，不宣称从中途 Token 接续。",
+    evidence: ["apps/desktop/src/main/local-model-store.ts", "apps/desktop/src/main/local-model-store.test.ts", "apps/desktop/src/main/local-model-service.test.ts", "apps/desktop/src/main/local-model-integration.test.ts"], checkedAt: "2026-10-08",
+    note: "实验和下载任务存 SQLite WAL，默认参数与模型目录存独立配置 JSON；增量定期落库，结束状态强制保存。重启将未完成实验标为中断，保留输出，不自动重发；下载恢复为可继续的暂停任务，不自动占用网络。权重与分片由 Ollama 管理，删除模型不删除实验历史。推理仅支持重新运行，不宣称中途 Token 接续。",
   },
   {
     capabilityId: "consent-experience.ask-user",

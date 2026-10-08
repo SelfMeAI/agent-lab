@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, session, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode, type JevExperimentId } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
@@ -131,7 +131,8 @@ void app.whenReady().then(async () => {
   await appConfig.clearLegacyFollowUpMode();
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   localModels = new LocalModelService(new LocalModelStore(root), join(runtimeRoot, "ollama/native/ollama"),
-    (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:local-model-event", event); });
+    (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:local-model-event", event); }, undefined,
+    () => session.defaultSession.resolveProxy("https://huggingface.co"));
   await localModels.init();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event),
@@ -222,7 +223,9 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:local-model-run", (event, value: LocalModelRunRequest) => { assertMainWindow(event); return localModels!.startRun(value); });
   ipcMain.handle("selfme:local-model-stop", (event) => { assertMainWindow(event); localModels!.stopRun(); });
   ipcMain.handle("selfme:local-model-pull", (event, model: string) => { assertMainWindow(event); return localModels!.pull(model); });
-  ipcMain.handle("selfme:local-model-stop-download", (event) => { assertMainWindow(event); localModels!.stopDownload(); });
+  ipcMain.handle("selfme:local-model-pause-download", (event) => { assertMainWindow(event); return localModels!.pauseDownload(); });
+  ipcMain.handle("selfme:local-model-resume-download", (event) => { assertMainWindow(event); return localModels!.resumeDownload(); });
+  ipcMain.handle("selfme:local-model-stop-download", (event) => { assertMainWindow(event); return localModels!.stopDownload(); });
   ipcMain.handle("selfme:local-model-unload", (event, model: string) => { assertMainWindow(event); return localModels!.unload(model); });
   ipcMain.handle("selfme:local-model-delete", (event, model: string) => { assertMainWindow(event); return localModels!.deleteModel(model); });
   ipcMain.handle("selfme:local-model-history-run", (event, id: string) => { assertMainWindow(event); return localModels!.getRun(id); });

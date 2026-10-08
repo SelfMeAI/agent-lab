@@ -20,10 +20,20 @@ export function validLocalModelName(value: unknown): value is string {
   return typeof value === "string" && value.length <= 160 && /^[a-zA-Z0-9][a-zA-Z0-9._/-]*(?::[a-zA-Z0-9._-]+)?$/u.test(value) && !value.includes("..") && !/(?:cloud|remote)$/iu.test(value);
 }
 
+/** Registry names and GGUF quantization tags are case-insensitive; absent tags use latest. */
+export function sameLocalModel(a: string, b: string): boolean {
+  const canonical = (name: string): string => (name.includes(":") ? name : `${name}:latest`).toLowerCase();
+  return canonical(a) === canonical(b);
+}
+
 export function ollamaError(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error);
   if (/requires more|out of memory|insufficient|unable to allocate/iu.test(text)) return "模型所需内存超过当前可用容量，请选择更小的模型或减少上下文长度。";
   if (/not found|does not exist|pull model manifest.*not/iu.test(text)) return "未找到该模型，请检查名称和版本，或先下载模型。";
+  if (/unknown (?:model )?architecture|unsupported (?:model|architecture)|not supported.*architecture/iu.test(text)) return "内置运行时暂不支持该模型架构，请选择其他型号；更换量化版本不一定能解决。";
+  if (/unauthorized|forbidden|access denied|status code: (?:401|403)/iu.test(text)) return "模型源拒绝访问。请确认该模型为公开模型且网络可访问；此面板暂不支持需要账号授权的下载。";
+  if (/no space left|disk full/iu.test(text)) return "磁盘空间不足，请释放空间或更换模型存储目录后重试。";
+  if (/unexpected EOF|TLS handshake|no such host|connection timed out/iu.test(text)) return "连接模型下载源失败，请检查网络后重试，已保存的分片可继续使用。";
   if (/ECONNREFUSED|fetch failed|socket|connection reset/iu.test(text)) return "本地模型服务连接中断，请重试。";
   if (/timed out|timeout/iu.test(text)) return "本地模型响应超时，请重试或选择更小的模型。";
   return text;
@@ -92,15 +102,15 @@ export class OllamaClient {
     })).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async details(model: string): Promise<LocalModelDetails> {
-    const payload = await (await this.request("/api/show", { model })).json() as { capabilities?: string[]; model_info?: Record<string, unknown>; thinking?: { levels?: string[] }; remote_host?: string };
+  async details(model: string, signal?: AbortSignal): Promise<LocalModelDetails> {
+    const payload = await (await this.request("/api/show", { model }, signal)).json() as { capabilities?: string[]; model_info?: Record<string, unknown>; thinking?: { levels?: string[] }; remote_host?: string };
     if (payload.remote_host) throw new Error("此实验台仅运行本地模型");
     const context = Object.entries(payload.model_info ?? {}).find(([key]) => key.endsWith(".context_length"))?.[1];
     return { capabilities: payload.capabilities ?? [], contextLength: typeof context === "number" ? context : null, thinkingLevels: payload.thinking?.levels ?? [] };
   }
 
   async chat(model: string, prompt: string, systemPrompt: string, parameters: LocalModelParameters, signal: AbortSignal, receive: (value: OllamaChunk) => void, unloadAfter: boolean): Promise<void> {
-    const details = await this.details(model);
+    const details = await this.details(model, signal);
     signal.throwIfAborted();
     if (!details.capabilities.includes("completion")) throw new Error("该模型不支持文本生成，请选择文本模型");
     if (details.contextLength !== null && parameters.contextLength > details.contextLength) throw new Error(`该模型最大上下文为 ${details.contextLength}，请调整上下文长度`);

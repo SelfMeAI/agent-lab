@@ -168,7 +168,7 @@
 .lm-model-suggestions > button.is-selected { border-color: #8291a2; background: #28323e; }
 .lm-model-suggestions strong { font: 12px Menlo, monospace; }
 .lm-model-suggestions small { font-size: 11px; color: #81959e; }
-.lm-pull-dialog { width: min(100%, 620px); }
+.settings-panel.lm-pull-dialog { width: min(100%, 620px); }
 .lm-pull-dialog .settings-panel__body { display: flex; flex-direction: column; overflow: hidden; }
 .lm-pull-dialog .settings-panel__intro { flex: 0 0 auto; padding-bottom: 18px; }
 .lm-pull-dialog .settings-panel__form { flex: 1; min-height: 0; gap: 14px; padding-top: 18px; }
@@ -191,7 +191,7 @@
 .lm-catalog-group .lm-model-suggestions small { line-height: 1.6; }
 .lm-catalog-badge { align-self: flex-start; margin-top: auto; padding: 3px 5px; border: 1px solid #4c535d; border-radius: 3px; color: #9da6b1; font-size: 9px; }
 .lm-catalog-badge.is-installed { border-color: #496152; color: #a0c9ad; background: #19302666; }
-.lm-model-suggestions > button.is-unavailable:disabled { opacity: .7; }
+.lm-catalog-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; }
 .lm-catalog-submit { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid #2d3b47; }
 .lm-catalog-submit p { margin: 0; color: #8595a6; font-size: 10px; line-height: 1.6; }
 .lm-pull-dialog .lm-download { flex: 0 0 auto; margin-top: 14px; padding: 12px; gap: 8px; }
@@ -202,6 +202,32 @@
 .lm-download progress { width: 100%; height: 4px; accent-color: var(--lm-accent); }
 .lm-download progress::-webkit-progress-bar { background: #354355; border-radius: 4px; }
 .lm-download progress::-webkit-progress-value { background: var(--lm-accent); border-radius: 4px; }
+.lm-download > header { display: flex; min-width: 0; gap: 12px; align-items: center; justify-content: space-between; }
+.lm-download > header > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.lm-download-status { flex: 0 0 auto; padding: 3px 6px; border: 1px solid #546175; border-radius: 4px; font-size: 10px !important; }
+.lm-download--paused .lm-download-status { color: #d8cbb0; border-color: #786b54; }
+.lm-download--error .lm-download-status { color: #e4afb4; border-color: #795760; }
+.lm-download--complete .lm-download-status { color: #accbb8; border-color: #4b6957; }
+.lm-download-metrics { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; font-variant-numeric: tabular-nums; }
+.lm-download-metrics small { font-size: 10px; }
+.lm-download-actions { display: flex; gap: 8px; align-items: center; }
+.lm-download-actions > button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 31px; font-size: 11px; }
+.lm-secondary--primary { border-color: #8495a9; background: #2d3b4b; color: #e4ebf3; }
+.lm-download .lm-download-note { margin: 0; color: #8e9dad; font-size: 10px; line-height: 1.6; }
+.lm-download-mini__symbol { width: 11px; text-align: center; font-size: 12px; }
+.lm-download-mini--error { color: #e0a4ad; }
+.lm-download-mini--paused { color: #cfbea0; }
+.lm-runtime-warning { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; margin-bottom: 12px; border: 1px solid #586779; border-radius: 4px; color: #afbdcc; font-size: 11px; }
+.lm-missing-model { align-items: center; line-height: 1.6; }
+.lm-missing-model > span { min-width: 0; overflow-wrap: anywhere; }
+.lm-missing-model > button { flex: 0 0 auto; }
+@media (max-height: 800px) {
+  .lm-pull-dialog .settings-panel__body { padding: 16px 22px; }
+  .lm-pull-dialog .settings-panel__intro { padding-bottom: 12px; }
+  .lm-pull-dialog .settings-panel__form { padding-top: 12px; gap: 10px; }
+  .lm-pull-dialog .lm-catalog-submit { padding-top: 8px; gap: 7px; }
+  .lm-pull-dialog .lm-download { margin-top: 10px; padding: 10px; gap: 7px; }
+}
 .lm-danger { color: #e1a3a6; border-color: #73585e; }
 .lm-confirm { padding: 14px; border: 1px solid #674f52; background: #2b2027; border-radius: 4px; margin: 15px 0; }
 .lm-confirm p { color: #bea2a7; font-size: 12px; line-height: 1.7; margin: 0 0 13px; }

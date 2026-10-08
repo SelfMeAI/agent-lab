@@ -7,7 +7,7 @@ import { OllamaClient } from "../../../../packages/runtime/src/ollama";
 import { LocalModelService, ollamaMetrics } from "./local-model-service";
 import { LocalModelStore, defaultLocalModelParameters } from "./local-model-store";
 const roots: string[] = [], services: LocalModelService[] = [];
-afterEach(async () => { for (const service of services.splice(0)) await service.shutdown(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
+afterEach(async () => { vi.useRealTimers(); for (const service of services.splice(0)) await service.shutdown(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 const models = ["a:latest", "b:latest"].map((name) => ({ name, digest: `digest-${name}`, size: 123, parameterSize: "1B", quantization: "Q4", loaded: false, memoryBytes: null }));
 async function prepare(): Promise<{ service: LocalModelService; client: OllamaClient; events: LocalModelEvent[] }> {
   const parent = fileURLToPath(new URL("../../../../.work/local-model-tests", import.meta.url)); await mkdir(parent, { recursive: true }); const root = await mkdtemp(join(parent, "service-")); roots.push(root);
@@ -65,7 +65,7 @@ describe("local model experiments", () => {
     await service.pull("a:latest"); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("complete"));
     expect((await service.getState()).download).toMatchObject({ completed: 100, total: 100 }); expect(service.store.preferences.selectedModel).toBe("a:latest");
     await service.pull("b:latest"); await vi.waitFor(() => expect(client.pull).toHaveBeenCalledTimes(2)); service.stopDownload();
-    await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("stopped"));
+    await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("cancelled"));
     vi.mocked(client.pull).mockImplementationOnce(async (name, _signal, receive) => { expect(name).toBe("b:latest"); receive({ status: "pulling digest", digest: "two", total: 100, completed: 100 }); receive({ status: "success" }); });
     await service.pull("b:latest"); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("complete"));
     expect(client.pull).toHaveBeenCalledTimes(3);
@@ -102,11 +102,60 @@ describe("local model experiments", () => {
     });
     await service.pull("b:latest"); await vi.waitFor(() => expect(pull).toHaveBeenCalledOnce());
     await expect(service.deleteModel("a:latest")).rejects.toThrow("停止模型下载"); expect(remove).not.toHaveBeenCalled();
-    service.stopDownload(); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("stopped"));
+    await service.stopDownload(); await vi.waitFor(async () => expect((await service.getState()).download?.status).toBe("cancelled"));
     await service.deleteModel("a:latest"); expect(remove).toHaveBeenCalledOnce();
+  });
+  it("pauses with an acknowledged abort, keeps exact progress and resumes the same model", async () => {
+    const { service, client, events } = await prepare();
+    const pull = vi.spyOn(client, "pull").mockImplementationOnce(async (_name, signal, receive) => {
+      receive({ status: "pulling one", digest: "one", completed: 40, total: 100 });
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    }).mockImplementation(async (name, _signal, receive) => { expect(name).toBe("a:latest"); receive({ status: "pulling one", digest: "one", completed: 100, total: 100 }); receive({ status: "success" }); });
+    await service.pull("a:latest"); await vi.waitFor(() => expect(pull).toHaveBeenCalledOnce());
+    await service.pauseDownload();
+    expect(service.store.getDownload()).toMatchObject({ model: "a:latest", status: "paused", completed: 40, total: 100 });
+    expect(events.some((event) => event.type === "download" && event.download.status === "pausing")).toBe(true);
+    await expect(service.pull("b:latest")).rejects.toThrow("已暂停");
+    await service.resumeDownload(); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete"));
+    expect(pull).toHaveBeenCalledTimes(2); await expect(service.resumeDownload()).rejects.toThrow("可继续");
+  });
+  it("pause immediately after clicking download never starts a transfer and cancellation unlocks a different model", async () => {
+    const { service, client } = await prepare(); const pull = vi.spyOn(client, "pull").mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
+    const pending = service.pull("a:latest"); await service.pauseDownload(); await pending;
+    expect(service.store.getDownload()?.status).toBe("paused"); expect(pull).not.toHaveBeenCalled();
+    await service.stopDownload(); expect(service.store.getDownload()?.status).toBe("cancelled");
+    await service.pull("b:latest"); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete")); expect(pull).toHaveBeenCalledOnce();
+  });
+  it("shutdown saves a resumable task and restart restores it without automatically downloading", async () => {
+    const { service, client } = await prepare(); const root = roots.at(-1)!;
+    const pull = vi.spyOn(client, "pull").mockImplementationOnce(async (_name, signal, receive) => {
+      receive({ status: "pulling one", digest: "one", completed: 60, total: 100 });
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    }).mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
+    await service.pull("a:latest"); await vi.waitFor(() => expect(pull).toHaveBeenCalledOnce()); await service.shutdown();
+    const reopened = new LocalModelService(new LocalModelStore(root), "unused", () => {}, { start: async () => client, stop: async () => {} }); services.push(reopened);
+    await reopened.init(); expect(reopened.store.getDownload()).toMatchObject({ status: "paused", completed: 60 }); expect(pull).toHaveBeenCalledOnce();
+    await reopened.resumeDownload(); await vi.waitFor(() => expect(reopened.store.getDownload()?.status).toBe("complete"));
+  });
+  it("failure remains recoverable and a success frame alone cannot falsely mark an absent model installed", async () => {
+    const { service, client } = await prepare();
+    vi.spyOn(client, "pull").mockRejectedValueOnce(new Error("no space left on device")).mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
+    await service.pull("a:latest"); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("error")); expect(service.store.getDownload()?.error).toContain("磁盘空间");
+    await service.resumeDownload(); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete"));
+    await service.pull("missing:latest"); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("error")); expect(service.store.getDownload()?.error).toContain("尚未找到");
   });
   it("never fabricates absent metrics or divides by zero", () => {
     expect(ollamaMetrics({}, null, 4)).toEqual({ firstOutputMs: null, durationMs: 4, loadMs: null, inputTokens: null, outputTokens: null, tokensPerSecond: null });
     expect(ollamaMetrics({ eval_count: 3, eval_duration: 0 }, 2, 4).tokensPerSecond).toBeNull();
+  });
+  it("turns an unresponsive download into a retryable error without losing its cached progress", async () => {
+    const { service, client } = await prepare();
+    vi.spyOn(client, "pull").mockImplementationOnce(async (_name, signal, receive) => {
+      receive({ status: "pulling one", digest: "one", total: 100, completed: 40 });
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    }).mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
+    vi.useFakeTimers(); await service.pull("a:latest"); await vi.advanceTimersByTimeAsync(121000);
+    expect(service.store.getDownload()).toMatchObject({ status: "error", completed: 40, error: "下载连续两分钟没有新进展，请检查网络后重试。已保存的分片可继续使用。" });
+    vi.useRealTimers(); await service.resumeDownload(); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete"));
   });
 });

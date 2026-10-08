@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, type JSX } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { LocalModelInfo, LocalModelMetrics, LocalModelOutput, LocalModelParameters, LocalModelRun } from "../../../../../../packages/contracts/src/local-model";
+import { sameLocalModel } from "../../../../../../packages/runtime/src/ollama";
 import { goToLab } from "../../app/navigation";
 import { LabIcon } from "../../shell/LabIcon";
 import type { LabPageProps } from "../types";
 import { ModelDetailsDialog, ModelHistoryDialog, PullModelDialog } from "./Dialogs";
 import { localModelBridge, formatBytes, formatModelDuration, localModelDrafts, localModelError, localModelStatus, refreshLocalModels, saveLocalModelPreferences, useLocalModels } from "./local-model-store";
 import "./local-model.css";
+import { downloadInProgress, downloadPercent, downloadStatus } from "./download-presentation";
 
 function CopyIcon(): JSX.Element { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="8" y="7" width="11" height="14" rx="2" /><path d="M15 7V3H4v14h4" /></svg>; }
 function NumericInput({ id, value, min, max, nullable = false, className = "lm-input", onCommit }: { id: string; value: number | null; min: number; max: number; nullable?: boolean; className?: string; onCommit(value: number | null): void }): JSX.Element {
@@ -58,6 +60,7 @@ export function LocalModelPage({ viewId }: LabPageProps): JSX.Element {
   const [prompt, setPrompt] = useState(localModelDrafts[mode].prompt); const [system, setSystem] = useState(localModelDrafts[mode].systemPrompt);
   const [showSystem, setShowSystem] = useState(Boolean(system)); const [target, setTarget] = useState<"A" | "B">("A");
   const [dialog, setDialog] = useState<"pull" | "history" | null>(null); const [details, setDetails] = useState<LocalModelInfo | null>(null);
+  const [pullName, setPullName] = useState<string | undefined>();
   const [error, setError] = useState(""); const [submitting, setSubmitting] = useState(false); const [stopping, setStopping] = useState(false);
   const [historyRun, setHistoryRun] = useState<LocalModelRun | null>(null);
   useEffect(() => { void refreshLocalModels(); }, []);
@@ -71,6 +74,8 @@ export function LocalModelPage({ viewId }: LabPageProps): JSX.Element {
   const run = historyRun ?? runs[mode];
   const active = data?.activeRun; const busy = Boolean(active) || submitting; const inThisMode = active?.mode === mode;
   const parameters = data?.preferences.parameters ?? { temperature: 0.7, contextLength: 4096, seed: null, maxTokens: 2048, thinking: "auto" as const };
+  const missingHistoryModels = historyRun?.outputs.map((output) => output.model).filter((name) => !models.some((model) => sameLocalModel(model.name, name))) ?? [];
+  const downloadingSelection = downloadInProgress(data?.download) && (compare ? [modelA, modelB] : [selected]).some((name) => name && sameLocalModel(name, data!.download!.model));
   async function chooseModel(model: string): Promise<void> {
     if (!data || busy) return;
     const next = { ...data.preferences };
@@ -103,7 +108,8 @@ export function LocalModelPage({ viewId }: LabPageProps): JSX.Element {
       ...(previous.mode === "compare" ? { modelA: previous.outputs[0]?.model ?? null, modelB: previous.outputs[1]?.model ?? null } : { selectedModel: previous.outputs[0]?.model ?? null }) }).catch((cause) => setError(localModelError(cause)));
   }
   useEffect(() => { if (historySelection?.mode === mode) { setHistoryRun(historySelection); historySelection = null; } }, [mode]);
-  const canRun = Boolean(prompt.trim() && selected && (!compare || (modelA && modelB)) && data?.runtime.status === "ready" && !busy);
+  const canRun = Boolean(prompt.trim() && selected && (!compare || (modelA && modelB)) && data?.runtime.status === "ready" && !busy && !downloadingSelection && !missingHistoryModels.length);
+  const runtimeUnavailable = !loading && Boolean(storeError || data?.runtime.status === "error");
   return <section className="lm-page">
     <header className="lm-heading"><LabIcon labId="local-model-lab" /><h1>LOCAL MODEL LAB</h1><span>OLLAMA</span><small title="推理仅在本机进行，模型下载需要联网">LOCAL INFERENCE</small></header>
     <div className="lm-layout">
@@ -112,9 +118,9 @@ export function LocalModelPage({ viewId }: LabPageProps): JSX.Element {
         <div className="lm-models__list">
           {models.map((model) => { const slot = compare ? model.name === modelA ? "A" : model.name === modelB ? "B" : null : model.name === selected ? "A" : null;
             return <article key={model.name} className={`lm-model${slot ? " is-selected" : ""}${compare && slot === "A" ? " is-a" : ""}${slot === "B" ? " is-b" : ""}`}><button type="button" className="lm-model__select" onClick={() => void chooseModel(model.name)} disabled={busy} aria-label={`选择模型 ${model.name}`} aria-pressed={Boolean(slot)}><LabIcon labId="local-model-lab" /><span><strong>{model.name}</strong><small>{formatBytes(model.size)} · {model.quantization}</small><em>{model.loaded ? `载入 ${formatBytes(model.memoryBytes)}` : `${model.parameterSize} · 已下载`}</em></span>{compare && slot && <b className={`lm-slot${slot === "B" ? " lm-slot--b" : ""}`}>{slot}</b>}</button><button className="lm-model__details" type="button" aria-label={`${model.name} 模型详情`} title="模型详情" onClick={() => setDetails(model)}>›</button></article>; })}
-          {!models.length && <div className="lm-models-empty"><LabIcon labId="local-model-lab" /><strong>{loading ? "正在连接 Ollama…" : "还没有本地模型"}</strong><p>先下载一个文本模型，再开始实验。权重保存在本机，可离线运行。</p><button type="button" className="lm-secondary" onClick={() => setDialog("pull")}>下载第一个模型</button></div>}
+          {!models.length && <div className="lm-models-empty"><LabIcon labId="local-model-lab" /><strong>{loading ? "正在连接 Ollama…" : runtimeUnavailable ? "本地模型服务尚未就绪" : "还没有本地模型"}</strong><p>{runtimeUnavailable ? "先恢复本地服务，再查看或下载模型。已有模型文件不会被清空。" : "先下载一个文本模型，再开始实验。权重保存在本机，可离线运行。"}</p><button type="button" className="lm-secondary" disabled={loading} onClick={() => { if (runtimeUnavailable) void refreshLocalModels(); else { setPullName(undefined); setDialog("pull"); } }}>{runtimeUnavailable ? "重试连接" : "下载第一个模型"}</button></div>}
         </div>
-        {data?.download?.status === "downloading" && <button className="lm-download-mini" type="button" onClick={() => setDialog("pull")}><span className="lm-spinner" /><span><strong>{data.download.model}</strong><small>{data.download.total ? `${Math.floor((data.download.completed ?? 0) / data.download.total * 100)}% · ` : ""}{data.download.message}</small></span></button>}
+        {data?.download && !["complete", "cancelled"].includes(data.download.status) && <button className={`lm-download-mini lm-download-mini--${data.download.status}`} type="button" onClick={() => { setPullName(undefined); setDialog("pull"); }}><span className={downloadInProgress(data.download) ? "lm-spinner" : "lm-download-mini__symbol"}>{downloadInProgress(data.download) ? "" : data.download.status === "error" ? "!" : "Ⅱ"}</span><span><strong>{data.download.model}</strong><small>{downloadPercent(data.download) !== null ? `${Math.floor(downloadPercent(data.download)!)}% · ` : ""}{downloadStatus[data.download.status]}</small></span></button>}
         <footer className="lm-models__footer"><span>OLLAMA {data?.runtime.version ?? ""}</span><small>{models.length} 个模型 · {models.filter((m) => m.loaded).length} 个已载入</small></footer>
       </aside>
       <section className="lm-main"><nav className="lm-tabs" aria-label="本地模型实验视图"><button type="button" aria-current={!compare ? "page" : undefined} className={!compare ? "is-active" : ""} onClick={() => goToLab("local-model-lab", "playground")}>PLAYGROUND</button><button type="button" aria-current={compare ? "page" : undefined} className={compare ? "is-active" : ""} onClick={() => goToLab("local-model-lab", "compare")}>COMPARE</button><button type="button" className="lm-history-button" onClick={() => setDialog("history")}>历史 ↗</button></nav>
@@ -125,9 +131,10 @@ export function LocalModelPage({ viewId }: LabPageProps): JSX.Element {
               {showSystem && <div className="lm-system"><label htmlFor="lm-system">SYSTEM PROMPT</label><textarea id="lm-system" value={system} maxLength={8192} placeholder="可选：约束回答方式或设定角色" onChange={(e) => setSystem(e.target.value)} /></div>}
               <div className="lm-prompt__actions"><button type="button" className={`lm-system-toggle${system ? " has-value" : ""}`} aria-expanded={showSystem} onClick={() => setShowSystem(!showSystem)}>{showSystem ? "−" : "+"} System prompt</button>
                 {inThisMode || submitting ? <button className="lm-run lm-run--stop" type="button" disabled={stopping || submitting} onClick={() => void stop()}>■ {stopping ? "STOPPING…" : submitting ? "STARTING…" : "STOP RUN"}</button> : <button className="lm-run" type="button" disabled={!canRun} onClick={() => void start()}>▶ {compare ? "RUN COMPARISON" : "RUN PROMPT"}</button>}</div>
-            </div><div className="lm-prompt__hint"><span>{active && !inThisMode ? `${active.mode === "compare" ? "Compare" : "Playground"} 正在运行，请先完成或停止` : compare ? "同一输入与参数 · 先 A 后 B · 每次加载后独立运行" : "独立实验 · 不携带上一轮上下文"}</span><kbd>⌘ ↵</kbd></div>
+            </div><div className="lm-prompt__hint"><span>{active && !inThisMode ? `${active.mode === "compare" ? "Compare" : "Playground"} 正在运行，请先完成或停止` : downloadingSelection ? "所选模型正在下载，验证完成后即可运行" : compare && models.length < 2 ? "对照需要两个不同模型，请先下载第二个模型" : compare ? "同一输入与参数 · 先 A 后 B · 每次加载后独立运行" : "独立实验 · 不携带上一轮上下文"}</span><kbd>⌘ ↵</kbd></div>
           </section>
           {historyRun && <div className="lm-record-strip"><span>查看记录 · {new Date(historyRun.createdAt).toLocaleString("zh-CN", { hour12: false })}</span><button type="button" onClick={() => setHistoryRun(null)}>回到最近运行</button></div>}
+          {missingHistoryModels.length > 0 && <div className="lm-record-strip lm-missing-model"><span>记录中的 {missingHistoryModels.join(" / ")} 尚未下载。输出保留；重新运行需下载模型或明确选择其他模型。</span><button type="button" onClick={() => { setPullName(missingHistoryModels[0]); setDialog("pull"); }}>下载模型</button></div>}
           <div className={`lm-outputs${compare ? " lm-outputs--compare" : ""}`}><ResponsePanel key={`${run?.id ?? mode}-a`} output={run?.outputs[0]} index={0} compare={compare} />{compare && <ResponsePanel key={`${run?.id ?? mode}-b`} output={run?.outputs[1]} index={1} compare />}</div>
         </div>
       </section>
@@ -141,7 +148,7 @@ export function LocalModelPage({ viewId }: LabPageProps): JSX.Element {
         <section className={`lm-measurements${compare ? " lm-measurements--compare" : ""}`}><header><h2>MEASUREMENTS</h2>{compare && <span><b className="lm-slot">A</b><b className="lm-slot lm-slot--b">B</b></span>}</header><dl>{measurementRows.map((row) => <div key={row.title} title={row.tooltip}><dt>{row.title}</dt><dd>{row.display(run?.outputs[0]?.metrics)}</dd>{compare && <dd>{row.display(run?.outputs[1]?.metrics)}</dd>}</div>)}</dl><p>指标来自真实运行，未返回时显示 —。速度不代表回答质量。不同模型即使使用相同 Seed，也不保证输出相同。</p>{run && <div className="lm-run-evidence"><span>{historyRun ? "记录参数" : "本次运行参数"}</span><code>T {run.parameters.temperature} · C {run.parameters.contextLength} · Seed {run.parameters.seed ?? "Auto"}</code><small>Max {run.parameters.maxTokens} · Thinking {run.parameters.thinking}</small><time title={run.createdAt}>{new Date(run.createdAt).toLocaleString("zh-CN", { hour12: false })}</time></div>}</section>
       </div></aside>
     </div>
-    {dialog === "pull" && <PullModelDialog onClose={() => setDialog(null)} />}{dialog === "history" && <ModelHistoryDialog onClose={() => setDialog(null)} onSelect={selectHistory} />}{details && <ModelDetailsDialog model={details} onClose={() => setDetails(null)} />}
+    {dialog === "pull" && <PullModelDialog initialName={pullName} onClose={() => { setDialog(null); setPullName(undefined); }} />}{dialog === "history" && <ModelHistoryDialog onClose={() => setDialog(null)} onSelect={selectHistory} />}{details && <ModelDetailsDialog model={details} onClose={() => setDetails(null)} />}
   </section>;
 }
 

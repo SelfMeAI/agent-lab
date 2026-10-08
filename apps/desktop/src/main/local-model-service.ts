@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { LocalModelDownload, LocalModelEvent, LocalModelInfo, LocalModelMetrics, LocalModelPreferences, LocalModelRun, LocalModelRunRequest, LocalModelSnapshot } from "../../../../packages/contracts/src/local-model";
-import { OllamaClient, ollamaError, validLocalModelName, type OllamaChunk } from "../../../../packages/runtime/src/ollama";
+import { OllamaClient, ollamaError, sameLocalModel, validLocalModelName, type OllamaChunk } from "../../../../packages/runtime/src/ollama";
 import { LocalModelStore, validateLocalModelParameters } from "./local-model-store";
 import { OllamaProcess } from "./ollama-process";
+import { DownloadProgress } from "./local-model-download";
 
 type ManagedOllama = { start(directory: string): Promise<OllamaClient>; stop(): Promise<void> };
 const emptyMetrics = (): LocalModelMetrics => ({ firstOutputMs: null, durationMs: null, loadMs: null, inputTokens: null, outputTokens: null, tokensPerSecond: null });
@@ -24,19 +25,20 @@ export class LocalModelService {
   private pullAbort: AbortController | null = null;
   private runJob: Promise<void> | null = null;
   private pullJob: Promise<void> | null = null;
+  private pullStopReason: "paused" | "cancelled" | null = null;
   private preparing = false;
   private changingDirectory = false;
   private modifyingModels = false;
   private closing = false;
 
-  constructor(readonly store: LocalModelStore, executable: string, private readonly emit: (event: LocalModelEvent) => void, managed?: ManagedOllama) {
+  constructor(readonly store: LocalModelStore, executable: string, private readonly emit: (event: LocalModelEvent) => void, managed?: ManagedOllama, resolveProxy?: () => Promise<string>) {
     this.process = managed ?? new OllamaProcess(executable, (message) => {
       this.runtime = { ...this.runtime, status: "error", error: message, endpoint: null };
       if (!this.closing) this.emitState();
-    });
+    }, resolveProxy);
   }
 
-  async init(): Promise<void> { await this.store.init(); }
+  async init(): Promise<void> { await this.store.init(); this.download = this.store.getDownload(); }
   private snapshot(): LocalModelSnapshot {
     return structuredClone({ runtime: this.runtime, modelsDirectory: this.store.modelsDirectory, models: this.models, preferences: this.store.preferences,
       activeRun: this.active, latestRun: this.store.latest(), history: this.store.history(), download: this.download });
@@ -85,7 +87,7 @@ export class LocalModelService {
       if (typeof value.prompt !== "string" || !value.prompt.trim() || value.prompt.length > 32000) throw new Error("请输入实验提示词，最多 32000 个字符");
       if (typeof value.systemPrompt !== "string" || value.systemPrompt.length > 8192) throw new Error("System prompt 最多 8192 个字符");
       const parameters = validateLocalModelParameters(value.parameters);
-      if (this.pullAbort && value.models.includes(this.download!.model)) throw new Error("该模型正在下载，请等待下载完成");
+      if (this.pullAbort && value.models.some((name) => sameLocalModel(name, this.download!.model))) throw new Error("该模型正在下载，请等待下载完成");
       const client = await this.client(); this.models = await client.models();
       if (this.closing) throw new Error("应用正在退出");
       const selected = value.models.map((name) => this.models.find((m) => m.name === name));
@@ -157,42 +159,94 @@ export class LocalModelService {
 
   async pull(model: string): Promise<void> {
     this.checkModel(model);
-    if (this.pullAbort || this.changingDirectory || this.modifyingModels || this.closing) throw new Error("已有模型操作进行中，请先停止或等待完成");
-    if (this.active?.outputs.some((o) => o.model === model)) throw new Error("该模型正在实验中，请先停止实验");
+    if (this.pullAbort || this.preparing || this.changingDirectory || this.modifyingModels || this.closing) throw new Error("已有模型操作进行中，请先停止或等待完成");
+    if (this.download?.status === "paused" && !sameLocalModel(this.download.model, model)) throw new Error("请先继续或取消已暂停的下载，再下载其他模型");
+    if (this.active?.outputs.some((o) => sameLocalModel(o.model, model))) throw new Error("该模型正在实验中，请先停止实验");
+    const previous = this.download && sameLocalModel(this.download.model, model) && ["paused", "error"].includes(this.download.status) ? this.download : null;
     const abort = new AbortController(); this.pullAbort = abort;
-    this.download = { model, status: "downloading", message: "获取模型清单", completed: null, total: null, error: null };
-    this.emit({ type: "download", download: { ...this.download } });
+    this.pullStopReason = null;
+    this.download = { model, status: "downloading", message: previous ? "确认缓存并继续下载" : "获取模型清单", completed: previous?.completed ?? null, total: previous?.total ?? null, error: null,
+      startedAt: previous?.startedAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), bytesPerSecond: null, remainingSeconds: null };
+    try { this.publishDownload(); }
+    catch (error) { this.pullAbort = null; this.download = previous; throw error; }
     const job = this.downloadModel(model, abort); this.pullJob = job;
     void job.finally(() => { if (this.pullJob === job) this.pullJob = null; }).catch((error) => console.error("保存模型下载结果失败：", error));
   }
 
+  private publishDownload(persist = true): void {
+    if (!this.download) return;
+    this.download.updatedAt = new Date().toISOString();
+    if (persist) this.store.saveDownload(this.download);
+    if (!this.closing) this.emit({ type: "download", download: { ...this.download } });
+  }
+
   private async downloadModel(model: string, abort: AbortController): Promise<void> {
-    const layers = new Map<string, { completed: number; total: number }>();
-    let lastPublished = 0;
+    const progress = new DownloadProgress();
+    let lastPublished = 0, lastPersisted = 0;
+    let lastProgressAt = Date.now(), lastStatus = "", lastCompleted = 0, verifying = false, stalled = false;
+    const watchdog = setInterval(() => {
+      if (!abort.signal.aborted && !verifying && Date.now() - lastProgressAt > 120000) { stalled = true; abort.abort(); }
+    }, 1000);
     try {
       const client = await this.client(); abort.signal.throwIfAborted();
       await client.pull(model, abort.signal, (chunk) => {
-        if (chunk.digest && chunk.total !== undefined) layers.set(chunk.digest, { completed: chunk.completed ?? 0, total: chunk.total });
-        const values = [...layers.values()];
-        this.download = { model, status: "downloading", message: chunk.status === "success" ? "模型验证完成" : chunk.status === "pulling manifest" ? "获取模型清单" : chunk.status?.startsWith("pulling ") ? "下载模型文件" : chunk.status?.startsWith("verifying") ? "校验文件" : "准备模型",
-          completed: values.length ? values.reduce((s, v) => s + v.completed, 0) : null, total: values.length ? values.reduce((s, v) => s + v.total, 0) : null, error: null };
-        if (Date.now() - lastPublished > 100) { lastPublished = Date.now(); this.emit({ type: "download", download: { ...this.download } }); }
+        if (abort.signal.aborted) return;
+        const received = progress.receive(chunk);
+        if (chunk.status !== lastStatus || (received.completed ?? 0) > lastCompleted) lastProgressAt = Date.now();
+        lastStatus = chunk.status ?? ""; lastCompleted = received.completed ?? 0;
+        verifying = Boolean(chunk.status?.startsWith("verifying") || chunk.status === "writing manifest" || chunk.status === "success");
+        this.download = { ...this.download!, ...received, status: "downloading", message: chunk.status === "success" ? "模型验证完成" : chunk.status === "pulling manifest" ? "获取模型清单" : chunk.status?.startsWith("pulling ") ? "下载模型文件" : chunk.status?.startsWith("verifying") ? "校验文件" : "准备模型" };
+        if (Date.now() - lastPublished > 150 || chunk.status === "success") {
+          lastPublished = Date.now();
+          const persist = Date.now() - lastPersisted > 1000;
+          if (persist) lastPersisted = Date.now();
+          this.publishDownload(persist);
+        }
       });
+      abort.signal.throwIfAborted();
       this.models = await client.models();
-      const actual = this.models.find((m) => m.name === model || (model.indexOf(":") === -1 && m.name === `${model}:latest`));
+      const actual = this.models.find((m) => sameLocalModel(m.name, model));
+      if (!actual) throw new Error("下载已返回成功，但本机尚未找到该模型，请重试以检查模型文件");
       const prefs = this.store.preferences;
       if (actual && !prefs.selectedModel) await this.store.savePreferences({ ...prefs, selectedModel: actual.name, modelA: prefs.modelA ?? actual.name });
-      this.download = { ...this.download!, status: "complete", message: "模型已下载", completed: this.download!.total };
+      this.download = { ...this.download!, status: "complete", message: "模型已下载，可返回实验台使用", completed: this.download!.total, bytesPerSecond: null, remainingSeconds: null };
     } catch (error) {
-      this.download = { ...this.download!, status: abort.signal.aborted ? "stopped" : "error", message: abort.signal.aborted ? "下载已停止，可再次下载以续传" : "下载失败", error: abort.signal.aborted ? null : ollamaError(error) };
+      const status = stalled ? "error" : abort.signal.aborted ? this.pullStopReason ?? "paused" : "error";
+      this.download = { ...this.download!, status, message: status === "paused" ? "下载已暂停，可继续下载" : status === "cancelled" ? "下载已取消" : "下载失败，可重试",
+        error: stalled ? "下载连续两分钟没有新进展，请检查网络后重试。已保存的分片可继续使用。" : abort.signal.aborted ? null : ollamaError(error), bytesPerSecond: null, remainingSeconds: null };
     } finally {
+      clearInterval(watchdog);
       this.pullAbort = null;
-      if (!this.closing) { this.emit({ type: "download", download: { ...this.download! } }); this.emitState(); }
+      this.pullStopReason = null;
+      this.publishDownload(); this.emitState();
     }
   }
-  stopDownload(): void { this.pullAbort?.abort(); }
+  async pauseDownload(): Promise<void> {
+    if (!this.pullAbort || this.download?.status !== "downloading") return;
+    this.pullStopReason = "paused";
+    this.download = { ...this.download, status: "pausing", message: "正在暂停下载…", bytesPerSecond: null, remainingSeconds: null };
+    this.publishDownload(); this.pullAbort.abort();
+    await this.pullJob;
+  }
+  async resumeDownload(): Promise<void> {
+    if (!this.download || !["paused", "error"].includes(this.download.status)) throw new Error("没有可继续的下载");
+    await this.pull(this.download.model);
+  }
+  async stopDownload(): Promise<void> {
+    if (!this.download || ["complete", "cancelled"].includes(this.download.status)) return;
+    if (this.pullAbort) {
+      this.pullStopReason = "cancelled";
+      this.download = { ...this.download, status: "cancelling", message: "正在取消下载…", bytesPerSecond: null, remainingSeconds: null };
+      this.publishDownload(); this.pullAbort.abort();
+      await this.pullJob;
+    } else {
+      this.download = { ...this.download, status: "cancelled", message: "下载已取消", error: null, bytesPerSecond: null, remainingSeconds: null };
+      this.publishDownload(); this.emitState();
+    }
+  }
   async unload(model: string): Promise<void> {
     this.assertIdle(); this.checkModel(model);
+    if (this.pullAbort && this.download && sameLocalModel(this.download.model, model)) throw new Error("该模型正在下载，请先暂停或完成下载");
     this.modifyingModels = true;
     try { const client = await this.client(); await client.unload(model); this.models = await client.models(); this.emitState(); }
     finally { this.modifyingModels = false; }
@@ -206,6 +260,7 @@ export class LocalModelService {
       const prefs = this.store.preferences;
       await this.store.savePreferences({ ...prefs, selectedModel: prefs.selectedModel === model ? null : prefs.selectedModel,
         modelA: prefs.modelA === model ? null : prefs.modelA, modelB: prefs.modelB === model ? null : prefs.modelB });
+      if (this.download && sameLocalModel(this.download.model, model)) { this.download = null; this.store.saveDownload(null); }
       this.emitState();
     } finally { this.modifyingModels = false; }
   }
@@ -213,13 +268,14 @@ export class LocalModelService {
     this.assertIdle(); if (this.pullAbort) throw new Error("请先停止模型下载");
     this.changingDirectory = true;
     try {
-      await this.process.stop(); await this.store.setModelsDirectory(path); this.models = [];
+      await this.process.stop(); await this.store.setModelsDirectory(path); this.models = []; this.download = this.store.getDownload();
       this.runtime = { status: "starting", version: null, endpoint: null, error: null }; this.emitState();
       await this.getState(); this.emitState();
     } finally { this.changingDirectory = false; }
   }
   async shutdown(): Promise<void> {
-    this.closing = true; this.runAbort?.abort(); this.pullAbort?.abort();
+    this.closing = true; this.runAbort?.abort();
+    if (this.pullAbort) { this.pullStopReason ??= "paused"; this.pullAbort.abort(); }
     await this.process.stop();
     await Promise.allSettled([this.runJob, this.pullJob]);
     await this.store.close();

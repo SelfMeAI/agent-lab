@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { LocalModelStore, defaultLocalModelParameters, validateLocalModelParameters } from "./local-model-store";
-import type { LocalModelRun } from "../../../../packages/contracts/src/local-model";
+import type { LocalModelDownload, LocalModelRun } from "../../../../packages/contracts/src/local-model";
 const roots: string[] = []; const stores: LocalModelStore[] = [];
 afterEach(async () => { for (const store of stores.splice(0)) await store.close(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function prepare(): Promise<LocalModelStore> {
@@ -17,6 +17,19 @@ export function fixtureRun(): LocalModelRun {
       metrics: { firstOutputMs: 3, durationMs: null, loadMs: null, inputTokens: null, outputTokens: null, tokensPerSecond: null } }] };
 }
 describe("local model SQLite and configuration", () => {
+  it("recovers interrupted downloads as paused, preserves bytes and separates model directories", async () => {
+    const store = await prepare(); const root = roots.at(-1)!; const original = store.modelsDirectory;
+    const download: LocalModelDownload = { model: "qwen3:0.6b", status: "downloading", message: "下载模型文件", completed: 100, total: 1000, error: null,
+      startedAt: "2026-10-08T00:00:00.000Z", updatedAt: "2026-10-08T00:00:01.000Z", bytesPerSecond: 50, remainingSeconds: 18 };
+    store.saveDownload(download); await store.close();
+    const reopened = new LocalModelStore(root); stores.push(reopened); await reopened.init();
+    expect(reopened.getDownload()).toMatchObject({ model: download.model, completed: 100, total: 1000, status: "paused", bytesPerSecond: null, remainingSeconds: null });
+    const copy = reopened.getDownload()!; copy.completed = 900; expect(reopened.getDownload()!.completed).toBe(100);
+    await reopened.setModelsDirectory(join(root, "different-models")); expect(reopened.getDownload()).toBeNull();
+    await reopened.setModelsDirectory(original); expect(reopened.getDownload()!.completed).toBe(100);
+    reopened.saveDownload({ ...download, status: "cancelling" }); await reopened.close(); await reopened.init();
+    expect(reopened.getDownload()!.status).toBe("cancelled"); reopened.saveDownload(null); expect(reopened.getDownload()).toBeNull();
+  });
   it("stores defaults in JSON, experiment evidence in SQLite and recovers partial work without rerunning", async () => {
     const store = await prepare(); const root = roots.at(-1)!;
     await store.savePreferences({ selectedModel: "qwen3:0.6b", modelA: "qwen3:0.6b", modelB: "gemma3:1b", parameters: { ...defaultLocalModelParameters, seed: 42 } });

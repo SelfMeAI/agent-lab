@@ -3,7 +3,7 @@ export interface LocalModelCatalogEntry {
   title: string;
   downloadBytes: number;
   note: string;
-  availability: "ollama" | "import-required";
+  availability: "ollama" | "huggingface";
 }
 
 export interface LocalModelCatalogGroup {
@@ -16,14 +16,14 @@ export interface LocalModelCatalogGroup {
 
 // Curated download suggestions, not installed-model data or a compatibility
 // certification. Sizes refer to the selected release/quantization, not RAM.
-export const localModelCatalogCheckedAt = "2026-09-30";
+export const localModelCatalogCheckedAt = "2026-10-08";
 export const localModelCatalog: readonly LocalModelCatalogGroup[] = [
   {
     id: "qwen", title: "Qwen", description: "中文通用 · 两代小规格对照",
     sources: ["https://ollama.com/library/qwen3/tags", "https://ollama.com/library/qwen3.5/tags"],
     models: [
       { name: "qwen3:0.6b", title: "Qwen3 · 0.6B", downloadBytes: 523_000_000, note: "轻量文本 · 支持思考输出", availability: "ollama" },
-      { name: "qwen3.5:0.8b", title: "Qwen3.5 · 0.8B", downloadBytes: 1_000_000_000, note: "新一代小规格 · 本轮仅使用文本输入", availability: "ollama" },
+      { name: "qwen3.5:0.8b", title: "Qwen3.5 · 0.8B", downloadBytes: 1_320_000_000, note: "新一代小规格 · 本轮仅使用文本输入", availability: "ollama" },
       { name: "qwen3:1.7b", title: "Qwen3 · 1.7B", downloadBytes: 1_400_000_000, note: "文本模型 · 中间规格对照", availability: "ollama" },
       { name: "qwen3.5:2b-q4_K_M", title: "Qwen3.5 · 2B", downloadBytes: 1_900_000_000, note: "Q4_K_M 量化 · 本轮仅使用文本输入", availability: "ollama" },
       { name: "qwen3:4b-instruct", title: "Qwen3 · 4B Instruct", downloadBytes: 2_500_000_000, note: "非思考版 · 文本指令对照", availability: "ollama" },
@@ -57,10 +57,10 @@ export const localModelCatalog: readonly LocalModelCatalogGroup[] = [
       "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF",
     ],
     models: [
-      { name: "LiquidAI/LFM2.5-350M-GGUF:Q4_0", title: "LFM2.5 · 350M", downloadBytes: 219_000_000, note: "专项微调与实验 · 非通用聊天主力", availability: "import-required" },
+      { name: "hf.co/LiquidAI/LFM2.5-350M-GGUF:Q4_0", title: "LFM2.5 · 350M", downloadBytes: 219_000_000, note: "专项微调与实验 · 非通用聊天主力", availability: "huggingface" },
       { name: "lfm2.5-thinking:1.2b", title: "LFM2.5 · 1.2B Thinking", downloadBytes: 731_000_000, note: "端侧思考版 · 轻量文本实验", availability: "ollama" },
-      { name: "LiquidAI/LFM2.5-1.2B-Instruct-GGUF:Q4_K_M", title: "LFM2.5 · 1.2B Instruct", downloadBytes: 731_000_000, note: "指令版 · 与 Thinking 版对照", availability: "import-required" },
-      { name: "LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M", title: "LFM2.5 · 2.6B", downloadBytes: 1_670_000_000, note: "更大一档 · 端侧指令任务实验", availability: "import-required" },
+      { name: "hf.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF:Q4_K_M", title: "LFM2.5 · 1.2B Instruct", downloadBytes: 731_000_000, note: "指令版 · 与 Thinking 版对照", availability: "huggingface" },
+      { name: "hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M", title: "LFM2.5 · 2.6B", downloadBytes: 1_670_000_000, note: "更大一档 · 端侧指令任务实验", availability: "huggingface" },
     ],
   },
   {

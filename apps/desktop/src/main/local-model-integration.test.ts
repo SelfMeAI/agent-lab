@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { LocalModelStore, defaultLocalModelParameters } from "./local-model-store";
 import { LocalModelService } from "./local-model-service";
+import type { LocalModelDownload } from "../../../../packages/contracts/src/local-model";
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 
 async function waitForRun(service: LocalModelService, id: string, status: "complete" | "stopped", timeout = 120000): Promise<void> {
@@ -23,14 +24,76 @@ async function waitForDownload(service: LocalModelService): Promise<void> {
   while (Date.now() < deadline) {
     const state = await service.getState();
     if (state.download?.status === "complete") return;
-    if (state.download?.status === "error" || state.download?.status === "stopped") throw new Error(state.download.error ?? state.download.message);
+    if (state.download?.status === "error" || state.download?.status === "cancelled" || state.download?.status === "paused") throw new Error(state.download.error ?? state.download.message);
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error("真实模型下载超时");
 }
 
-// Opt-in: real official runtime, real model downloads. Weights remain in the app's persistent directory.
+// Opt-in: real official runtime and network transfers. Lifecycle/GGUF tests use disposable
+// project-owned directories; the comparison test retains the application's model weights.
 describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama real-model path", () => {
+  it("pauses a real transfer, restores it after restart, resumes cached bytes, infers, deletes and re-downloads", async () => {
+    const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true });
+    const root = await mkdtemp(join(parent, "lifecycle-"));
+    const executable = process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama");
+    const model = "smollm2:135m-instruct-q4_K_M";
+    let latest: LocalModelDownload | null = null, resumed = false;
+    const resumedProgress: number[] = [], deltas: string[] = [];
+    const create = (): LocalModelService => new LocalModelService(new LocalModelStore(root), executable, (event) => {
+      if (event.type === "download") {
+        latest = event.download;
+        if (resumed && event.download.message === "下载模型文件" && event.download.completed) resumedProgress.push(event.download.completed);
+      }
+      if (event.type === "run" && event.run.outputs[0].text) deltas.push(event.run.outputs[0].text);
+    });
+    let service = create();
+    try {
+      await service.init(); expect((await service.getState()).runtime.status).toBe("ready");
+      await service.pull(model);
+      await vi.waitFor(() => {
+        if (latest?.status === "error") throw new Error(latest.error ?? latest.message);
+        expect(latest?.completed).toBeGreaterThan(0);
+      }, { timeout: 90000, interval: 50 });
+      await service.pauseDownload();
+      const paused = service.store.getDownload()!;
+      expect(paused.status).toBe("paused"); expect(paused.completed).toBeGreaterThan(0); expect(paused.completed).toBeLessThan(paused.total!);
+      const cache = await readdir(join(service.store.modelsDirectory, "blobs"));
+      expect(cache.some((name) => name.includes("partial"))).toBe(true);
+      console.log("REAL OLLAMA paused with native partial cache", { completed: paused.completed, total: paused.total });
+      await service.shutdown(); service = create(); await service.init();
+      expect(service.store.getDownload()).toMatchObject({ status: "paused", completed: paused.completed, startedAt: paused.startedAt });
+      expect((await service.getState()).download?.status).toBe("paused");
+      resumed = true; await service.resumeDownload(); await waitForDownload(service);
+      expect(resumedProgress[0]).toBeGreaterThanOrEqual(paused.completed!);
+      console.log("REAL OLLAMA resumed native progress", resumedProgress.slice(0, 3));
+      expect((await service.getState()).models.some((item) => item.name === model)).toBe(true);
+      const run = await service.startRun({ mode: "playground", models: [model], prompt: "What is 2 plus 3? Answer briefly.", systemPrompt: "", parameters: { ...defaultLocalModelParameters, maxTokens: 48, seed: 42, thinking: "off" } });
+      await waitForRun(service, run.id, "complete");
+      expect(service.getRun(run.id).outputs[0].text.length).toBeGreaterThan(0); expect(service.getRun(run.id).outputs[0].metrics.outputTokens).toBeGreaterThan(0); expect(deltas.length).toBeGreaterThan(1);
+      await service.deleteModel(model);
+      expect((await service.getState()).models.some((item) => item.name === model)).toBe(false);
+      expect(service.store.getDownload()).toBeNull(); expect(service.getRun(run.id).status).toBe("complete");
+      await service.pull(model); await waitForDownload(service);
+      expect((await service.getState()).models.some((item) => item.name === model)).toBe(true);
+      await service.shutdown(); service = create(); await service.init();
+      expect(service.store.getDownload()?.status).toBe("complete"); expect(service.getRun(run.id).status).toBe("complete");
+      console.log("REAL OLLAMA inference/delete/re-download/reopen verified");
+    } finally { await service.shutdown(); await rm(root, { recursive: true, force: true }); }
+  }, 900000);
+
+  it.skipIf(process.env.RUN_HF_INTEGRATION !== "1")("downloads a public Hugging Face GGUF and runs it locally", async () => {
+    const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true }); const root = await mkdtemp(join(parent, "hf-"));
+    const service = new LocalModelService(new LocalModelStore(root), process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama"), () => {});
+    try {
+      await service.init(); await service.pull("hf.co/LiquidAI/LFM2.5-350M-GGUF:Q4_0"); await waitForDownload(service);
+      const installed = (await service.getState()).models[0]; expect(installed.name.toLowerCase()).toContain("lfm2.5-350m-gguf");
+      const run = await service.startRun({ mode: "playground", models: [installed.name], prompt: "What is 2 plus 3? Answer briefly.", systemPrompt: "", parameters: { ...defaultLocalModelParameters, maxTokens: 48, seed: 42, thinking: "off" } });
+      await waitForRun(service, run.id, "complete"); expect(service.getRun(run.id).outputs[0].text.length).toBeGreaterThan(0);
+      console.log("REAL HF GGUF download/inference verified", { model: installed.name, size: installed.size, text: service.getRun(run.id).outputs[0].text });
+    } finally { await service.shutdown(); await rm(root, { recursive: true, force: true }); }
+  }, 900000);
+
   it("downloads two models, streams independent experiments, compares, cancels, retries and reopens evidence", async () => {
     const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true }); const root = await mkdtemp(join(parent, "integration-"));
     const store = new LocalModelStore(root); const deltas: string[] = [];

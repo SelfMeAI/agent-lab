@@ -67,11 +67,15 @@ export interface LocalModelRunSummary {
 }
 export interface LocalModelDownload {
   model: string;
-  status: "downloading" | "complete" | "stopped" | "error";
+  status: "downloading" | "pausing" | "paused" | "cancelling" | "cancelled" | "complete" | "error";
   message: string;
   completed: number | null;
   total: number | null;
   error: string | null;
+  startedAt: string;
+  updatedAt: string;
+  bytesPerSecond: number | null;
+  remainingSeconds: number | null;
 }
 export interface LocalModelSnapshot {
   runtime: { status: "starting" | "ready" | "error"; version: string | null; endpoint: string | null; error: string | null };

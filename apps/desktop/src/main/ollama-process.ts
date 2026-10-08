@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname } from "node:path";
 import { OllamaClient } from "../../../../packages/runtime/src/ollama";
+import { ollamaDownloadProxy } from "./ollama-download-proxy";
 
 async function freeLocalPort(): Promise<number> {
   const server = createServer();
@@ -21,7 +22,7 @@ export class OllamaProcess {
   private directory: string | null = null;
   private log = "";
   private stopping = false;
-  constructor(private readonly executable: string, private readonly onExit: (message: string) => void = () => {}) {}
+  constructor(private readonly executable: string, private readonly onExit: (message: string) => void = () => {}, private readonly resolveProxy?: () => Promise<string>) {}
 
   start(modelsDirectory: string): Promise<OllamaClient> {
     if (this.stopping) return Promise.reject(new Error("本地模型服务正在停止，请稍后重试"));
@@ -34,11 +35,12 @@ export class OllamaProcess {
   private async launch(modelsDirectory: string): Promise<OllamaClient> {
     await access(this.executable).catch(() => { throw new Error("内置 Ollama 运行包缺失，请重新打包或运行 npm run ensure:ollama"); });
     const port = await freeLocalPort();
+    const proxy = ollamaDownloadProxy(process.env, await this.resolveProxy?.());
     if (this.stopping) throw new Error("本地模型服务已停止");
     this.log = "";
     const child = spawn(this.executable, ["serve"], {
       cwd: dirname(this.executable), windowsHide: true, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: modelsDirectory, OLLAMA_NO_CLOUD: "1", OLLAMA_MAX_LOADED_MODELS: "1", OLLAMA_NUM_PARALLEL: "1" },
+      env: { ...process.env, ...proxy, OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: modelsDirectory, OLLAMA_NO_CLOUD: "1", OLLAMA_MAX_LOADED_MODELS: "1", OLLAMA_NUM_PARALLEL: "1" },
     });
     this.child = child;
     this.directory = modelsDirectory;

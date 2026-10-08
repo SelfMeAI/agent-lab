@@ -224,6 +224,8 @@ export interface DesktopBridge {
   startLocalModelRun(request: LocalModelRunRequest): Promise<LocalModelRun>;
   stopLocalModelRun(): Promise<void>;
   pullLocalModel(model: string): Promise<void>;
+  pauseLocalModelDownload(): Promise<void>;
+  resumeLocalModelDownload(): Promise<void>;
   stopLocalModelDownload(): Promise<void>;
   unloadLocalModel(model: string): Promise<void>;
   deleteLocalModel(model: string): Promise<void>;

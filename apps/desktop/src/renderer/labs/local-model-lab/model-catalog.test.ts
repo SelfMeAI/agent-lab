@@ -35,11 +35,11 @@ describe("curated small-model download catalog", () => {
     }
   });
 
-  it("does not invent native Ollama tags for the three pending Liquid GGUF candidates", () => {
-    const pending = localModelCatalog.flatMap((group) => group.models).filter((model) => model.availability === "import-required");
-    expect(pending).toHaveLength(3);
-    expect(pending.every((model) => model.name.startsWith("LiquidAI/") && model.name.includes("GGUF:"))).toBe(true);
-    expect(pending.find((model) => model.title === "LFM2.5 · 350M")?.note).toContain("非通用聊天主力");
+  it("uses documented Hugging Face registry names, not invented native Ollama tags", () => {
+    const gguf = localModelCatalog.flatMap((group) => group.models).filter((model) => model.availability === "huggingface");
+    expect(gguf).toHaveLength(3);
+    expect(gguf.every((model) => validLocalModelName(model.name) && model.name.startsWith("hf.co/LiquidAI/") && model.name.includes("GGUF:"))).toBe(true);
+    expect(gguf.find((model) => model.title === "LFM2.5 · 350M")?.note).toContain("非通用聊天主力");
     expect(localModelCatalog.find((group) => group.id === "liquid")?.models.find((model) => model.availability === "ollama")?.name).toBe("lfm2.5-thinking:1.2b");
   });
 });

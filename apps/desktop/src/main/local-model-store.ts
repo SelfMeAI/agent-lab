@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { LocalModelParameters, LocalModelPreferences, LocalModelRun, LocalModelRunSummary } from "../../../../packages/contracts/src/local-model";
+import type { LocalModelDownload, LocalModelParameters, LocalModelPreferences, LocalModelRun, LocalModelRunSummary } from "../../../../packages/contracts/src/local-model";
 import { validLocalModelName } from "../../../../packages/runtime/src/ollama";
 
 export const defaultLocalModelParameters: LocalModelParameters = { temperature: 0.7, contextLength: 4096, seed: null, maxTokens: 2048, thinking: "auto" };
@@ -50,7 +50,8 @@ export class LocalModelStore {
     await chmod(path, 0o600);
     this.db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;
       CREATE TABLE IF NOT EXISTS local_model_runs (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL) STRICT;
-      CREATE INDEX IF NOT EXISTS local_model_runs_recent ON local_model_runs(created_at DESC);`);
+      CREATE INDEX IF NOT EXISTS local_model_runs_recent ON local_model_runs(created_at DESC);
+      CREATE TABLE IF NOT EXISTS local_model_downloads (models_directory TEXT PRIMARY KEY, payload TEXT NOT NULL) STRICT;`);
     for (const row of this.db.prepare("SELECT payload FROM local_model_runs WHERE status IN ('pending', 'running')").all()) {
       const run = JSON.parse(String(row.payload)) as LocalModelRun;
       run.status = "interrupted";
@@ -60,10 +61,32 @@ export class LocalModelStore {
       }
       this.saveRun(run);
     }
+    // Recover intent, not a fictitious background transfer. Resumption remains explicit.
+    for (const row of this.db.prepare("SELECT models_directory, payload FROM local_model_downloads").all()) {
+      const download = JSON.parse(String(row.payload)) as LocalModelDownload;
+      if (["downloading", "pausing", "cancelling"].includes(download.status)) {
+        download.status = download.status === "cancelling" ? "cancelled" : "paused";
+        download.message = download.status === "cancelled" ? "下载已取消" : "上次下载已中断，可继续下载";
+        download.error = null; download.bytesPerSecond = null; download.remainingSeconds = null;
+        download.updatedAt = new Date().toISOString();
+        this.db.prepare("UPDATE local_model_downloads SET payload = ? WHERE models_directory = ?").run(JSON.stringify(download), row.models_directory);
+      }
+    }
   }
 
   get modelsDirectory(): string { return this.config.modelsDirectory; }
   get preferences(): LocalModelPreferences { return structuredClone(this.config.preferences); }
+
+  getDownload(): LocalModelDownload | null {
+    const row = this.database().prepare("SELECT payload FROM local_model_downloads WHERE models_directory = ?").get(this.modelsDirectory);
+    return row ? JSON.parse(String(row.payload)) as LocalModelDownload : null;
+  }
+
+  saveDownload(download: LocalModelDownload | null): void {
+    if (!download) { this.database().prepare("DELETE FROM local_model_downloads WHERE models_directory = ?").run(this.modelsDirectory); return; }
+    this.database().prepare("INSERT INTO local_model_downloads (models_directory, payload) VALUES (?, ?) ON CONFLICT(models_directory) DO UPDATE SET payload = excluded.payload")
+      .run(this.modelsDirectory, JSON.stringify(download));
+  }
 
   async savePreferences(value: unknown): Promise<LocalModelPreferences> {
     this.config.preferences = validateLocalModelPreferences(value);
