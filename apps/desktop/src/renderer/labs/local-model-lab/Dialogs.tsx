@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from "re
 import type { LocalModelDetails, LocalModelDownload, LocalModelInfo, LocalModelRun } from "../../../../../../packages/contracts/src/local-model";
 import { sameLocalModel } from "../../../../../../packages/runtime/src/ollama";
 import { localModelBridge, formatBytes, localModelError, localModelStatus, refreshLocalModels, useLocalModels } from "./local-model-store";
-import { localModelCatalog, localModelCatalogCheckedAt } from "./model-catalog";
-import { downloadInProgress, downloadPercent, downloadStatus, formatDownloadRate, formatDownloadRemaining } from "./download-presentation";
+import { localModelCatalog } from "./model-catalog";
+import { downloadInProgress, downloadPercent, downloadStatusLabel, formatDownloadRate, formatDownloadRemaining } from "./download-presentation";
 
 export function LocalModelDialog({ title, children, onClose, wide = false, className = "" }: { title: string; children: ReactNode; onClose(): void; wide?: boolean; className?: string }): JSX.Element {
   const id = useId(); const ref = useRef<HTMLElement>(null);
@@ -62,9 +62,9 @@ export function DownloadCard({ download, onClose }: { download: LocalModelDownlo
     } catch (cause) { setError(localModelError(cause)); } finally { setOperating(false); }
   }
   return <section className={`lm-download lm-download--${download.status}`} aria-label="当前模型下载">
-    <header><strong title={download.model}>{download.model}</strong><span className="lm-download-status" aria-live="polite">{downloadStatus[download.status]}</span></header>
+    <header><strong title={download.model}>{download.model}</strong><span className="lm-download-status" aria-live="polite">{downloadStatusLabel(download)}</span></header>
     <span>{download.message}</span>
-    {download.status !== "cancelled" && <progress aria-label="模型下载进度" max="100" {...(percent === null ? {} : { value: percent })} />}
+    {download.status !== "cancelled" && <progress aria-label="模型下载进度" aria-valuetext={`${downloadStatusLabel(download)}${percent === null ? "" : ` ${Math.floor(percent)}%`}`} max="100" {...(percent === null ? {} : { value: percent })} />}
     <div className="lm-download-metrics"><small>{percent === null ? "等待模型清单…" : `${formatBytes(download.completed)} / ${formatBytes(download.total)} · ${Math.floor(percent)}%`}</small>
       {download.status === "downloading" && download.message === "下载模型文件" && <small title="速度不包含已有缓存；剩余时间按已知文件估算">{formatDownloadRate(download.bytesPerSecond)}{formatDownloadRemaining(download.remainingSeconds) && ` · 剩余 ${formatDownloadRemaining(download.remainingSeconds)}`}</small>}
     </div>
@@ -113,7 +113,7 @@ export function PullModelDialog({ onClose, initialName }: { onClose(): void; ini
           </button>)}</div>
         </section>)}
       </div>
-      <div className="lm-catalog-submit"><p>{paused ? "请继续或取消当前暂停的下载，再选择其他模型。" : `目录核对 ${localModelCatalogCheckedAt} · 只下载所选模型，未逐款在本应用验收。`}{selected?.availability === "huggingface" && " GGUF 为实验性通路，本机完整下载尚待验收。"}</p>{!busy && !paused && !showDownload && <button className="settings-panel__save" disabled={!name.trim() || data?.runtime.status !== "ready"} type="submit">{installed(name.trim()) ? "检查模型更新" : "下载模型"}</button>}</div>
+      <div className="lm-catalog-submit"><p>{paused ? "请继续或取消当前暂停的下载，再下载其他模型。" : "下载完成后，模型会出现在左侧列表。暂停或重试会复用已下载文件。"}{(selected?.availability === "huggingface" || name.trim().toLowerCase().startsWith("hf.co/")) && " GGUF 的可运行性取决于模型架构和运行时支持。"}</p>{!busy && !paused && !showDownload && <button className="settings-panel__save" disabled={!name.trim() || data?.runtime.status !== "ready"} type="submit">{installed(name.trim()) ? "检查模型更新" : "下载模型"}</button>}</div>
     </form>
     {showDownload && <DownloadCard download={download} onClose={onClose} />}
     {error && <p className="settings-panel__error" role="alert">{error}</p>}

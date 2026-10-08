@@ -4,6 +4,7 @@ import { OllamaClient, ollamaError, sameLocalModel, validLocalModelName, type Ol
 import { LocalModelStore, validateLocalModelParameters } from "./local-model-store";
 import { OllamaProcess } from "./ollama-process";
 import { DownloadProgress } from "./local-model-download";
+import { prepareHuggingFaceMetadata, type ModelMetadataFetch } from "./hf-model-metadata";
 
 type ManagedOllama = { start(directory: string): Promise<OllamaClient>; stop(): Promise<void> };
 const emptyMetrics = (): LocalModelMetrics => ({ firstOutputMs: null, durationMs: null, loadMs: null, inputTokens: null, outputTokens: null, tokensPerSecond: null });
@@ -31,7 +32,7 @@ export class LocalModelService {
   private modifyingModels = false;
   private closing = false;
 
-  constructor(readonly store: LocalModelStore, executable: string, private readonly emit: (event: LocalModelEvent) => void, managed?: ManagedOllama, resolveProxy?: () => Promise<string>) {
+  constructor(readonly store: LocalModelStore, executable: string, private readonly emit: (event: LocalModelEvent) => void, managed?: ManagedOllama, resolveProxy?: () => Promise<string>, private readonly fetchDownloadMetadata: ModelMetadataFetch = fetch) {
     this.process = managed ?? new OllamaProcess(executable, (message) => {
       this.runtime = { ...this.runtime, status: "error", error: message, endpoint: null };
       if (!this.closing) this.emitState();
@@ -185,24 +186,28 @@ export class LocalModelService {
     let lastPublished = 0, lastPersisted = 0;
     let lastProgressAt = Date.now(), lastStatus = "", lastCompleted = 0, verifying = false, stalled = false;
     const watchdog = setInterval(() => {
-      if (!abort.signal.aborted && !verifying && Date.now() - lastProgressAt > 120000) { stalled = true; abort.abort(); }
+      if (!abort.signal.aborted && Date.now() - lastProgressAt > (verifying ? 300000 : 120000)) { stalled = true; abort.abort(); }
     }, 1000);
     try {
       const client = await this.client(); abort.signal.throwIfAborted();
-      await client.pull(model, abort.signal, (chunk) => {
+      const receive = (chunk: OllamaChunk): void => {
         if (abort.signal.aborted) return;
         const received = progress.receive(chunk);
-        if (chunk.status !== lastStatus || (received.completed ?? 0) > lastCompleted) lastProgressAt = Date.now();
+        const changed = chunk.status !== lastStatus;
+        if (changed || (received.completed ?? 0) > lastCompleted) lastProgressAt = Date.now();
         lastStatus = chunk.status ?? ""; lastCompleted = received.completed ?? 0;
         verifying = Boolean(chunk.status?.startsWith("verifying") || chunk.status === "writing manifest" || chunk.status === "success");
-        this.download = { ...this.download!, ...received, status: "downloading", message: chunk.status === "success" ? "模型验证完成" : chunk.status === "pulling manifest" ? "获取模型清单" : chunk.status?.startsWith("pulling ") ? "下载模型文件" : chunk.status?.startsWith("verifying") ? "校验文件" : "准备模型" };
-        if (Date.now() - lastPublished > 150 || chunk.status === "success") {
+        this.download = { ...this.download!, ...received, status: "downloading", message: chunk.status === "success" ? "模型验证完成" : chunk.status === "pulling manifest" ? "获取模型清单" : chunk.status === "pulling metadata license" ? "下载许可证文件" : chunk.status === "pulling metadata template" ? "下载对话模板" : chunk.status === "pulling metadata config" ? "下载模型配置" : chunk.status?.startsWith("pulling ") ? "下载模型文件" : chunk.status?.startsWith("verifying") ? "校验文件" : chunk.status === "writing manifest" ? "安装模型" : "准备模型" };
+        if (changed || Date.now() - lastPublished > 150 || chunk.status === "success") {
           lastPublished = Date.now();
-          const persist = Date.now() - lastPersisted > 1000;
+          const persist = changed || Date.now() - lastPersisted > 1000;
           if (persist) lastPersisted = Date.now();
           this.publishDownload(persist);
         }
-      });
+      };
+      await prepareHuggingFaceMetadata(model, client, { signal: abort.signal, request: this.fetchDownloadMetadata, receive, plan: (layers) => progress.plan(layers) });
+      abort.signal.throwIfAborted();
+      await client.pull(model, abort.signal, receive);
       abort.signal.throwIfAborted();
       this.models = await client.models();
       const actual = this.models.find((m) => sameLocalModel(m.name, model));
@@ -213,7 +218,7 @@ export class LocalModelService {
     } catch (error) {
       const status = stalled ? "error" : abort.signal.aborted ? this.pullStopReason ?? "paused" : "error";
       this.download = { ...this.download!, status, message: status === "paused" ? "下载已暂停，可继续下载" : status === "cancelled" ? "下载已取消" : "下载失败，可重试",
-        error: stalled ? "下载连续两分钟没有新进展，请检查网络后重试。已保存的分片可继续使用。" : abort.signal.aborted ? null : ollamaError(error), bytesPerSecond: null, remainingSeconds: null };
+        error: stalled ? verifying ? "模型校验或安装超过五分钟没有新进展，请重试。已下载的文件会保留。" : "下载连续两分钟没有新进展，请检查网络后重试。已保存的分片可继续使用。" : abort.signal.aborted ? null : ollamaError(error), bytesPerSecond: null, remainingSeconds: null };
     } finally {
       clearInterval(watchdog);
       this.pullAbort = null;

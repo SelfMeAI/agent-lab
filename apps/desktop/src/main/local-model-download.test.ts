@@ -24,4 +24,12 @@ describe("real-byte download presentation", () => {
     for (let second = 2; second <= 200; second++) expect(progress.receive({ status: "pulling layer", digest: "one", total: 10000, completed: 1000 }, second * 1000)).toMatchObject({ bytesPerSecond: 0, remainingSeconds: null });
     expect(progress.receive({ status: "pulling layer", digest: "one", total: 10000, completed: 2000 }, 201000)).toMatchObject({ bytesPerSecond: 1000, remainingSeconds: 8 });
   });
+  it("includes not-yet-started companion files and never counts the first planned cache report as speed", () => {
+    const progress = new DownloadProgress();
+    progress.plan([{ digest: "weights", total: 219309792 }, { digest: "license", total: 10596 }, { digest: "config", total: 700 }]);
+    expect(progress.receive({ status: "pulling manifest" }, 0)).toMatchObject({ completed: 0, total: 219321088 });
+    expect(progress.receive({ status: "pulling cached model", digest: "weights", total: 219309792, completed: 219309792 }, 1000)).toMatchObject({ completed: 219309792, total: 219321088, bytesPerSecond: null });
+    expect(progress.receive({ status: "pulling metadata license", digest: "license", total: 10596, completed: 0 }, 1100)).toMatchObject({ completed: 219309792 });
+    expect(progress.receive({ status: "pulling metadata license", digest: "license", total: 10596, completed: 10596 }, 2000)).toMatchObject({ completed: 219320388, total: 219321088 });
+  });
 });

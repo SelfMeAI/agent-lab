@@ -33,6 +33,7 @@ describe("local model desktop presentation and state", () => {
       const declaration = css.split(`${selector} {`)[1]?.split("}")[0];
       expect(declaration, selector).toContain("var(--lm-accent)");
     }
+    expect(css.split(".lm-download progress {")[1]?.split("}")[0]).toContain("appearance: none");
     expect(css).toContain("--lm-model-a: #c5f454"); expect(css).toContain("--lm-model-b: #49d8e8");
   });
   it("does not conflate model runtime settings with a cloud provider", async () => {
@@ -48,7 +49,7 @@ describe("local model desktop presentation and state", () => {
     expect(markup.match(/is-installed/g)).toHaveLength(2);
     expect(markup).not.toContain("is-unavailable");
     expect(markup).toContain("Hugging Face · GGUF"); expect(markup).toContain("hf.co/LiquidAI/"); expect(markup).toContain("检查模型更新"); expect(markup).toContain("1.3 GB");
-    expect(markup).toContain("未逐款在本应用验收"); expect(markup).not.toContain("qwen3:8b");
+    expect(markup).toContain("暂停或重试会复用已下载文件"); expect(markup).not.toContain("未逐款"); expect(markup).not.toContain("目录核对"); expect(markup).not.toContain("qwen3:8b");
   });
   it("keeps the expanded catalog scroll separate from the input, filters and download action", () => {
     const css = readFileSync(new URL("./local-model.css", import.meta.url), "utf8");
@@ -100,7 +101,7 @@ describe("local model desktop presentation and state", () => {
     const empty = renderToStaticMarkup(createElement(LocalModelPage, { lab })); expect(empty).toContain("还没有本地模型");
   });
   it("formats download estimates honestly and treats transitions as busy", async () => {
-    const { downloadInProgress, downloadPercent, formatDownloadRate, formatDownloadRemaining } = await import("./download-presentation");
+    const { downloadInProgress, downloadPercent, downloadStatusLabel, formatDownloadRate, formatDownloadRemaining } = await import("./download-presentation");
     expect(downloadInProgress(null)).toBe(false);
     const download = { status: "pausing", completed: 150, total: 100 } as LocalModelDownload;
     expect(downloadInProgress(download)).toBe(true); expect(downloadInProgress({ ...download, status: "paused" })).toBe(false);
@@ -108,5 +109,8 @@ describe("local model desktop presentation and state", () => {
     expect(formatDownloadRate(null)).toBe("计算速度中…"); expect(formatDownloadRate(0)).toBe("等待下载数据…");
     expect(formatDownloadRate(0.5)).toBe("<1 B/s"); expect(formatDownloadRate(150)).toBe("150 B/s"); expect(formatDownloadRate(1500)).toBe("1.5 KB/s");
     expect(formatDownloadRemaining(null)).toBe(""); expect(formatDownloadRemaining(3)).toBe("约 3 秒"); expect(formatDownloadRemaining(7200)).toBe("约 2.0 小时");
+    expect(downloadStatusLabel({ ...download, status: "downloading", message: "校验文件" })).toBe("校验中");
+    expect(downloadStatusLabel({ ...download, status: "downloading", message: "安装模型" })).toBe("安装中");
+    expect(downloadStatusLabel({ ...download, status: "complete", message: "安装模型" })).toBe("已下载");
   });
 });

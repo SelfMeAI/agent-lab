@@ -54,4 +54,16 @@ describe("embedded Ollama protocol", () => {
     await expect(client.pull("bad", new AbortController().signal, () => {})).rejects.toThrow("未找到");
     expect(ollamaError(new Error("requires more system memory"))).toContain("内存");
   });
+  it("uses only the local runtime's blob API and propagates storage or hash failures", async () => {
+    const digest = `sha256:${"a".repeat(64)}`, signal = new AbortController().signal;
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 404 })).mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 })).mockResolvedValueOnce(Response.json({ error: "digest mismatch" }, { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock); const client = new OllamaClient("http://127.0.0.1:1");
+    expect(await client.hasBlob(digest, signal)).toBe(false); expect(await client.hasBlob(digest, signal)).toBe(true);
+    await client.cacheBlob(digest, new Uint8Array([1, 2]), signal);
+    expect(fetchMock.mock.calls[2][0]).toBe(`http://127.0.0.1:1/api/blobs/${digest}`);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: "POST", headers: { "Content-Type": "application/octet-stream" }, signal });
+    await expect(client.cacheBlob(digest, new Uint8Array([1]), signal)).rejects.toThrow("digest mismatch");
+    await expect(client.hasBlob("../private", signal)).rejects.toThrow("摘要无效"); expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
 });

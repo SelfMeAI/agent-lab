@@ -24,3 +24,11 @@ export function formatDownloadRemaining(seconds: number | null): string {
 }
 
 export const downloadStatus = { downloading: "下载中", pausing: "暂停中", paused: "已暂停", cancelling: "取消中", cancelled: "已取消", complete: "已下载", error: "下载失败" } as const;
+
+export function downloadStatusLabel(download: LocalModelDownload): string {
+  if (download.status === "downloading") {
+    if (download.message === "校验文件") return "校验中";
+    if (download.message === "安装模型" || download.message === "模型验证完成") return "安装中";
+  }
+  return downloadStatus[download.status];
+}

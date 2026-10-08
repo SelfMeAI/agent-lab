@@ -25,6 +25,7 @@ import { installAppShutdown } from "./app-shutdown";
 import { harnessNodeExecutable } from "./harness-node";
 import { LocalModelStore } from "./local-model-store";
 import { LocalModelService } from "./local-model-service";
+import { electronModelMetadataFetch } from "./electron-model-network";
 import type { LocalModelPreferences, LocalModelRunRequest } from "../../../../packages/contracts/src/local-model";
 
 let mainWindow: BrowserWindow | null = null;
@@ -132,7 +133,7 @@ void app.whenReady().then(async () => {
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   localModels = new LocalModelService(new LocalModelStore(root), join(runtimeRoot, "ollama/native/ollama"),
     (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:local-model-event", event); }, undefined,
-    () => session.defaultSession.resolveProxy("https://huggingface.co"));
+    () => session.defaultSession.resolveProxy("https://huggingface.co"), electronModelMetadataFetch);
   await localModels.init();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event),

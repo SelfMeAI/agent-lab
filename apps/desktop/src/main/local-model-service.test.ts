@@ -1,19 +1,21 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LocalModelEvent, LocalModelRunRequest } from "../../../../packages/contracts/src/local-model";
 import { OllamaClient } from "../../../../packages/runtime/src/ollama";
 import { LocalModelService, ollamaMetrics } from "./local-model-service";
 import { LocalModelStore, defaultLocalModelParameters } from "./local-model-store";
+import type { ModelMetadataFetch } from "./hf-model-metadata";
 const roots: string[] = [], services: LocalModelService[] = [];
 afterEach(async () => { vi.useRealTimers(); for (const service of services.splice(0)) await service.shutdown(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 const models = ["a:latest", "b:latest"].map((name) => ({ name, digest: `digest-${name}`, size: 123, parameterSize: "1B", quantization: "Q4", loaded: false, memoryBytes: null }));
-async function prepare(): Promise<{ service: LocalModelService; client: OllamaClient; events: LocalModelEvent[] }> {
+async function prepare(metadataRequest?: ModelMetadataFetch): Promise<{ service: LocalModelService; client: OllamaClient; events: LocalModelEvent[] }> {
   const parent = fileURLToPath(new URL("../../../../.work/local-model-tests", import.meta.url)); await mkdir(parent, { recursive: true }); const root = await mkdtemp(join(parent, "service-")); roots.push(root);
   const client = new OllamaClient("http://127.0.0.1:1"); vi.spyOn(client, "version").mockResolvedValue("test"); vi.spyOn(client, "models").mockResolvedValue(models); vi.spyOn(client, "unload").mockResolvedValue();
   const events: LocalModelEvent[] = [];
-  const service = new LocalModelService(new LocalModelStore(root), "unused", (event) => events.push(structuredClone(event)), { start: async () => client, stop: async () => {} });
+  const service = new LocalModelService(new LocalModelStore(root), "unused", (event) => events.push(structuredClone(event)), { start: async () => client, stop: async () => {} }, undefined, metadataRequest);
   services.push(service); await service.init(); return { service, client, events };
 }
 function request(mode: "playground" | "compare" = "compare"): LocalModelRunRequest { return { mode, models: mode === "compare" ? ["a:latest", "b:latest"] : ["a:latest"], prompt: "一个问题", systemPrompt: "", parameters: { ...defaultLocalModelParameters } }; }
@@ -156,6 +158,42 @@ describe("local model experiments", () => {
     }).mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
     vi.useFakeTimers(); await service.pull("a:latest"); await vi.advanceTimersByTimeAsync(121000);
     expect(service.store.getDownload()).toMatchObject({ status: "error", completed: 40, error: "下载连续两分钟没有新进展，请检查网络后重试。已保存的分片可继续使用。" });
+    vi.useRealTimers(); await service.resumeDownload(); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete"));
+  });
+  it("prefetches HF companions, publishes their exact phase immediately, then allows cancellation and a cached retry", async () => {
+    const model = "hf.co/LiquidAI/Test-GGUF:Q4_0", license = "license", config = "config";
+    const layer = (text: string, mediaType: string) => ({ digest: `sha256:${createHash("sha256").update(text).digest("hex")}`, size: text.length, mediaType });
+    const weights = { ...layer("weights", "application/vnd.ollama.image.model"), size: 219309792 };
+    const companion = layer(license, "application/vnd.ollama.image.license"), configuration = layer(config, "application/vnd.docker.container.image.v1+json");
+    const network = vi.fn<ModelMetadataFetch>(async (url) => url.includes("/manifests/") ? Response.json({ schemaVersion: 2, layers: [weights, companion], config: configuration }) : new Response(url.endsWith(companion.digest) ? license : config));
+    const { service, client, events } = await prepare(network);
+    vi.mocked(client.models).mockResolvedValue([{ ...models[0], name: model }]);
+    const cached = new Set([weights.digest]);
+    vi.spyOn(client, "hasBlob").mockImplementation(async (digest) => cached.has(digest));
+    const cache = vi.spyOn(client, "cacheBlob").mockImplementation(async (digest) => { cached.add(digest); });
+    const pull = vi.spyOn(client, "pull").mockImplementationOnce(async (_name, signal) => {
+      expect(cached.has(companion.digest)).toBe(true); expect(cached.has(configuration.digest)).toBe(true);
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    }).mockImplementation(async (name, _signal, receive) => { expect(name).toBe(model); receive({ status: "success" }); });
+    await service.pull(model); await vi.waitFor(() => expect(pull).toHaveBeenCalledOnce());
+    expect(events.some((event) => event.type === "download" && event.download.message === "下载许可证文件")).toBe(true);
+    expect(service.store.getDownload()).toMatchObject({ completed: weights.size + companion.size + configuration.size, total: weights.size + companion.size + configuration.size });
+    await service.stopDownload(); expect(service.store.getDownload()?.status).toBe("cancelled");
+    await service.pull(model); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete"));
+    expect(cache).toHaveBeenCalledTimes(2); expect(network).toHaveBeenCalledTimes(4); expect(pull).toHaveBeenCalledTimes(2);
+  });
+  it("bounds a stuck verification phase as well as file transfer, preserving the ability to retry", async () => {
+    const { service, client, events } = await prepare();
+    vi.spyOn(client, "pull").mockImplementationOnce(async (_name, signal, receive) => {
+      receive({ status: "pulling one", digest: "one", total: 100, completed: 100 });
+      receive({ status: "verifying sha256 digest" });
+      await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    }).mockImplementation(async (_name, _signal, receive) => { receive({ status: "success" }); });
+    vi.useFakeTimers(); await service.pull("a:latest"); await vi.advanceTimersByTimeAsync(121000);
+    expect(service.store.getDownload()).toMatchObject({ status: "downloading", message: "校验文件" });
+    expect(events.some((event) => event.type === "download" && event.download.message === "校验文件")).toBe(true);
+    await vi.advanceTimersByTimeAsync(180000);
+    expect(service.store.getDownload()).toMatchObject({ status: "error", completed: 100 }); expect(service.store.getDownload()?.error).toContain("校验或安装");
     vi.useRealTimers(); await service.resumeDownload(); await vi.waitFor(() => expect(service.store.getDownload()?.status).toBe("complete"));
   });
 });

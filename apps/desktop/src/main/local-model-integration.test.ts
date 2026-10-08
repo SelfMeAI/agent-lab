@@ -33,7 +33,7 @@ async function waitForDownload(service: LocalModelService): Promise<void> {
 // Opt-in: real official runtime and network transfers. Lifecycle/GGUF tests use disposable
 // project-owned directories; the comparison test retains the application's model weights.
 describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama real-model path", () => {
-  it("pauses a real transfer, restores it after restart, resumes cached bytes, infers, deletes and re-downloads", async () => {
+  it("pauses and cancels a real transfer, retries cached bytes, restores after restart, infers, deletes and re-downloads", async () => {
     const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true });
     const root = await mkdtemp(join(parent, "lifecycle-"));
     const executable = process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama");
@@ -61,11 +61,23 @@ describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama rea
       const cache = await readdir(join(service.store.modelsDirectory, "blobs"));
       expect(cache.some((name) => name.includes("partial"))).toBe(true);
       console.log("REAL OLLAMA paused with native partial cache", { completed: paused.completed, total: paused.total });
+      await service.stopDownload();
+      expect(service.store.getDownload()).toMatchObject({ status: "cancelled", completed: paused.completed });
+      expect(await readdir(join(service.store.modelsDirectory, "blobs"))).toEqual(cache);
+      await service.pull(model);
+      await vi.waitFor(() => {
+        if (latest?.status === "error") throw new Error(latest.error ?? latest.message);
+        expect(latest?.status).toBe("downloading"); expect(latest?.completed).toBeGreaterThanOrEqual(paused.completed!);
+      }, { timeout: 90000, interval: 50 });
+      await service.pauseDownload();
+      const retried = service.store.getDownload()!;
+      expect(retried.status).toBe("paused"); expect(retried.completed).toBeGreaterThanOrEqual(paused.completed!);
+      console.log("REAL OLLAMA cancelled/retried native cache", { completed: retried.completed, total: retried.total });
       await service.shutdown(); service = create(); await service.init();
-      expect(service.store.getDownload()).toMatchObject({ status: "paused", completed: paused.completed, startedAt: paused.startedAt });
+      expect(service.store.getDownload()).toMatchObject({ status: "paused", completed: retried.completed, startedAt: retried.startedAt });
       expect((await service.getState()).download?.status).toBe("paused");
       resumed = true; await service.resumeDownload(); await waitForDownload(service);
-      expect(resumedProgress[0]).toBeGreaterThanOrEqual(paused.completed!);
+      expect(resumedProgress[0]).toBeGreaterThanOrEqual(retried.completed!);
       console.log("REAL OLLAMA resumed native progress", resumedProgress.slice(0, 3));
       expect((await service.getState()).models.some((item) => item.name === model)).toBe(true);
       const run = await service.startRun({ mode: "playground", models: [model], prompt: "What is 2 plus 3? Answer briefly.", systemPrompt: "", parameters: { ...defaultLocalModelParameters, maxTokens: 48, seed: 42, thinking: "off" } });

@@ -131,6 +131,24 @@ export class OllamaClient {
     if (!finished) throw new Error("模型下载中断，尚未完成验证");
   }
 
+  async hasBlob(digest: string, signal: AbortSignal): Promise<boolean> {
+    if (!/^sha256:[a-f0-9]{64}$/u.test(digest)) throw new Error("模型文件摘要无效");
+    const response = await fetch(`${this.endpoint}/api/blobs/${digest}`, { method: "HEAD", signal });
+    if (response.status === 404) return false;
+    if (!response.ok) throw new Error(`读取模型缓存失败：HTTP ${response.status}`);
+    return true;
+  }
+
+  async cacheBlob(digest: string, bytes: Uint8Array, signal: AbortSignal): Promise<void> {
+    if (!/^sha256:[a-f0-9]{64}$/u.test(digest)) throw new Error("模型文件摘要无效");
+    const response = await fetch(`${this.endpoint}/api/blobs/${digest}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: new Uint8Array(bytes).buffer, signal });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(payload.error ?? `保存模型缓存失败：HTTP ${response.status}`);
+    }
+    await response.body?.cancel();
+  }
+
   async unload(model: string): Promise<void> { await this.request("/api/generate", { model, keep_alive: 0 }, AbortSignal.timeout(30000)); }
   async remove(model: string): Promise<void> { await this.request("/api/delete", { model }, undefined, "DELETE"); }
 }

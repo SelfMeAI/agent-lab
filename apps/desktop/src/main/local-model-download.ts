@@ -2,17 +2,21 @@ import type { OllamaChunk } from "../../../../packages/runtime/src/ollama";
 
 /** Rates exclude the first cached progress report, including when a new layer appears. */
 export class DownloadProgress {
-  private layers = new Map<string, { completed: number; total: number }>();
+  private layers = new Map<string, { completed: number; total: number; reported: boolean }>();
   private baseline: { time: number; completed: number } | null = null;
   private speed: number | null = null;
+
+  plan(layers: { digest: string; total: number }[]): void {
+    for (const layer of layers) this.layers.set(layer.digest, { completed: 0, total: layer.total, reported: false });
+  }
 
   receive(chunk: OllamaChunk, now = performance.now()): { completed: number | null; total: number | null; bytesPerSecond: number | null; remainingSeconds: number | null } {
     let cachedLayer = false;
     if (chunk.digest && Number.isFinite(chunk.total) && chunk.total! > 0) {
       const previous = this.layers.get(chunk.digest);
       const completed = typeof chunk.completed === "number" && Number.isFinite(chunk.completed) ? Math.max(0, Math.min(chunk.total!, chunk.completed)) : previous?.completed ?? 0;
-      cachedLayer = !previous && completed > 0;
-      this.layers.set(chunk.digest, { completed, total: chunk.total! });
+      cachedLayer = !previous?.reported && completed > 0;
+      this.layers.set(chunk.digest, { completed, total: chunk.total!, reported: true });
     }
     if (!this.layers.size) return { completed: null, total: null, bytesPerSecond: null, remainingSeconds: null };
     const layers = [...this.layers.values()];
