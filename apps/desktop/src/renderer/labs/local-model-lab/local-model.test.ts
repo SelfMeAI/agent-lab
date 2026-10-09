@@ -22,11 +22,20 @@ describe("local model desktop presentation and state", () => {
   it("renders both approved layouts with explicit comparison targets, real models and no invented measurements", async () => {
     const store = await import("./local-model-store"); const { LocalModelPage } = await import("./Page"); store.acceptLocalModelEvent({ type: "state", state: fixture() });
     const playground = renderToStaticMarkup(createElement(LocalModelPage, { lab, viewId: "playground" }));
-    expect(playground).toContain("RUN PROMPT"); expect(playground).toContain("qwen3:0.6b"); expect(playground).toContain("0 个已载入"); expect(playground).not.toContain("38 tok/s"); expect(playground).toContain("独立实验");
+    expect(playground).toContain("RUN PROMPT"); expect(playground).toContain("qwen3:0.6b"); expect(playground).toContain("2 个已下载模型"); expect(playground).not.toContain("个已载入"); expect(playground).not.toContain("38 tok/s"); expect(playground).toContain("独立实验");
     expect(playground).toContain('class="lm-model is-selected"'); expect(playground).not.toContain('class="lm-model is-selected is-a"'); expect(playground).not.toContain('class="lm-model is-selected is-b"');
     const compare = renderToStaticMarkup(createElement(LocalModelPage, { lab, viewId: "compare" }));
     expect(compare).toContain("RUN COMPARISON"); expect(compare).toContain("选 A"); expect(compare).toContain("选 B"); expect(compare).toContain("先 A 后 B"); expect(compare).toContain("SHARED SETTINGS"); expect(compare).not.toContain("4.9 GB");
     expect(compare).toContain('class="lm-model is-selected is-a"'); expect(compare).toContain('class="lm-model is-selected is-b"');
+  });
+  it("keeps per-model memory information and unloading while removing the loaded-model counter", async () => {
+    const store = await import("./local-model-store"); const { LocalModelPage } = await import("./Page"); const { ModelDetailsDialog } = await import("./Dialogs");
+    const data = fixture(); data.models[0] = { ...data.models[0], loaded: true, memoryBytes: 875_000_000 };
+    store.acceptLocalModelEvent({ type: "state", state: data });
+    const page = renderToStaticMarkup(createElement(LocalModelPage, { lab }));
+    expect(page).toContain("2 个已下载模型"); expect(page).not.toContain("个已载入"); expect(page).toContain("载入 875 MB");
+    const details = renderToStaticMarkup(createElement(ModelDetailsDialog, { model: data.models[0], onClose: () => {} }));
+    expect(details).toContain("已载入 · 875 MB"); expect(details).toContain("释放内存"); expect(details).not.toMatch(/disabled=""[^>]*>释放内存/u);
   });
   it("shares the silver module accent with the workspace and keeps comparison identities separate", async () => {
     const { localModelLab } = await import("./index"); const { LabPage } = await import("../LabPage");
