@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, session, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, safeStorage, session, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode, type JevExperimentId } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
@@ -27,6 +27,11 @@ import { LocalModelStore } from "./local-model-store";
 import { LocalModelService } from "./local-model-service";
 import { electronModelMetadataFetch } from "./electron-model-network";
 import type { LocalModelPreferences, LocalModelRunRequest } from "../../../../packages/contracts/src/local-model";
+import { isRemoteAgentId, type RemoteModelInput } from "../../../../packages/contracts/src/remote-agent";
+import { RemoteModelClient } from "../../../../packages/remote-agent/src/model-connection";
+import { RemoteServiceCredentials } from "./remote-agent/credentials";
+import { RemoteAgentContainer } from "./remote-agent/service-manager";
+import { RemoteDevelopmentService } from "./remote-agent/development-service";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
@@ -138,6 +143,35 @@ void app.whenReady().then(async () => {
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event),
     join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
+  const remoteServices = Object.fromEntries((["openhands", "openclaw"] as const).map(engine => {
+    const credentials = new RemoteServiceCredentials(join(root, "remote-agent", "connections"), {
+      encrypt: async (value) => {
+        if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未创建服务凭据");
+        return safeStorage.encryptStringAsync(value);
+      },
+      decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
+    }, engine);
+    const container = new RemoteAgentContainer(root, () => credentials.get(), engine);
+    const model = new RemoteModelClient(engine, () => container.requireEndpoint(), () => credentials.get());
+    return [engine, new RemoteDevelopmentService(container, model, async () => {
+      const saved = await getDshProvider();
+      return saved.apiKey ? { protocol: "openai", baseUrl: saved.baseUrl, model: saved.model, apiKey: saved.apiKey } : null;
+    })];
+  }));
+  const remote = (event: IpcMainInvokeEvent, engine: unknown) => {
+    assertMainWindow(event);
+    if (!isRemoteAgentId(engine)) throw new Error("未知远端智能体");
+    return remoteServices[engine];
+  };
+  ipcMain.handle("selfme:remote-service-state", (event, engine) => remote(event, engine).state());
+  ipcMain.handle("selfme:remote-service-control", async (event, engine, action) => {
+    const service = remote(event, engine);
+    if (!["start", "stop", "restart"].includes(action)) throw new Error("未知服务操作");
+    return service.control(action);
+  });
+  ipcMain.handle("selfme:remote-service-logs", (event, engine) => remote(event, engine).logs());
+  ipcMain.handle("selfme:remote-model-get", (event, engine) => remote(event, engine).getModel());
+  ipcMain.handle("selfme:remote-model-save", (event, engine, input: RemoteModelInput) => remote(event, engine).saveModel(input));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };

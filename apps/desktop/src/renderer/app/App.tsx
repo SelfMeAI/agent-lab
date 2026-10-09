@@ -22,6 +22,7 @@ export function App(): JSX.Element {
   const jevExperiment = route.lab?.id === "jev-lab" && Boolean(route.viewId) && route.viewId !== "xiangqi";
   const jevView = jevWorkspace || jevExperiment;
   const localModelView = route.lab?.id === "local-model-lab";
+  const remoteView = route.lab?.id === "remote-agent-lab";
   const macDesktop = Boolean(window.selfmeLab) && /Macintosh/.test(navigator.userAgent);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export function App(): JSX.Element {
   return (
     <div className={`app-shell${macDesktop ? " app-shell--mac" : ""}`} style={{ "--space-art": `url(${starfield})` } as CSSProperties}>
       <TopBar inLab={Boolean(route.lab || route.atlas)} showSettings={agentWorkspace || jevView || localModelView} onBack={() => localModelView ? goHome() : route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
-      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}${jevExperiment ? " app-viewport--jev-experiment" : ""}${localModelView ? " app-viewport--local-model" : ""}`} key={`${route.atlas ? "atlas" : route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
+      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}${jevExperiment ? " app-viewport--jev-experiment" : ""}${localModelView ? " app-viewport--local-model" : ""}${remoteView ? " app-viewport--remote" : ""}`} key={`${route.atlas ? "atlas" : route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
         {route.atlas ? <AtlasPage /> : route.lab ? <LabPage lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
       </div>
       {settingsOpen && (localModelView ? <LocalModelSettings onClose={() => setSettingsOpen(false)} /> : <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : jevView ? "jev" : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />)}

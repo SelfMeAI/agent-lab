@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "engine": "openclaw",
+  "sources": [
+    {
+      "id": "gateway",
+      "repository": "https://github.com/openclaw/openclaw.git",
+      "version": "2026.9.9",
+      "ref": "v2026.9.9",
+      "commit": "bcfc88812a35243893585dbeca87ca41b48272ca"
+    }
+  ]
+}

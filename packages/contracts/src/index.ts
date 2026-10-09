@@ -1,5 +1,7 @@
 import type { LocalModelDetails, LocalModelEvent, LocalModelPreferences, LocalModelRun, LocalModelRunRequest, LocalModelSnapshot } from "./local-model";
+import type { RemoteServiceBridge } from "./remote-agent";
 export * from "./local-model";
+export * from "./remote-agent";
 
 export type LabId =
   | "agent-lab"
@@ -16,6 +18,7 @@ export interface LabView {
   id: string;
   label: string;
   designId: string;
+  designStatus?: "approved" | "pending";
 }
 
 export interface LabDefinition {
@@ -217,7 +220,7 @@ export interface JevDecision {
   warning?: string;
 }
 
-export interface DesktopBridge {
+export interface DesktopBridge extends RemoteServiceBridge {
   getLocalModelState(): Promise<LocalModelSnapshot>;
   getLocalModelDetails(model: string): Promise<LocalModelDetails>;
   saveLocalModelPreferences(preferences: LocalModelPreferences): Promise<LocalModelPreferences>;

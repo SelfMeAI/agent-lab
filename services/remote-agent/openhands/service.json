@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "openhands",
+  "name": "OpenHands",
+  "stage": "capability-validation",
+  "build": {
+    "source": "sdk",
+    "dockerfile": "openhands-agent-server/openhands/agent_server/docker/Dockerfile",
+    "target": "source",
+    "image": "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86",
+    "args": {
+      "INSTALL_ACP_PROVIDERS": "",
+      "INSTALL_CAPABILITIES": "vscode,browser"
+    }
+  }
+}

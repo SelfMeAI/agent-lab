@@ -5,6 +5,7 @@ runtimes/ollama/native/
 runtimes/codex/codex-resources/
 runtimes/codex/codex-path/
 runtimes/kimi-code/bin/
+services/remote-agent/*/upstream/
 .cache/
 .work/
 design/review/
@@ -12,6 +13,7 @@ out/
 release/
 dist/
 coverage/
+output/playwright/
 *.tsbuildinfo
 .DS_Store
 .env

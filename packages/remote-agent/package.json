@@ -1,0 +1,9 @@
+{
+  "name": "@selfme-lab/remote-agent",
+  "private": true,
+  "version": "0.1.0",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@openhands/typescript-client": "1.53.0"
+  }
+}

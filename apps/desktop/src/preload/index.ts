@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "../../../../packages/contracts/src/index";
 
 const bridge: DesktopBridge = {
+  getRemoteServiceState: (engine) => ipcRenderer.invoke("selfme:remote-service-state", engine),
+  controlRemoteService: (engine, action) => ipcRenderer.invoke("selfme:remote-service-control", engine, action),
+  getRemoteServiceLogs: (engine) => ipcRenderer.invoke("selfme:remote-service-logs", engine),
+  getRemoteModelConnection: (engine) => ipcRenderer.invoke("selfme:remote-model-get", engine),
+  saveRemoteModelConnection: (engine, input) => ipcRenderer.invoke("selfme:remote-model-save", engine, input),
   getAppInfo: () => ipcRenderer.invoke("selfme:app-info"),
   openExternal: (url) => ipcRenderer.invoke("selfme:open-external", url),
   chooseWorkspace: () => ipcRenderer.invoke("selfme:choose-workspace"),

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "engine": "openhands",
+  "sources": [
+    {
+      "id": "app",
+      "repository": "https://github.com/OpenHands/OpenHands.git",
+      "version": "1.26.0",
+      "ref": "v1.26.0",
+      "commit": "3500d9e5c7cbdfb5a2cbfe9499ce4448eb10c0a2"
+    },
+    {
+      "id": "sdk",
+      "repository": "https://github.com/OpenHands/software-agent-sdk.git",
+      "version": "1.53.0",
+      "ref": "v1.53.0",
+      "commit": "54daf056bd863bb46f922a2fe9324dd736b37ff6"
+    }
+  ]
+}

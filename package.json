@@ -19,6 +19,10 @@
     "ensure:qwen": "node scripts/ensure-qwen-runtime.mjs",
     "ensure:claude": "node scripts/ensure-claude-runtime.mjs",
     "ensure:ollama": "node scripts/ensure-ollama-runtime.mjs",
+    "remote:source": "node scripts/remote-agent/source.mjs",
+    "remote:build": "node scripts/remote-agent/build.mjs",
+    "remote:probe": "node scripts/remote-agent/probe.mjs",
+    "test:remote": "node --test scripts/remote-agent/*.test.mjs",
     "prepackage:mac": "node scripts/ensure-dsh-runtime.mjs && node scripts/verify-codex-runtime.mjs && node scripts/ensure-kimi-runtime.mjs && node scripts/ensure-qwen-runtime.mjs && node scripts/ensure-claude-runtime.mjs && node scripts/ensure-ollama-runtime.mjs",
     "package:mac": "npm run package:mac --workspace @selfme-lab/desktop"
   },

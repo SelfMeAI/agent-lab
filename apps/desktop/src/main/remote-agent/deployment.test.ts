@@ -1,0 +1,17 @@
+import { describe, expect, it } from "vitest";
+import { openClawBootstrap, redactServiceOutput, remoteDeployments } from "./deployment";
+
+describe("private remote development deployment", () => {
+  it("uses pinned native images, encrypted OH persistence and a private OC home", () => {
+    expect(remoteDeployments.openhands.image).toContain("source-54daf056bd86");
+    expect(remoteDeployments.openclaw.image).toContain("source-bcfc88812a35");
+    expect(remoteDeployments.openclaw.mount).toBe("/home/node/.openclaw");
+    expect(openClawBootstrap).toContain("flag: 'wx'");
+    expect(openClawBootstrap).toContain("${OPENCLAW_GATEWAY_TOKEN}");
+    expect(openClawBootstrap).not.toContain("dangerouslyDisableDeviceAuth");
+  });
+  it("redacts development auth, provider keys and credential-shaped log fields", () => {
+    expect(redactServiceOutput("credential-one sk-example-provider123 token=secret api_key: 'hidden' normal log", ["credential-one"]))
+      .toBe("[已隐藏] [已隐藏] token=[已隐藏] api_key: [已隐藏] normal log");
+  });
+});

@@ -57,8 +57,10 @@ export const atlasModules: readonly AtlasModule[] = [
       "channels",
       "enterprise",
       "resilience",
+      "entry",
+      "secrets",
     ],
-    note: "目前仍是入口与设计，未建立远程运行通路。",
+    note: "已接通固定源码 OpenHands / OpenClaw 的研发服务管理和原生模型配置：认证、启停重启、日志及服务端持久化。任务、上传、产物预览和执行现场仍待接入；不把服务连通算作完整远端智能体体验。",
   },
   {
     id: "local-model-lab",
@@ -153,6 +155,18 @@ export const atlasModules: readonly AtlasModule[] = [
 // Hand-reviewed against repository code on checkedAt. This is a curated
 // baseline, not automatic runtime telemetry or an end-to-end certification.
 export const coverageRecords: readonly CoverageRecord[] = [
+  {
+    capabilityId: "providers.provider-accounts", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
+    state: "integrated", upstream: "tested", passedChecks: [0, 1],
+    evidence: ["packages/remote-agent/src/model-connection.ts", "packages/remote-agent/src/model-connection.test.ts", "apps/desktop/src/main/remote-agent/development-service.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteServicePanel.tsx"], checkedAt: "2026-10-10",
+    note: "两个服务分别保存协议、Base URL、API Key 和 Model ID；连接通过原生 HTTP / Gateway RPC 写入各自服务卷，未建立本地模型密钥副本。留空保留已有 Key，界面仅返回已配置状态。首次仅在服务器尚未配置时使用用户已有 DeepSeek 连接，不覆盖已有配置。固定源码容器验证了配置保存、无 Key 修改、重启和再次启动后保留；这是配置通路，不代表已验收远端 Agent 任务或视觉模型。",
+  },
+  {
+    capabilityId: "sandbox.process-isolation", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
+    state: "integrated", upstream: "tested", passedChecks: [0],
+    evidence: ["apps/desktop/src/main/remote-agent/service-manager.ts", "apps/desktop/src/main/remote-agent/service-manager.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "services/remote-agent/openhands/service.json", "services/remote-agent/openclaw/service.json"], checkedAt: "2026-10-10",
+    note: "研发阶段逻辑上的远端服务运行在本机 Docker：两套私有命名卷、固定源码镜像标识、随机回环端口、原生鉴权，没有宿主工作目录或 Docker socket 挂载。启停仅作用于当前应用标记的容器，停止或退出客户端不删除服务卷；日志隐藏已知认证凭据。未证明容器无法逃逸，尚未实现公网多租户、任务级沙盒、配额或人工接管。",
+  },
   {
     capabilityId: "providers.local-model", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1],

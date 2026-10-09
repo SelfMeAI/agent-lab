@@ -1,0 +1,10 @@
+{
+  "name": "OpenHands official image baseline — capability probe only",
+  "version": "1.53.0",
+  "image": "ghcr.io/openhands/agent-server:1.53.0-python@sha256:f06349398c7ed8861e863b542252c3abb85ff6f06445c456fd21859e2b76e718",
+  "source": "https://github.com/OpenHands/software-agent-sdk/tree/v1.53.0",
+  "license": "MIT",
+  "execution": "server-owned-workspace",
+  "authentication": "native-session-api-key",
+  "notes": "Read-only baseline probe of the official image. Deployment will use pinned source builds; this image is not the desktop integration or its capability ceiling."
+}

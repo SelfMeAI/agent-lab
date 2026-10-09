@@ -135,8 +135,9 @@ describe("Agent Atlas knowledge base", () => {
     expect(capabilityState("sessions.resume", "agent-lab")).toBe("usable");
     expect(capabilityState("sessions.list-search", "agent-lab")).toBe("integrated");
     expect(capabilityState("sessions.archive-delete", "agent-lab")).toBe("usable");
-    expect(moduleSummary("remote-agent-lab").counts.unstarted).toBe(
-      moduleSummary("remote-agent-lab").total,
-    );
+    expect(capabilityState("providers.provider-accounts", "remote-agent-lab")).toBe("integrated");
+    expect(capabilityState("sandbox.process-isolation", "remote-agent-lab")).toBe("integrated");
+    expect(capabilityState("sessions.resume", "remote-agent-lab")).toBe("unstarted");
+    expect(moduleSummary("remote-agent-lab").counts.unstarted).toBe(moduleSummary("remote-agent-lab").total - 2);
   });
 });
