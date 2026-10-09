@@ -230,6 +230,7 @@ export interface DesktopBridge {
   unloadLocalModel(model: string): Promise<void>;
   deleteLocalModel(model: string): Promise<void>;
   getLocalModelRun(id: string): Promise<LocalModelRun>;
+  getLatestLocalModelRun(mode: LocalModelRun["mode"], models: string[]): Promise<LocalModelRun | null>;
   deleteLocalModelRun(id: string): Promise<void>;
   chooseLocalModelDirectory(): Promise<string | null>;
   openLocalModelDirectory(): Promise<void>;

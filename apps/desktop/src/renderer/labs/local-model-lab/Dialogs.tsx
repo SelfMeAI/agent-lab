@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from "react";
 import type { LocalModelDetails, LocalModelDownload, LocalModelInfo, LocalModelRun } from "../../../../../../packages/contracts/src/local-model";
 import { sameLocalModel } from "../../../../../../packages/runtime/src/ollama";
-import { localModelBridge, formatBytes, localModelError, localModelStatus, refreshLocalModels, useLocalModels } from "./local-model-store";
+import { localModelBridge, deleteLocalModelRun, formatBytes, localModelError, localModelStatus, refreshLocalModels, useLocalModels } from "./local-model-store";
 import { localModelCatalog } from "./model-catalog";
 import { downloadInProgress, downloadPercent, downloadStatusLabel, formatDownloadRate, formatDownloadRemaining } from "./download-presentation";
 
@@ -86,8 +86,10 @@ export function PullModelDialog({ onClose, initialName }: { onClose(): void; ini
   const [family, setFamily] = useState("all");
   const download = data?.download; const busy = starting || downloadInProgress(download);
   const installed = (model: string): boolean => Boolean(data?.models.some((item) => sameLocalModel(item.name, model)));
+  const isInstalled = installed(name.trim());
   const paused = download?.status === "paused";
-  const showDownload = download && (downloadInProgress(download) || paused || sameLocalModel(download.model, name.trim()));
+  const showDownload = download && download.status !== "complete" && (downloadInProgress(download) || paused
+    || (sameLocalModel(download.model, name.trim()) && (download.status !== "cancelled" || !isInstalled)));
   const groups = family === "all" ? localModelCatalog : localModelCatalog.filter((group) => group.id === family);
   const selected = localModelCatalog.flatMap((group) => group.models).find((model) => model.name === name.trim());
   async function pull(): Promise<void> {
@@ -113,7 +115,7 @@ export function PullModelDialog({ onClose, initialName }: { onClose(): void; ini
           </button>)}</div>
         </section>)}
       </div>
-      <div className="lm-catalog-submit"><p>{paused ? "请继续或取消当前暂停的下载，再下载其他模型。" : "下载完成后，模型会出现在左侧列表。暂停或重试会复用已下载文件。"}{(selected?.availability === "huggingface" || name.trim().toLowerCase().startsWith("hf.co/")) && " GGUF 的可运行性取决于模型架构和运行时支持。"}</p>{!busy && !paused && !showDownload && <button className="settings-panel__save" disabled={!name.trim() || data?.runtime.status !== "ready"} type="submit">{installed(name.trim()) ? "检查模型更新" : "下载模型"}</button>}</div>
+      <div className="lm-catalog-submit"><p>{paused ? "请继续或取消当前暂停的下载，再下载其他模型。" : isInstalled && !showDownload ? "已下载，可直接运行。检查更新会保留现有模型。" : "下载完成后，模型会出现在左侧列表。暂停或重试会复用已下载文件。"}{!isInstalled && (selected?.availability === "huggingface" || name.trim().toLowerCase().startsWith("hf.co/")) && " GGUF 的可运行性取决于模型架构和运行时支持。"}</p>{!paused && !showDownload && <button className="settings-panel__save" disabled={busy || !name.trim() || data?.runtime.status !== "ready"} type="submit">{starting ? "连接中…" : isInstalled ? "检查模型更新" : "下载模型"}</button>}</div>
     </form>
     {showDownload && <DownloadCard download={download} onClose={onClose} />}
     {error && <p className="settings-panel__error" role="alert">{error}</p>}
@@ -138,7 +140,7 @@ export function ModelDetailsDialog({ model, onClose }: { model: LocalModelInfo; 
 export function ModelHistoryDialog({ onClose, onSelect }: { onClose(): void; onSelect(run: LocalModelRun): void }): JSX.Element {
   const { data } = useLocalModels(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [confirm, setConfirm] = useState<string | null>(null);
   async function select(id: string): Promise<void> { setBusy(true); try { onSelect(await localModelBridge().getLocalModelRun(id)); onClose(); } catch (cause) { setError(localModelError(cause)); } finally { setBusy(false); } }
-  async function remove(id: string): Promise<void> { setBusy(true); try { await localModelBridge().deleteLocalModelRun(id); setConfirm(null); await refreshLocalModels(); } catch (cause) { setError(localModelError(cause)); } finally { setBusy(false); } }
+  async function remove(id: string): Promise<void> { setBusy(true); try { await deleteLocalModelRun(id); setConfirm(null); } catch (cause) { setError(localModelError(cause)); } finally { setBusy(false); } }
   return <LocalModelDialog title="EXPERIMENT HISTORY" onClose={onClose} wide>
     <div className="settings-panel__intro"><span>LOCAL EXPERIMENTS</span><div className="settings-panel__title-row"><h3>实验记录</h3><small>{data?.history.length ?? 0} 条</small></div><p>保留输入、参数、模型版本、完整输出与指标。打开记录不会自动重新运行。</p></div>
     {!data?.history.length && <p className="lm-history-empty">还没有实验记录，运行一次提示词即可保存。</p>}

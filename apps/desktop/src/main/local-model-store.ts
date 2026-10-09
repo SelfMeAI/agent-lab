@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { LocalModelDownload, LocalModelParameters, LocalModelPreferences, LocalModelRun, LocalModelRunSummary } from "../../../../packages/contracts/src/local-model";
-import { validLocalModelName } from "../../../../packages/runtime/src/ollama";
+import { sameLocalModel, validLocalModelName } from "../../../../packages/runtime/src/ollama";
 
 export const defaultLocalModelParameters: LocalModelParameters = { temperature: 0.7, contextLength: 4096, seed: null, maxTokens: 2048, thinking: "auto" };
 
@@ -115,6 +115,20 @@ export class LocalModelStore {
 
   latest(): LocalModelRun | null {
     const row = this.database().prepare("SELECT payload FROM local_model_runs ORDER BY created_at DESC, rowid DESC LIMIT 1").get();
+    return row ? JSON.parse(String(row.payload)) as LocalModelRun : null;
+  }
+
+  /** Look beyond the 200-row history UI without loading every full output into the renderer. */
+  latestForModels(mode: LocalModelRun["mode"], models: string[]): LocalModelRun | null {
+    if ((mode !== "playground" && mode !== "compare") || !Array.isArray(models) || models.length !== (mode === "compare" ? 2 : 1)
+      || models.some((model) => !validLocalModelName(model)) || (models.length === 2 && sameLocalModel(models[0], models[1]))) throw new Error("实验模型选择无效");
+    const aliases = models.flatMap((model) => {
+      const canonical = (model.includes(":") ? model : `${model}:latest`).toLowerCase();
+      return [canonical, canonical.endsWith(":latest") ? canonical.slice(0, -7) : canonical];
+    });
+    const names = models.map((_, index) => `LOWER(json_extract(payload, '$.outputs[${index}].model')) IN (?, ?)`).join(" AND ");
+    const row = this.database().prepare(`SELECT payload FROM local_model_runs WHERE json_extract(payload, '$.mode') = ?
+      AND json_array_length(payload, '$.outputs') = ? AND ${names} ORDER BY created_at DESC, rowid DESC LIMIT 1`).get(mode, models.length, ...aliases);
     return row ? JSON.parse(String(row.payload)) as LocalModelRun : null;
   }
 

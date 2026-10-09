@@ -11,30 +11,43 @@ interface LocalModelViewState {
   data: LocalModelSnapshot | null;
   loading: boolean;
   error: string | null;
-  runs: Partial<Record<LocalModelRun["mode"], LocalModelRun>>;
+  runs: Record<string, LocalModelRun | null | undefined>;
+  drafts: Record<string, LocalModelDraft | undefined>;
+  loadingRuns: Record<string, boolean | undefined>;
 }
-let state: LocalModelViewState = { data: null, loading: false, error: null, runs: {} };
+export interface LocalModelDraft { prompt: string; systemPrompt: string; }
+let state: LocalModelViewState = { data: null, loading: false, error: null, runs: {}, drafts: {}, loadingRuns: {} };
 const listeners = new Set<() => void>();
 let loading: Promise<void> | null = null;
 let preferenceRevision = 0;
 let pendingPreferences = 0;
 let preferenceWrites: Promise<void> = Promise.resolve();
-export const localModelDrafts = {
-  playground: { prompt: "", systemPrompt: "" }, compare: { prompt: "", systemPrompt: "" },
-};
+const runRequests = new Map<string, Promise<void>>();
+let runCacheRevision = 0;
+export function localModelExperimentKey(mode: LocalModelRun["mode"], models: readonly (string | null)[]): string {
+  return JSON.stringify([mode, ...models.map((model) => model ? (model.includes(":") ? model : `${model}:latest`).toLowerCase() : null)]);
+}
+function runKey(run: LocalModelRun): string { return localModelExperimentKey(run.mode, run.outputs.map((output) => output.model)); }
+export function getLocalModelDraft(key: string): LocalModelDraft {
+  const run = state.runs[key];
+  return state.drafts[key] ?? { prompt: run?.prompt ?? "", systemPrompt: run?.systemPrompt ?? "" };
+}
+export function setLocalModelDraft(key: string, draft: LocalModelDraft): void {
+  update({ ...state, drafts: { ...state.drafts, [key]: draft } });
+}
 function update(next: LocalModelViewState): void { state = next; listeners.forEach((listener) => listener()); }
 
 function acceptState(data: LocalModelSnapshot): void {
   const runs = { ...state.runs };
-  if (data.latestRun) runs[data.latestRun.mode] = data.latestRun;
-  if (data.activeRun) runs[data.activeRun.mode] = data.activeRun;
-  update({ data: pendingPreferences && state.data ? { ...data, preferences: state.data.preferences } : data, runs, loading: false, error: null });
+  if (data.latestRun) runs[runKey(data.latestRun)] = data.latestRun;
+  if (data.activeRun) runs[runKey(data.activeRun)] = data.activeRun;
+  update({ ...state, data: pendingPreferences && state.data ? { ...data, preferences: state.data.preferences } : data, runs, loading: false, error: null });
 }
 
 export function acceptLocalModelEvent(event: LocalModelEvent): void {
   if (event.type === "state") acceptState(event.state);
   if (event.type === "download" && state.data) update({ ...state, data: { ...state.data, download: event.download } });
-  if (event.type === "run") update({ ...state, runs: { ...state.runs, [event.run.mode]: event.run }, data: state.data ? {
+  if (event.type === "run") update({ ...state, runs: { ...state.runs, [runKey(event.run)]: event.run }, data: state.data ? {
     ...state.data, activeRun: event.run.status === "running" ? event.run : null, latestRun: event.run,
   } : null });
 }
@@ -45,20 +58,39 @@ export function attachLocalModelEvents(): () => void {
 export function useLocalModels(): LocalModelViewState {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; }, () => state, () => state);
 }
+export function ensureLocalModelRun(mode: LocalModelRun["mode"], models: string[]): Promise<void> {
+  const key = localModelExperimentKey(mode, models);
+  if (state.runs[key] !== undefined || !window.selfmeLab) return Promise.resolve();
+  const pending = runRequests.get(key); if (pending) return pending;
+  const revision = runCacheRevision;
+  update({ ...state, loadingRuns: { ...state.loadingRuns, [key]: true } });
+  const request = localModelBridge().getLatestLocalModelRun(mode, models).then((run) => {
+    // A delayed disk read may not overwrite a newer stream or a deleted record.
+    if (revision === runCacheRevision && state.runs[key] === undefined) update({ ...state, runs: { ...state.runs, [key]: run } });
+  }).catch((error: unknown) => {
+    if (revision === runCacheRevision) update({ ...state, error: localModelError(error) });
+  }).finally(() => {
+    if (runRequests.get(key) === request) {
+      runRequests.delete(key); update({ ...state, loadingRuns: { ...state.loadingRuns, [key]: false } });
+    }
+  });
+  runRequests.set(key, request); return request;
+}
+export async function deleteLocalModelRun(id: string): Promise<void> {
+  await localModelBridge().deleteLocalModelRun(id);
+  runCacheRevision += 1; runRequests.clear();
+  const runs = { ...state.runs };
+  for (const [key, run] of Object.entries(runs)) if (run?.id === id) delete runs[key];
+  update({ ...state, runs, loadingRuns: {} });
+  await refreshLocalModels();
+}
 export function refreshLocalModels(): Promise<void> {
   if (loading) return loading;
   if (!window.selfmeLab) return Promise.resolve();
   update({ ...state, loading: true, error: null });
-  loading = localModelBridge().getLocalModelState().then(async (data) => {
+  loading = localModelBridge().getLocalModelState().then((data) => {
     acceptState(data);
-    for (const mode of ["playground", "compare"] as const) {
-      if (state.runs[mode]) continue;
-      const previous = data.history.find((run) => run.mode === mode);
-      if (previous) {
-        const run = await localModelBridge().getLocalModelRun(previous.id);
-        if (!state.runs[mode]) update({ ...state, runs: { ...state.runs, [mode]: run } });
-      }
-    }
+    // Selection-specific records are read on demand by the page, not by global recency.
   }).catch((error: unknown) => update({ ...state, loading: false, error: localModelError(error) })).finally(() => { loading = null; });
   return loading;
 }

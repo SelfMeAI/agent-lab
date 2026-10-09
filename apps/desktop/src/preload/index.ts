@@ -44,6 +44,7 @@ const bridge: DesktopBridge = {
   unloadLocalModel: (model) => ipcRenderer.invoke("selfme:local-model-unload", model),
   deleteLocalModel: (model) => ipcRenderer.invoke("selfme:local-model-delete", model),
   getLocalModelRun: (id) => ipcRenderer.invoke("selfme:local-model-history-run", id),
+  getLatestLocalModelRun: (mode, models) => ipcRenderer.invoke("selfme:local-model-latest-run", mode, models),
   deleteLocalModelRun: (id) => ipcRenderer.invoke("selfme:local-model-delete-run", id),
   chooseLocalModelDirectory: () => ipcRenderer.invoke("selfme:local-model-choose-directory"),
   openLocalModelDirectory: () => ipcRenderer.invoke("selfme:local-model-open-directory"),

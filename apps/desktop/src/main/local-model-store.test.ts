@@ -55,4 +55,28 @@ describe("local model SQLite and configuration", () => {
     for (const patch of [{ temperature: NaN }, { contextLength: 0 }, { maxTokens: 0 }, { seed: -1 }, { thinking: "fake" }]) expect(() => validateLocalModelParameters({ ...defaultLocalModelParameters, ...patch })).toThrow();
     await expect(store.savePreferences({ ...store.preferences, modelA: "../escape" })).rejects.toThrow();
   });
+  it("restores the latest exact model or ordered comparison independently of the 200-row history limit", async () => {
+    const store = await prepare(); const base = fixtureRun();
+    const output = (model: string) => ({ ...base.outputs[0], model, status: "complete" as const });
+    store.saveRun({ ...base, id: "older-gemma", status: "complete", createdAt: "2026-10-01T00:00:00Z", outputs: [output("gemma3:1b")] });
+    for (let index = 0; index < 201; index += 1) store.saveRun({ ...base, id: `qwen-${index}`, status: "complete", outputs: [output("qwen3:0.6b")] });
+    expect(store.history()).toHaveLength(200);
+    expect(store.history().some((run) => run.id === "older-gemma")).toBe(false);
+    expect(store.latestForModels("playground", ["Gemma3:1B"])?.id).toBe("older-gemma");
+    expect(store.latestForModels("playground", ["qwen3:0.6b"])?.id).toBe("qwen-200");
+    expect(store.latestForModels("playground", ["new-model:1b"])).toBeNull();
+    store.saveRun({ ...base, id: "compare-ab", mode: "compare", status: "complete", outputs: [output("qwen3:0.6b"), output("gemma3:1b")] });
+    expect(store.latestForModels("compare", ["qwen3:0.6b", "gemma3:1b"])?.id).toBe("compare-ab");
+    expect(store.latestForModels("compare", ["gemma3:1b", "qwen3:0.6b"])).toBeNull();
+    store.saveRun({ ...base, id: "untagged", status: "complete", outputs: [output("example-model")] });
+    expect(store.latestForModels("playground", ["EXAMPLE-MODEL:latest"])?.id).toBe("untagged");
+    store.saveRun({ ...base, id: "tagged", status: "complete", outputs: [output("example-model:latest")] });
+    expect(store.latestForModels("playground", ["example-model"])?.id).toBe("tagged");
+    store.deleteRun("qwen-200"); expect(store.latestForModels("playground", ["qwen3:0.6b"])?.id).toBe("qwen-199");
+    await store.close(); await store.init();
+    expect(store.latestForModels("playground", ["gemma3:1b"])?.id).toBe("older-gemma");
+    for (const [mode, models] of [["invalid", ["qwen3:0.6b"]], ["playground", []], ["compare", ["qwen3:0.6b", "QWEN3:0.6B"]], ["playground", ["../escape"]]] as const) {
+      expect(() => store.latestForModels(mode as LocalModelRun["mode"], [...models])).toThrow("实验模型选择无效");
+    }
+  });
 });

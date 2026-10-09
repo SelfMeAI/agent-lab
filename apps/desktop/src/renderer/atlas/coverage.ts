@@ -168,8 +168,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "providers.model-selection", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2],
-    evidence: ["apps/desktop/src/renderer/labs/local-model-lab/Page.tsx", "apps/desktop/src/renderer/labs/local-model-lab/local-model.test.ts", "apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-store.test.ts"], checkedAt: "2026-10-08",
-    note: "单次实验选择一个模型，对照显式分配 A/B；输出保留实际模型名、digest、参数规模和量化。历史可重新装载输入与参数；缺失的历史模型明确提示并提供下载入口，不静默换成别的模型重跑。所选模型下载时禁用运行；本地服务未就绪与空模型库分别显示。权重更新后不保证旧 digest 能重新下载。",
+    evidence: ["apps/desktop/src/renderer/labs/local-model-lab/Page.tsx", "apps/desktop/src/renderer/labs/local-model-lab/local-model-store.ts", "apps/desktop/src/renderer/labs/local-model-lab/local-model.test.ts", "apps/desktop/src/main/local-model-service.ts", "apps/desktop/src/main/local-model-store.ts", "apps/desktop/src/main/local-model-store.test.ts"], checkedAt: "2026-10-09",
+    note: "单次实验选择一个模型，对照显式分配 A/B；输出保留实际模型名、digest、参数规模和量化。Playground 按模型、Compare 按有序 A/B 组合隔离输入草稿、最近输出和指标，切换不冒用其他模型结果；最近实验按需从 SQLite 查找，不受历史列表 200 条显示上限影响，慢读取不覆盖新输入或正在流式生成的结果。未发送草稿仅在当前应用运行期间保留，已运行输入及完整证据随 SQLite 持久化。历史可重新装载输入与参数；缺失的历史模型明确提示并提供下载入口，不静默换成别的模型重跑。所选模型下载时禁用运行；本地服务未就绪与空模型库分别显示。权重更新后不保证旧 digest 能重新下载。",
   },
   {
     capabilityId: "reasoning.streaming", moduleId: "local-model-lab", harnessId: "Ollama", platform: "desktop",

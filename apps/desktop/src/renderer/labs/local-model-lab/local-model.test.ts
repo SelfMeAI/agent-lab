@@ -10,6 +10,11 @@ function fixture(): LocalModelSnapshot {
   return { runtime: { status: "ready", version: "0.35.0", endpoint: "http://127.0.0.1:1", error: null }, modelsDirectory: "/app-data/models", preferences: structuredClone(preferences), download: null, history: [], latestRun: null, activeRun: null,
     models: ["qwen3:0.6b", "gemma3:1b"].map((name) => ({ name, digest: "abcdef123456", size: 1000000000, parameterSize: "1B", quantization: "Q4", loaded: false, memoryBytes: null })) };
 }
+function fixtureRun(model: string, id = model): LocalModelRun {
+  return { id, mode: "playground", prompt: `${model} 的问题`, systemPrompt: `${model} 的角色`, parameters: preferences.parameters, createdAt: "2026-10-09T10:00:00Z", completedAt: "2026-10-09T10:00:01Z", status: "complete",
+    outputs: [{ model, digest: "real-digest", parameterSize: "1B", quantization: "Q4", status: "complete", text: `${model} 的回答`, thinking: "", error: null,
+      metrics: { firstOutputMs: 10, durationMs: 1234, loadMs: 10, inputTokens: 11, outputTokens: 12, tokensPerSecond: 12.34 } }] };
+}
 const lab: LabModule = { id: "local-model-lab", title: "LOCAL MODEL LAB", group: "runtimes", accent: "#c7d1de", symbol: "", purpose: "", views: [] };
 beforeEach(() => vi.resetModules());
 afterEach(() => vi.unstubAllGlobals());
@@ -49,7 +54,84 @@ describe("local model desktop presentation and state", () => {
     expect(markup.match(/is-installed/g)).toHaveLength(2);
     expect(markup).not.toContain("is-unavailable");
     expect(markup).toContain("Hugging Face · GGUF"); expect(markup).toContain("hf.co/LiquidAI/"); expect(markup).toContain("检查模型更新"); expect(markup).toContain("1.3 GB");
-    expect(markup).toContain("暂停或重试会复用已下载文件"); expect(markup).not.toContain("未逐款"); expect(markup).not.toContain("目录核对"); expect(markup).not.toContain("qwen3:8b");
+    expect(markup).toContain("已下载，可直接运行"); expect(markup).not.toContain("未逐款"); expect(markup).not.toContain("目录核对"); expect(markup).not.toContain("qwen3:8b");
+  });
+  it("presents every installed source consistently instead of retaining the last completed transfer UI", async () => {
+    const store = await import("./local-model-store"); const { PullModelDialog } = await import("./Dialogs");
+    for (const model of ["qwen3:0.6b", "hf.co/LiquidAI/LFM2.5-350M-GGUF:Q4_0"]) {
+      const data = fixture(); data.models.push({ ...data.models[0], name: model });
+      const download: LocalModelDownload = { model, status: "complete", message: "模型已下载，可返回实验台使用", completed: 100, total: 100, error: null, bytesPerSecond: null, remainingSeconds: null, startedAt: "2026-10-09T10:00:00Z", updatedAt: "2026-10-09T10:01:00Z" };
+      store.acceptLocalModelEvent({ type: "state", state: { ...data, download } });
+      const render = () => renderToStaticMarkup(createElement(PullModelDialog, { onClose: () => {}, initialName: model }));
+      expect(render()).toContain("检查模型更新"); expect(render()).toContain("已下载，可直接运行");
+      expect(render()).not.toContain('aria-label="当前模型下载"'); expect(render()).not.toContain("模型下载进度");
+      for (const status of ["downloading", "paused", "error"] as const) {
+        store.acceptLocalModelEvent({ type: "download", download: { ...download, status } });
+        expect(render()).toContain('aria-label="当前模型下载"');
+      }
+      store.acceptLocalModelEvent({ type: "download", download: { ...download, status: "cancelled" } });
+      expect(render()).toContain("检查模型更新"); expect(render()).not.toContain("重新下载");
+    }
+  });
+  it("scopes drafts, answers and measurements to the model and ordered A/B pair", async () => {
+    const store = await import("./local-model-store"); const { LocalModelPage } = await import("./Page");
+    const data = fixture(); const qwen = fixtureRun("qwen3:0.6b"); const gemma = fixtureRun("gemma3:1b");
+    store.acceptLocalModelEvent({ type: "state", state: { ...data, latestRun: qwen } });
+    const render = (viewId = "playground") => renderToStaticMarkup(createElement(LocalModelPage, { lab, viewId }));
+    expect(render()).toContain(qwen.prompt); expect(render()).toContain(qwen.outputs[0].text);
+    store.acceptLocalModelEvent({ type: "state", state: { ...data, preferences: { ...data.preferences, selectedModel: "gemma3:1b" }, latestRun: qwen } });
+    expect(render()).toContain("这个模型还没有实验记录"); expect(render()).not.toContain(qwen.prompt); expect(render()).not.toContain(qwen.outputs[0].text); expect(render()).not.toContain("12.3 tok/s");
+    store.acceptLocalModelEvent({ type: "run", run: gemma });
+    expect(render()).toContain(gemma.prompt); expect(render()).toContain(gemma.outputs[0].text); expect(render()).not.toContain(qwen.outputs[0].text);
+    const gemmaKey = store.localModelExperimentKey("playground", ["gemma3:1b"]);
+    store.setLocalModelDraft(gemmaKey, { prompt: "Gemma 未发送草稿", systemPrompt: "保留角色" });
+    store.acceptLocalModelEvent({ type: "state", state: { ...data, latestRun: gemma } });
+    expect(render()).toContain(qwen.prompt); expect(render()).toContain(qwen.outputs[0].text); expect(render()).not.toContain("Gemma 未发送草稿");
+    const compare = { ...qwen, id: "comparison", mode: "compare" as const, prompt: "A/B 对照问题", outputs: [qwen.outputs[0], gemma.outputs[0]] };
+    store.acceptLocalModelEvent({ type: "run", run: compare });
+    expect(render("compare")).toContain(compare.prompt); expect(render("compare")).toContain(qwen.outputs[0].text);
+    store.acceptLocalModelEvent({ type: "state", state: { ...data, latestRun: compare, preferences: { ...data.preferences, modelA: "gemma3:1b", modelB: "qwen3:0.6b" } } });
+    expect(render("compare")).toContain("这组模型还没有对照记录"); expect(render("compare")).not.toContain(compare.prompt); expect(render("compare")).not.toContain(gemma.outputs[0].text);
+    store.acceptLocalModelEvent({ type: "state", state: { ...data, preferences: { ...data.preferences, selectedModel: "gemma3:1b" }, latestRun: compare } });
+    expect(render()).toContain("Gemma 未发送草稿"); expect(render()).toContain(gemma.outputs[0].text);
+    expect(store.localModelExperimentKey("playground", ["example"])).toBe(store.localModelExperimentKey("playground", ["EXAMPLE:latest"]));
+  });
+  it("restores SQLite records on demand without delayed reads overwriting new input or streaming output", async () => {
+    const store = await import("./local-model-store"); const data = fixture(); store.acceptLocalModelEvent({ type: "state", state: data });
+    let finishRead!: (run: LocalModelRun | null) => void;
+    const read = vi.fn(() => new Promise<LocalModelRun | null>((resolve) => { finishRead = resolve; }));
+    vi.stubGlobal("window", { selfmeLab: { getLatestLocalModelRun: read } });
+    const lookup = store.ensureLocalModelRun("playground", ["qwen3:0.6b"]);
+    expect(store.ensureLocalModelRun("playground", ["QWEN3:0.6B"])).toBe(lookup); expect(read).toHaveBeenCalledTimes(1);
+    const key = store.localModelExperimentKey("playground", ["qwen3:0.6b"]);
+    store.setLocalModelDraft(key, { prompt: "新输入不能被旧记录覆盖", systemPrompt: "" });
+    const live = { ...fixtureRun("qwen3:0.6b", "live"), status: "running" as const, outputs: [{ ...fixtureRun("qwen3:0.6b").outputs[0], status: "running" as const, text: "流式新输出，不能回退" }] };
+    store.acceptLocalModelEvent({ type: "run", run: live });
+    finishRead(fixtureRun("qwen3:0.6b", "old")); await lookup;
+    expect(store.getLocalModelDraft(key).prompt).toBe("新输入不能被旧记录覆盖");
+    const { LocalModelPage } = await import("./Page");
+    const markup = renderToStaticMarkup(createElement(LocalModelPage, { lab }));
+    expect(markup).toContain("STOP RUN"); expect(markup).toContain("流式新输出，不能回退"); expect(markup).not.toContain("qwen3:0.6b 的回答");
+    read.mockImplementationOnce(async () => fixtureRun("gemma3:1b"));
+    await store.ensureLocalModelRun("playground", ["gemma3:1b"]);
+    expect(store.getLocalModelDraft(store.localModelExperimentKey("playground", ["gemma3:1b"])).prompt).toBe("gemma3:1b 的问题");
+  });
+  it("invalidates a deleted experiment without discarding another model or resurrecting a delayed record", async () => {
+    const store = await import("./local-model-store"); const data = fixture();
+    const gemma = fixtureRun("gemma3:1b"); store.acceptLocalModelEvent({ type: "state", state: { ...data, latestRun: gemma } });
+    let finishRead!: (run: LocalModelRun | null) => void;
+    const read = vi.fn(() => new Promise<LocalModelRun | null>((resolve) => { finishRead = resolve; }));
+    const remove = vi.fn(async () => {});
+    vi.stubGlobal("window", { selfmeLab: { getLatestLocalModelRun: read, deleteLocalModelRun: remove, getLocalModelState: async () => ({ ...data, latestRun: gemma }) } });
+    const pending = store.ensureLocalModelRun("playground", ["qwen3:0.6b"]);
+    await store.deleteLocalModelRun("qwen-deleted");
+    finishRead(fixtureRun("qwen3:0.6b", "qwen-deleted")); await pending;
+    expect(store.getLocalModelDraft(store.localModelExperimentKey("playground", ["qwen3:0.6b"])).prompt).toBe("");
+    expect(store.getLocalModelDraft(store.localModelExperimentKey("playground", ["gemma3:1b"])).prompt).toBe(gemma.prompt);
+    read.mockImplementationOnce(async () => fixtureRun("qwen3:0.6b", "older-surviving"));
+    await store.ensureLocalModelRun("playground", ["qwen3:0.6b"]);
+    expect(remove).toHaveBeenCalledWith("qwen-deleted"); expect(read).toHaveBeenCalledTimes(2);
+    expect(store.getLocalModelDraft(store.localModelExperimentKey("playground", ["qwen3:0.6b"])).prompt).toBe("qwen3:0.6b 的问题");
   });
   it("keeps the expanded catalog scroll separate from the input, filters and download action", () => {
     const css = readFileSync(new URL("./local-model.css", import.meta.url), "utf8");

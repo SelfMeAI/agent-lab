@@ -230,6 +230,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:local-model-unload", (event, model: string) => { assertMainWindow(event); return localModels!.unload(model); });
   ipcMain.handle("selfme:local-model-delete", (event, model: string) => { assertMainWindow(event); return localModels!.deleteModel(model); });
   ipcMain.handle("selfme:local-model-history-run", (event, id: string) => { assertMainWindow(event); return localModels!.getRun(id); });
+  ipcMain.handle("selfme:local-model-latest-run", (event, mode: LocalModelRunRequest["mode"], models: string[]) => { assertMainWindow(event); return localModels!.store.latestForModels(mode, models); });
   ipcMain.handle("selfme:local-model-delete-run", (event, id: string) => { assertMainWindow(event); localModels!.deleteRun(id); });
   ipcMain.handle("selfme:local-model-choose-directory", async (event): Promise<string | null> => {
     assertMainWindow(event);
