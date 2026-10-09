@@ -5,6 +5,7 @@ import { LabIcon } from "../../shell/LabIcon";
 import type { LabPageProps } from "../types";
 import { RemoteServicePanel } from "./RemoteServicePanel";
 import { remoteError, remoteServiceLabel } from "./service-presentation";
+import { RemoteWorkspace } from "./RemoteWorkspace";
 import "./remote-agent.css";
 
 export const remoteEngines = {
@@ -27,6 +28,7 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
   const [busy, setBusy] = useState<ServiceBusy>({});
   const [errors, setErrors] = useState<Partial<Record<RemoteAgentId, string>>>({});
   const [panel, setPanel] = useState(false);
+  const [revision, setRevision] = useState(0);
   const alive = useRef(true);
   const actionLocks = useRef(new Set<RemoteAgentId>());
 
@@ -52,7 +54,7 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
     actionLocks.current.add(id); setBusy(previous => ({ ...previous, [id]: true })); setErrors(previous => ({ ...previous, [id]: "" }));
     try {
       const state = await window.selfmeLab.controlRemoteService(id, action);
-      if (alive.current) setStates(previous => ({ ...previous, [id]: state }));
+      if (alive.current) { setStates(previous => ({ ...previous, [id]: state })); setRevision(previous => previous + 1); }
     } catch (cause) {
       if (alive.current) setErrors(previous => ({ ...previous, [id]: remoteError(cause) }));
       try { const state = await window.selfmeLab.getRemoteServiceState(id); if (alive.current) setStates(previous => ({ ...previous, [id]: state })); } catch { /* primary error visible */ }
@@ -81,11 +83,11 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
         </button>)}
       </section>
       <footer className="remote-index-note"><span>ⓘ</span>任务在远端执行，文件通过上传和下载交换</footer>
-    </> : <section className="remote-connection-stage" aria-label={`${remoteEngines[engine].name} 服务接入`}>
+    </> : states[engine]?.phase === "ready" && !busy[engine] ? <RemoteWorkspace key={engine} engine={engine} available={true} revision={revision} /> : <section className="remote-connection-stage" aria-label={`${remoteEngines[engine].name} 服务接入`}>
       <RemoteMark engine={engine} />
       <h2>{remoteEngines[engine].name}</h2>
       <ServiceStatus state={states[engine]} />
-      <p>{states[engine]?.phase === "ready" ? "服务连接已打通，任务通信和执行现场将在下一步接入。" : "先启动远端服务，再配置模型连接。任务与文件将留在服务端。"}</p>
+      <p>{busy[engine] ? "服务正在准备中，已有任务与文件保留在服务卷中。" : "先启动远端服务，再配置模型连接。任务与文件将留在服务端。"}</p>
       <button type="button" className="remote-button" onClick={() => setPanel(true)}>打开服务管理</button>
       {errors[engine] && <p className="remote-error" role="alert">{errors[engine]}</p>}
     </section>}

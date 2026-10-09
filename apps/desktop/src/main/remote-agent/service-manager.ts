@@ -9,11 +9,12 @@ import { remoteDeployments, redactServiceOutput } from "./deployment";
 export const OPENHANDS_VERSION = remoteDeployments.openhands.version;
 export const OPENHANDS_IMAGE = remoteDeployments.openhands.image;
 const ownerLabel = "ai.selfme.lab.owner";
+const deploymentLabel = "ai.selfme.lab.deployment";
 type Container = { Config: { Image: string; Labels: Record<string, string> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null> } };
 
 export function containerEndpoint(container: Container, owner: string, volume: string, engine: RemoteAgentId = "openhands"): string | null {
   const deployment = remoteDeployments[engine];
-  if (container.Config.Labels?.[ownerLabel] !== owner || container.Config.Image !== deployment.image) throw new Error("同名容器不属于当前实验服务，未作修改");
+  if (container.Config.Labels?.[ownerLabel] !== owner || ![deployment.image, ...deployment.legacyImages].includes(container.Config.Image)) throw new Error("同名容器不属于当前实验服务，未作修改");
   if (container.Mounts.length !== 1 || !container.Mounts.some(mount => mount.Type === "volume" && mount.Name === volume && mount.Destination === deployment.mount)) throw new Error("服务挂载不符合远端工作区隔离规则，未作修改");
   if (!container.State.Running) return null;
   const bindings = container.NetworkSettings.Ports[`${deployment.port}/tcp`];
@@ -33,12 +34,14 @@ export class RemoteAgentContainer {
   readonly owner: string;
   readonly name: string;
   readonly volume: string;
+  readonly deploymentRevision: string;
 
   constructor(root: string, private readonly credentials: () => Promise<RemoteCredentials>, readonly engine: RemoteAgentId = "openhands") {
     this.deployment = remoteDeployments[engine];
     this.owner = createHash("sha256").update(root).digest("hex").slice(0, 16);
     this.name = `selfme-lab-${engine}-${this.owner}`;
     this.volume = `${this.name}-data`;
+    this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command })).digest("hex").slice(0, 16);
   }
 
   private async binary(): Promise<string> {
@@ -67,7 +70,7 @@ export class RemoteAgentContainer {
   private endpoint(container: Container): string | null { return containerEndpoint(container, this.owner, this.volume, this.engine); }
   private async checkImage(): Promise<void> {
     const labels = JSON.parse(await this.command(["image", "inspect", "--format", "{{json .Config.Labels}}", this.deployment.image], undefined, 8000)) as Record<string, string> | null;
-    if (labels?.["ai.selfme.lab.source.commit"] !== this.deployment.commit || labels?.["ai.selfme.lab.engine"] !== this.engine) throw new Error("服务镜像的源码标识不匹配，请重新构建固定源码镜像");
+    if (labels?.["ai.selfme.lab.source.commit"] !== this.deployment.commit || labels?.["ai.selfme.lab.engine"] !== this.engine || labels?.["ai.selfme.lab.integration"] !== "1") throw new Error("服务镜像的源码或部署层标识不匹配，请重新构建固定源码镜像");
   }
 
   /** Status reads do not silently approve devices. Pairing happens on explicit Start. */
@@ -122,7 +125,14 @@ export class RemoteAgentContainer {
     const keys = await this.credentials();
     try { await this.checkImage(); }
     catch { throw new Error(`尚未构建固定源码服务镜像，请运行 npm run remote:build -- ${this.engine}`); }
-    const previous = await this.inspect();
+    let previous = await this.inspect();
+    if (previous && (previous.Config.Image !== this.deployment.image || previous.Config.Labels[deploymentLabel] !== this.deploymentRevision)) {
+      this.endpoint(previous);
+      if (previous.State.Running) await this.command(["stop", "--time", "20", this.name]);
+      // Replace ONLY this verified owned container after a deployment upgrade,
+      // never its native settings/history/files volume.
+      await this.command(["rm", this.name]); previous = null;
+    }
     if (previous) {
       this.endpoint(previous);
       if (!previous.State.Running) await this.command(["start", this.name]);
@@ -145,7 +155,7 @@ export class RemoteAgentContainer {
         "OPENCLAW_SKIP_GMAIL_WATCHER=1", "OPENCLAW_CODEX_DISCOVERY_LIVE=0",
       ];
       await this.command([
-        "run", "--detach", "--name", this.name, "--label", `${ownerLabel}=${this.owner}`,
+        "run", "--detach", "--name", this.name, "--label", `${ownerLabel}=${this.owner}`, "--label", `${deploymentLabel}=${this.deploymentRevision}`,
         "--publish", `127.0.0.1::${this.deployment.port}`, "--mount", `type=volume,src=${this.volume},dst=${this.deployment.mount}`,
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "1024", "--shm-size", "256m",
         ...envArgs.flatMap(value => ["--env", value]), this.deployment.image, ...this.deployment.command,

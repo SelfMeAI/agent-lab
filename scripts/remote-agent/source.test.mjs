@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readLock, validateLock } from "./source.mjs";
-import { buildArguments } from "./build.mjs";
+import { buildArguments, deploymentArguments } from "./build.mjs";
 import { useBuiltLauncher } from "../../services/remote-agent/openclaw/tests/bootstrap-native-proof.mjs";
 
 test("both engines have pinned, distinct official sources", async () => {
@@ -35,4 +35,16 @@ test("source builds keep argument boundaries and never resolve outside the sourc
   assert.ok(args.includes(`ai.selfme.lab.source.commit=${source.commit}`));
   assert.equal(args.at(-1), "/workspace/source");
   assert.throws(() => buildArguments({ ...definition, build: { ...definition.build, dockerfile: "../../outside/Dockerfile" } }, source, "/workspace/source"));
+});
+
+test("deployment layers are explicit, source-derived and ownership-labelled", async () => {
+  const source = (await readLock("openclaw")).sources[0];
+  const definition = { id: "openclaw", build: { image: "selfme-lab/openclaw:source" }, deployment: { image: "selfme-lab/openclaw:lab1", dockerfile: "deployment.Dockerfile" } };
+  const args = deploymentArguments(definition, source, "/workspace/service");
+  assert.ok(args.includes("SOURCE_IMAGE=selfme-lab/openclaw:source"));
+  assert.ok(args.includes(`ai.selfme.lab.source.commit=${source.commit}`));
+  assert.ok(args.includes("ai.selfme.lab.integration=1"));
+  assert.equal(args.at(-1), "/workspace/service");
+  assert.equal(deploymentArguments({ build: definition.build }, source, "/workspace/service"), undefined);
+  assert.throws(() => deploymentArguments({ ...definition, deployment: { ...definition.deployment, dockerfile: "../Dockerfile" } }, source, "/workspace/service"));
 });

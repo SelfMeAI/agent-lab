@@ -4,6 +4,6 @@
   "version": "0.1.0",
   "types": "./src/index.ts",
   "dependencies": {
-    "@openhands/typescript-client": "1.53.0"
+    "diff": "9.0.0"
   }
 }

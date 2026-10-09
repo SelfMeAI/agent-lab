@@ -37,4 +37,10 @@ describe("development service ownership", () => {
     expect(containerEndpoint(claw, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
     expect(() => containerEndpoint(claw, "test-owner", "test-private-volume", "openhands")).toThrow();
   });
+  it("accepts only known owned prior images for a volume-preserving deployment upgrade", () => {
+    const prior = container(); prior.Config.Image = remoteDeployments.openhands.legacyImages[1];
+    expect(containerEndpoint(prior, "test-owner", "test-private-volume")).toBe("http://127.0.0.1:18000");
+    prior.Config.Image = "selfme-lab/openhands-agent-server:unrelated";
+    expect(() => containerEndpoint(prior, "test-owner", "test-private-volume")).toThrow("不属于");
+  });
 });

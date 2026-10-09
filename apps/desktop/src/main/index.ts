@@ -27,18 +27,24 @@ import { LocalModelStore } from "./local-model-store";
 import { LocalModelService } from "./local-model-service";
 import { electronModelMetadataFetch } from "./electron-model-network";
 import type { LocalModelPreferences, LocalModelRunRequest } from "../../../../packages/contracts/src/local-model";
-import { isRemoteAgentId, type RemoteModelInput } from "../../../../packages/contracts/src/remote-agent";
+import { isRemoteAgentId, type RemoteAgentId, type RemoteModelInput } from "../../../../packages/contracts/src/remote-agent";
 import { RemoteModelClient } from "../../../../packages/remote-agent/src/model-connection";
 import { RemoteServiceCredentials } from "./remote-agent/credentials";
 import { RemoteAgentContainer } from "./remote-agent/service-manager";
 import { RemoteDevelopmentService } from "./remote-agent/development-service";
+import { RemoteTaskController } from "./remote-agent/task-controller";
+import { remoteTaskId } from "../../../../packages/remote-agent/src/transport/http";
+import type { RemoteCredentials } from "./remote-agent/credentials";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
 let sessionRepository: AgentSessionRepository | null = null;
 let localModels: LocalModelService | null = null;
+let remoteTasks: RemoteTaskController | null = null;
 const shutdown = installAppShutdown(app,
   async () => {
+    // Closing the client detaches observers, not remote tasks/services.
+    remoteTasks?.shutdown();
     const results = await Promise.allSettled([sessions?.stopAll(), localModels?.shutdown()]);
     const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason);
     if (failures.length) throw new AggregateError(failures, "停止本地运行时失败");
@@ -76,8 +82,10 @@ function createWindow(): void {
   mainWindow = window;
   window.once("ready-to-show", () => window.show());
   window.on("closed", () => {
+    remoteTasks?.shutdown();
     if (mainWindow === window) mainWindow = null;
   });
+  window.webContents.on("render-process-gone", () => remoteTasks?.shutdown());
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, destination) => {
     const current = new URL(window.webContents.getURL());
@@ -143,6 +151,7 @@ void app.whenReady().then(async () => {
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event),
     join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
+  const remoteConnections = {} as Record<RemoteAgentId, { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials> }>;
   const remoteServices = Object.fromEntries((["openhands", "openclaw"] as const).map(engine => {
     const credentials = new RemoteServiceCredentials(join(root, "remote-agent", "connections"), {
       encrypt: async (value) => {
@@ -152,12 +161,18 @@ void app.whenReady().then(async () => {
       decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
     }, engine);
     const container = new RemoteAgentContainer(root, () => credentials.get(), engine);
+    remoteConnections[engine] = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get() };
     const model = new RemoteModelClient(engine, () => container.requireEndpoint(), () => credentials.get());
     return [engine, new RemoteDevelopmentService(container, model, async () => {
       const saved = await getDshProvider();
       return saved.apiKey ? { protocol: "openai", baseUrl: saved.baseUrl, model: saved.model, apiKey: saved.apiKey } : null;
     })];
   }));
+  remoteTasks = new RemoteTaskController(remoteConnections, {
+    choose: async () => { const result = await dialog.showOpenDialog(mainWindow!, { title: "上传文件到远端任务", properties: ["openFile", "multiSelections"] }); return result.canceled ? [] : result.filePaths; },
+    save: async (name) => { const result = await dialog.showSaveDialog(mainWindow!, { title: "下载远端文件", defaultPath: name }); return result.canceled ? null : result.filePath ?? null; },
+  }, event => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:remote-task-update", event); },
+  event => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:remote-terminal-event", event); });
   const remote = (event: IpcMainInvokeEvent, engine: unknown) => {
     assertMainWindow(event);
     if (!isRemoteAgentId(engine)) throw new Error("未知远端智能体");
@@ -167,11 +182,50 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:remote-service-control", async (event, engine, action) => {
     const service = remote(event, engine);
     if (!["start", "stop", "restart"].includes(action)) throw new Error("未知服务操作");
+    remoteTasks!.reset(engine);
     return service.control(action);
   });
   ipcMain.handle("selfme:remote-service-logs", (event, engine) => remote(event, engine).logs());
   ipcMain.handle("selfme:remote-model-get", (event, engine) => remote(event, engine).getModel());
   ipcMain.handle("selfme:remote-model-save", (event, engine, input: RemoteModelInput) => remote(event, engine).saveModel(input));
+  const taskClient = (event: IpcMainInvokeEvent, engine: unknown, id?: unknown) => {
+    remote(event, engine);
+    if (id !== undefined && (typeof id !== "string" || (engine === "openhands" ? remoteTaskId(id) !== id : "agent:main:selfme:" + remoteTaskId(id) !== id))) throw new Error("任务标识无效");
+    return remoteTasks!.client(engine as RemoteAgentId);
+  };
+  ipcMain.handle("selfme:remote-task-list", (event, engine) => taskClient(event, engine).list());
+  ipcMain.handle("selfme:remote-task-create", (event, engine) => taskClient(event, engine).create());
+  ipcMain.handle("selfme:remote-task-open", (event, engine, id) => taskClient(event, engine, id).open(id));
+  ipcMain.handle("selfme:remote-task-earlier", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.earlier(engine, id); });
+  ipcMain.handle("selfme:remote-task-close", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.close(engine, id); });
+  ipcMain.handle("selfme:remote-task-delete", async (event, engine, id) => {
+    taskClient(event, engine, id);
+    const result = await dialog.showMessageBox(mainWindow!, { type: "warning", title: "删除远端任务", message: "删除此任务及其对话记录？", detail: "这会删除服务端任务历史。已生成文件仍留在服务卷中，工作中的任务将先停止。", buttons: ["取消", "删除任务"], defaultId: 0, cancelId: 0 });
+    if (result.response === 1) await remoteTasks!.delete(engine, id);
+  });
+  ipcMain.handle("selfme:remote-task-send", (event, engine, id, prompt, files) => { taskClient(event, engine, id); return remoteTasks!.send(engine, id, prompt, files); });
+  ipcMain.handle("selfme:remote-task-control", (event, engine, id, action) => { const client = taskClient(event, engine, id); if (action !== "stop" && action !== "resume") throw new Error("未知任务操作"); return client.control(id, action); });
+  ipcMain.handle("selfme:remote-task-approval", (event, engine, id, requestId, decision) => {
+    taskClient(event, engine, id); if (typeof requestId !== "string" || !["once", "always", "reject"].includes(decision)) throw new Error("审批无效");
+    return engine === "openhands" ? remoteTasks!.hands.approve(id, requestId, decision) : remoteTasks!.claw.approve(id, requestId, decision);
+  });
+  ipcMain.handle("selfme:remote-task-question", (event, engine, id, requestId, answers) => {
+    taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎通过对话询问用户");
+    if (typeof requestId !== "string" || (answers !== null && (!answers || typeof answers !== "object" || Object.values(answers).some(value => !Array.isArray(value) || value.some(answer => typeof answer !== "string" || answer.length > 10_000))))) throw new Error("回答无效");
+    return remoteTasks!.claw.answer(id, requestId, answers);
+  });
+  ipcMain.handle("selfme:remote-task-upload", (event, engine, id, remaining = 10) => { taskClient(event, engine, id); return remoteTasks!.upload(engine, id, remaining); });
+  ipcMain.handle("selfme:remote-task-files", (event, engine, id, path) => taskClient(event, engine, id).http.listFiles(id, path));
+  ipcMain.handle("selfme:remote-task-preview", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.preview(engine, id, path); });
+  ipcMain.handle("selfme:remote-task-download", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.download(engine, id, path); });
+  ipcMain.handle("selfme:remote-task-desktop", (event, engine, id, control) => { taskClient(event, engine, id); if (typeof control !== "boolean") throw new Error("控制模式无效"); return remoteTasks!.desktop(engine, id, control); });
+  ipcMain.handle("selfme:remote-task-browser", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("OpenHands 使用原生浏览器观察"); return remoteTasks!.claw.browser(id); });
+  ipcMain.handle("selfme:remote-task-return", (event, engine, id, prompt) => { taskClient(event, engine, id); if (prompt !== undefined && (typeof prompt !== "string" || prompt.length > 100_000)) throw new Error("消息无效"); return remoteTasks!.returnDesktop(engine, id, prompt); });
+  const terminalClient = (event: IpcMainInvokeEvent, engine: unknown, id: unknown) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎仅提供智能体命令输出"); return remoteTasks!.claw; };
+  ipcMain.handle("selfme:remote-terminal-open", (event, engine, id) => terminalClient(event, engine, id).terminal(id));
+  ipcMain.handle("selfme:remote-terminal-input", (event, engine, id, terminalId, data) => { const client = terminalClient(event, engine, id); if (typeof data !== "string" || data.length > 65_536) throw new Error("终端输入无效"); return client.terminalInput(id, terminalId, data); });
+  ipcMain.handle("selfme:remote-terminal-resize", (event, engine, id, terminalId, cols, rows) => { const client = terminalClient(event, engine, id); if (![cols, rows].every(value => Number.isInteger(value) && value >= 2 && value <= 500)) throw new Error("终端尺寸无效"); return client.terminalResize(id, terminalId, cols, rows); });
+  ipcMain.handle("selfme:remote-terminal-close", (event, engine, id, terminalId) => terminalClient(event, engine, id).terminalClose(id, terminalId));
   ipcMain.handle("selfme:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };

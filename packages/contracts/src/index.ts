@@ -1,5 +1,5 @@
 import type { LocalModelDetails, LocalModelEvent, LocalModelPreferences, LocalModelRun, LocalModelRunRequest, LocalModelSnapshot } from "./local-model";
-import type { RemoteServiceBridge } from "./remote-agent";
+import type { RemoteServiceBridge, RemoteTaskBridge } from "./remote-agent";
 export * from "./local-model";
 export * from "./remote-agent";
 
@@ -220,7 +220,7 @@ export interface JevDecision {
   warning?: string;
 }
 
-export interface DesktopBridge extends RemoteServiceBridge {
+export interface DesktopBridge extends RemoteServiceBridge, RemoteTaskBridge {
   getLocalModelState(): Promise<LocalModelSnapshot>;
   getLocalModelDetails(model: string): Promise<LocalModelDetails>;
   saveLocalModelPreferences(preferences: LocalModelPreferences): Promise<LocalModelPreferences>;

@@ -1,0 +1,4 @@
+upstream/
+tests/
+config/
+__pycache__/

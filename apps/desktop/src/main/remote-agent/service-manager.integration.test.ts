@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 import { RemoteServiceCredentials } from "./credentials";
 import { RemoteAgentContainer } from "./service-manager";
 import { RemoteModelClient } from "../../../../../packages/remote-agent/src/model-connection";
+import { RemoteTaskController } from "./task-controller";
+import { remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
 
 // Explicit Docker integration; fixture-only connection keys, never real API calls.
 describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-built remote services", () => {
@@ -18,6 +20,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
       }, engine);
       const container = new RemoteAgentContainer(root, () => credentials.get(), engine);
       const models = new RemoteModelClient(engine, () => container.requireEndpoint(), () => credentials.get());
+      const connection = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get() };
+      const tasks = new RemoteTaskController({ openhands: connection, openclaw: connection }, { choose: async () => [], save: async () => null }, () => {}, () => {});
       try {
         const state = await container.start();
         expect(state.phase).toBe("ready");
@@ -32,6 +36,30 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         await ready();
         await container.restart();
         expect(await models.get()).toMatchObject({ model: "deepseek-reasoner", configured: true });
+        const client = tasks.client(engine), task = await client.create();
+        expect((await client.list()).some(row => row.id === task.id)).toBe(true);
+        const files = client.http, body = new TextEncoder().encode("NATIVE_REMOTE_FILES_OK\n");
+        expect((await files.upload(task.id, "uploads/proof.txt", body)).size).toBe(body.length);
+        expect((await files.listFiles(task.id, "uploads")).files.map(row => row.name)).toEqual(["proof.txt"]);
+        expect(await (await files.download(task.id, "uploads/proof.txt")).text()).toBe("NATIVE_REMOTE_FILES_OK\n");
+        await expect(files.upload(task.id, "uploads/proof.txt", body)).rejects.toThrow("同名文件");
+        const fileRoute = engine === "openhands" ? "/api/selfme/files" : "/selfme-lab/files";
+        const query = new URLSearchParams({ task: remoteTaskId(task.id), path: "../private" });
+        await expect(files.request(`${fileRoute}?${query}`)).rejects.toThrow("文件路径");
+        expect([401, 403]).toContain((await fetch(`${await container.requireEndpoint()}${fileRoute}?task=${remoteTaskId(task.id)}&op=list`)).status);
+        if (engine === "openhands") {
+          const grant = await tasks.desktop(engine, task.id, false);
+          expect(grant.control).toBe(false); expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
+          await expect(framebufferHeader(grant.url)).rejects.toThrow();
+        } else {
+          const lease = await tasks.claw.request<{ id: string }>("selfme.control.acquire", { task: remoteTaskId(task.id) });
+          await expect(tasks.claw.request("selfme.control.acquire", { task: remoteTaskId(task.id) })).rejects.toThrow("已有接管者");
+          await tasks.claw.request("selfme.control.release", { id: lease.id });
+        }
+        tasks.reset(); await container.restart();
+        expect((await client.list()).some(row => row.id === task.id)).toBe(true);
+        expect(await (await files.download(task.id, "uploads/proof.txt")).text()).toBe("NATIVE_REMOTE_FILES_OK\n");
+        await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
         if (engine === "openhands") {
           const denied = await fetch(`${await container.requireEndpoint()}/api/settings`);
           expect([401, 403]).toContain(denied.status);
@@ -42,7 +70,10 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         expect((await container.stop()).phase).toBe("stopped");
         expect((await container.start()).phase).toBe("ready");
         expect((await models.get()).model).toBe("deepseek-reasoner");
+      } catch (error) {
+        console.error((await container.logs()).slice(-5000)); throw error;
       } finally {
+        tasks.shutdown();
         // Only this test's unique, ownership-checked fixture is removed.
         await container.stop();
         const exec = promisify(execFile);
@@ -61,3 +92,15 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
     }, 180_000);
   }
 });
+
+async function framebufferHeader(url: string): Promise<string> {
+  const socket = new WebSocket(url, "binary"); socket.binaryType = "arraybuffer";
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error("观察连接超时")), 10_000);
+    let settled = false;
+    const finish = (error?: Error, header?: string) => { if (settled) return; settled = true; clearTimeout(timer); socket.close(); if (error) reject(error); else resolve(header!); };
+    socket.addEventListener("message", event => finish(undefined, new TextDecoder().decode(new Uint8Array(event.data as ArrayBuffer))));
+    socket.addEventListener("error", () => finish(new Error("观察连接被拒绝")));
+    socket.addEventListener("close", event => finish(new Error(`观察连接已关闭（${event.code}）${event.reason}`)));
+  });
+}
