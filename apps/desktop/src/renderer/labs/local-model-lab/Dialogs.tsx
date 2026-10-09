@@ -91,7 +91,6 @@ export function PullModelDialog({ onClose, initialName }: { onClose(): void; ini
   const showDownload = download && download.status !== "complete" && (downloadInProgress(download) || paused
     || (sameLocalModel(download.model, name.trim()) && (download.status !== "cancelled" || !isInstalled)));
   const groups = family === "all" ? localModelCatalog : localModelCatalog.filter((group) => group.id === family);
-  const selected = localModelCatalog.flatMap((group) => group.models).find((model) => model.name === name.trim());
   async function pull(): Promise<void> {
     if (busy) return;
     setError(""); setStarting(true);
@@ -115,7 +114,7 @@ export function PullModelDialog({ onClose, initialName }: { onClose(): void; ini
           </button>)}</div>
         </section>)}
       </div>
-      <div className="lm-catalog-submit"><p>{paused ? "请继续或取消当前暂停的下载，再下载其他模型。" : isInstalled && !showDownload ? "已下载，可直接运行。检查更新会保留现有模型。" : "下载完成后，模型会出现在左侧列表。暂停或重试会复用已下载文件。"}{!isInstalled && (selected?.availability === "huggingface" || name.trim().toLowerCase().startsWith("hf.co/")) && " GGUF 的可运行性取决于模型架构和运行时支持。"}</p>{!paused && !showDownload && <button className="settings-panel__save" disabled={busy || !name.trim() || data?.runtime.status !== "ready"} type="submit">{starting ? "连接中…" : isInstalled ? "检查模型更新" : "下载模型"}</button>}</div>
+      <div className="lm-catalog-submit"><p>{paused ? "请继续或取消当前暂停的下载，再下载其他模型。" : isInstalled && !showDownload ? "已下载，可直接运行。检查更新会保留现有模型。" : "下载完成后，模型会出现在左侧列表。暂停或重试会复用已下载文件。"}</p>{!paused && !showDownload && <button className="settings-panel__save" disabled={busy || !name.trim() || data?.runtime.status !== "ready"} type="submit">{starting ? "连接中…" : isInstalled ? "检查模型更新" : "下载模型"}</button>}</div>
     </form>
     {showDownload && <DownloadCard download={download} onClose={onClose} />}
     {error && <p className="settings-panel__error" role="alert">{error}</p>}

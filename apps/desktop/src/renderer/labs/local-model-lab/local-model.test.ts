@@ -73,6 +73,17 @@ describe("local model desktop presentation and state", () => {
       expect(render()).toContain("检查模型更新"); expect(render()).not.toContain("重新下载");
     }
   });
+  it("uses the same download explanation for GGUF models without removing source badges", async () => {
+    const store = await import("./local-model-store"); const { PullModelDialog } = await import("./Dialogs"); const { localModelCatalog } = await import("./model-catalog");
+    store.acceptLocalModelEvent({ type: "state", state: fixture() });
+    const models = localModelCatalog.flatMap((group) => group.models).filter((model) => model.availability === "huggingface");
+    expect(models).toHaveLength(3);
+    for (const name of [...models.map((model) => model.name), "hf.co/example/custom-model:Q4_K_M"]) {
+      const markup = renderToStaticMarkup(createElement(PullModelDialog, { onClose: () => {}, initialName: name }));
+      expect(markup).toContain("暂停或重试会复用已下载文件"); expect(markup).toContain("Hugging Face · GGUF");
+      expect(markup).not.toContain("GGUF 的可运行性取决于模型架构和运行时支持");
+    }
+  });
   it("scopes drafts, answers and measurements to the model and ordered A/B pair", async () => {
     const store = await import("./local-model-store"); const { LocalModelPage } = await import("./Page");
     const data = fixture(); const qwen = fixtureRun("qwen3:0.6b"); const gemma = fixtureRun("gemma3:1b");
