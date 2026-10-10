@@ -315,8 +315,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "consent-experience.takeover", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2], checkedAt: "2026-10-10",
-    evidence: ["services/remote-agent/openclaw/plugin/index.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/main/remote-agent/task-controller.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "连接拥有接管租约并续期；先阻止新工具、停止引擎任务，确认停稳后开放输入。打包版已从任务浏览器定位同一桌面窗口，接管点击网页计数从 1 到 2，交还并继续后智能体用原生 snapshot 确认 2，未刷新或重做。交还也可等待新指令；继续失败仍切回只读并明确提示。任务切换与客户端断开释放所属控制权；共享桌面并非任务级隔离，也不代表自主视觉操作已验收。",
+    evidence: ["services/remote-agent/openclaw/plugin/index.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/main/remote-agent/task-controller.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteControlNotice.test.ts"],
+    note: "连接拥有接管租约并续期；先阻止新工具、停止引擎任务，确认停稳后开放输入。打包版已从任务浏览器定位同一桌面窗口，接管点击网页计数从 1 到 2，交还并继续后智能体用原生 snapshot 确认 2，未刷新或重做。接管时显示状态条、任务及输入框的锁定原因和禁用样式，草稿保留；终端及文件观察仍可切换。已实机验证从终端页和展开的文件现场进入交还确认、取消交还保持接管，以及交还等待后恢复任务列表和消息输入，不自动续跑。继续失败仍切回只读并明确提示。任务切换与客户端断开释放所属控制权；共享桌面并非任务级隔离，也不代表自主视觉操作已验收。",
   },
   {
     capabilityId: "delivery-experience.artifact-list", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
