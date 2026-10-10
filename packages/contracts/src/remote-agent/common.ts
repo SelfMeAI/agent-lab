@@ -22,6 +22,7 @@ export interface RemoteModelConnection {
   baseUrl: string;
   model: string;
   configured: boolean;
+  /** Native runtime declaration; not proof of an unknown provider's capability. */
   supportsImages?: boolean;
 }
 export interface RemoteModelInput {
@@ -30,7 +31,6 @@ export interface RemoteModelInput {
   model: string;
   /** Omitted or empty keeps the server's existing key. Never returned to the UI. */
   apiKey?: string;
-  supportsImages?: boolean;
 }
 export interface RemoteModelListInput {
   protocol: RemoteModelProtocol;

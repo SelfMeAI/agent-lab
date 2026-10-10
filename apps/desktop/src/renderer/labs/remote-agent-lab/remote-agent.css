@@ -78,8 +78,9 @@
 .remote-model-fields input::placeholder { color: #6e8390; }
 .remote-model-fields input:focus, .remote-model-fields select:focus { outline: 1px solid #b4d1de; border-color: #b4d1de; }
 .remote-model-fields select { appearance: auto; }
-.remote-model-vision > span:last-child { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #9cb1bf; }
-.remote-model-fields .remote-model-vision input { width: 15px; height: 15px; padding: 0; accent-color: #b4d1de; }
+.remote-model-vision { display: grid; grid-template-columns: 94px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 28px; color: #bac5cc; font-size: 13px; }
+.remote-model-vision strong { padding-left: 11px; color: #9cb1bf; font-size: 12px; font-weight: 500; }
+.remote-model-vision strong[data-support="true"] { color: #85c6ae; }
 .remote-key-field { position: relative; min-width: 0; }
 .remote-key-field input { padding-right: 54px; }
 .remote-key-field button { position: absolute; right: 4px; top: 3px; height: 28px; border: 0; background: transparent; color: #91aab9; font-size: 11px; padding: 0 8px; }

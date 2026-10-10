@@ -1,4 +1,4 @@
-/** Official declared capabilities; unknown/proxied IDs need an explicit choice.
+/** Official declared capabilities; unknown/proxied IDs remain unconfirmed.
  * Source: https://api-docs.deepseek.com/quick_start/pricing/ (2026-10-10).
  */
 export function knownRemoteVision(baseUrl: string, model: string): boolean | undefined {

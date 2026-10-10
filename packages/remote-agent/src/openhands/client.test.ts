@@ -26,7 +26,7 @@ function fixture() {
   return { client, json, updates };
 }
 describe("OpenHands ordered native task stream", () => {
-  it("creates a visible browser and preserves DeepSeek reasoning with explicit vision settings", async () => {
+  it("creates a visible browser with automatic confirmed vision instead of a stale override", async () => {
     const { client, json } = fixture();
     json.mockImplementation(async (path: string) => {
       if (path === "/api/selfme/workspace") return { root: "/workspace/selfme/fixture" };
@@ -37,7 +37,7 @@ describe("OpenHands ordered native task stream", () => {
     expect(json).toHaveBeenCalledWith("/api/conversations", "POST", expect.objectContaining({
       secrets_encrypted: true,
       agent_settings: expect.objectContaining({
-        llm: expect.objectContaining({ model_canonical_name: "deepseek/deepseek-v4.1-flash", stream: true, capability_overrides: { supports_vision: false } }),
+        llm: expect.objectContaining({ model_canonical_name: "deepseek/deepseek-v4.1-flash", stream: true, capability_overrides: { supports_vision: true } }),
         tools: expect.arrayContaining([expect.objectContaining({ name: "browser_tool_set", params: expect.objectContaining({ headless: false }) })]),
       }),
     })); client.shutdown();

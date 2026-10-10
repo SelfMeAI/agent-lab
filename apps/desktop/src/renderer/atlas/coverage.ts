@@ -172,7 +172,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "providers.provider-accounts", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "integrated", upstream: "tested", passedChecks: [0, 1],
     evidence: ["packages/remote-agent/src/model-connection.ts", "packages/remote-agent/src/model-connection.test.ts", "packages/remote-agent/src/provider-models.test.ts", "services/remote-agent/openhands/extension/model_discovery.py", "services/remote-agent/openhands/tests/model_discovery_test.py", "apps/desktop/src/main/remote-agent/development-service.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteServicePanel.tsx"], checkedAt: "2026-10-10",
-    note: "两个服务分别保存协议、Base URL、API Key 和 Model ID；连接通过原生 HTTP / Gateway RPC 写入各自服务卷，未建立本地模型密钥副本。留空保留已有 Key，界面仅返回已配置状态。设置支持从服务端只读获取当前 Provider 的模型列表、搜索和选择，也保留手填；新地址或新协议不能沿用旧 Key，获取和选择不自动保存或切换模型。识图能力沿用明确声明及官方已知能力，不从模型名字猜测。首次仅在服务器尚未配置时使用用户已有 DeepSeek 连接，不覆盖已有配置。固定源码容器验证了配置保存、无 Key 修改、重启和再次启动后保留；文本模型已完成真实文件与浏览器 DOM 任务，列表可选不代表任意模型或自主视觉操作已通过验收。",
+    note: "两个服务分别保存协议、Base URL、API Key 和 Model ID；连接通过原生 HTTP / Gateway RPC 写入各自服务卷，未建立本地模型密钥副本。留空保留已有 Key，界面仅返回已配置状态。设置支持从服务端只读获取当前 Provider 的模型列表、搜索和选择，也保留手填；新地址或新协议不能沿用旧 Key，获取和选择不自动保存或切换模型。图像能力只读显示支持、不支持或待确认，官方已知能力自动配置；未知连接不从名称或原生声明推断已支持，切换连接不继承旧模型的图像声明。同一未知连接保留已有原生配置。首次仅在服务器尚未配置时使用用户已有 DeepSeek 连接，不覆盖已有配置。固定源码容器验证了配置保存、无 Key 修改、重启和再次启动后保留；文本模型已完成真实文件与浏览器 DOM 任务，列表可选不代表任意模型或自主视觉操作已通过验收。",
   },
   {
     capabilityId: "sandbox.process-isolation", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

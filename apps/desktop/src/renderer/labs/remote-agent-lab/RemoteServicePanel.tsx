@@ -5,9 +5,15 @@ import { remoteEngines, RemoteMark, ServiceStatus, type ServiceBusy, type Servic
 import { remoteError } from "./service-presentation";
 import { knownRemoteVision } from "../../../../../../packages/remote-agent/src/model-capabilities";
 
-type Draft = { protocol: RemoteModelProtocol; baseUrl: string; model: string; apiKey: string; configured: boolean; supportsImages: boolean; dirty: boolean };
-function initialDraft(): Draft { return { protocol: "openai", baseUrl: "https://api.deepseek.com", model: "", apiKey: "", configured: false, supportsImages: false, dirty: false }; }
-function fromConnection(value: RemoteModelConnection): Draft { return { ...value, supportsImages: value.supportsImages ?? knownRemoteVision(value.baseUrl, value.model) ?? false, apiKey: "", dirty: false }; }
+type Draft = { protocol: RemoteModelProtocol; baseUrl: string; model: string; apiKey: string; configured: boolean; dirty: boolean };
+function initialDraft(): Draft { return { protocol: "openai", baseUrl: "https://api.deepseek.com", model: "", apiKey: "", configured: false, dirty: false }; }
+function fromConnection(value: RemoteModelConnection): Draft { return { protocol: value.protocol, baseUrl: value.baseUrl, model: value.model, configured: value.configured, apiKey: "", dirty: false }; }
+
+export function RemoteModelImageCapability({ baseUrl, model }: { baseUrl: string; model: string }): JSX.Element {
+  // A native input declaration is not proof that an unknown provider supports vision.
+  const support = knownRemoteVision(baseUrl, model.trim());
+  return <div className="remote-model-vision" role="status"><span>图像能力</span><strong data-support={support === undefined ? "unknown" : String(support)}>{support === undefined ? "待确认" : support ? "支持" : "不支持"}</strong></div>;
+}
 
 export function RemoteServicePanel({ initialEngine, states, busy, errors, onControl, onClose }: {
   initialEngine: RemoteAgentId; states: ServiceStates; busy: ServiceBusy; errors: Partial<Record<RemoteAgentId, string>>;
@@ -62,9 +68,9 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
     return () => { current = false; ++lookupRevision.current; };
   }, [engine, ready, busy[engine]]);
 
-  function change<K extends "protocol" | "baseUrl" | "model" | "apiKey" | "supportsImages">(key: K, value: Draft[K]): void {
+  function change<K extends "protocol" | "baseUrl" | "model" | "apiKey">(key: K, value: Draft[K]): void {
     if (key === "baseUrl" || key === "protocol" || key === "apiKey") clearModels();
-    setDrafts(previous => { const next = { ...previous[engine], [key]: value, dirty: true }; if (key === "model" || key === "baseUrl") next.supportsImages = knownRemoteVision(next.baseUrl, next.model) ?? false; return { ...previous, [engine]: next }; }); setNotice("");
+    setDrafts(previous => ({ ...previous, [engine]: { ...previous[engine], [key]: value, dirty: true } })); setNotice("");
   }
   async function loadModels(): Promise<void> {
     if (!window.selfmeLab || !ready || loading || saving || modelsLoading || busy[engine]) return;
@@ -84,7 +90,7 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
     event.preventDefault(); if (!window.selfmeLab || saving || loading || modelsLoading || !ready) return;
     setSaving(true); setError(""); setNotice("");
     try {
-      const value = await window.selfmeLab.saveRemoteModelConnection(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, model: draft.model, apiKey: draft.apiKey || undefined, supportsImages: draft.supportsImages });
+      const value = await window.selfmeLab.saveRemoteModelConnection(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, model: draft.model, apiKey: draft.apiKey || undefined });
       if (alive.current) { setDrafts(previous => ({ ...previous, [engine]: fromConnection(value) })); setNotice("已保存到服务端 · 后续新任务使用此连接"); }
     } catch (cause) { if (alive.current) setError(remoteError(cause)); }
     finally { if (alive.current) setSaving(false); }
@@ -146,7 +152,7 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
                   </>}
                 </div>
               </div>
-              <label className="remote-model-vision"><span>图像输入</span><span><input type="checkbox" checked={draft.supportsImages} onChange={event => change("supportsImages", event.target.checked)} />此模型支持读取图片</span></label>
+              <RemoteModelImageCapability baseUrl={draft.baseUrl} model={draft.model} />
             </fieldset>
             <p className="remote-panel__hint">ⓘ 观察画面不需要视觉模型；智能体识图操作需要模型支持图像输入。</p>
             {loading && <p className="remote-panel__hint"><i className="remote-spinner" />正在读取服务端连接…</p>}

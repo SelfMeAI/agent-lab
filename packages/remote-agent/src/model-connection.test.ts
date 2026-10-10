@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteModelClient, validateRemoteModel } from "./model-connection";
 import { knownRemoteVision } from "./model-capabilities";
+import * as gateway from "./openclaw/gateway";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe("remote native model connection", () => {
   it("normalizes protocol/model input without embedding keys in URLs", () => {
     expect(validateRemoteModel({ protocol: "openai", baseUrl: "https://api.deepseek.com/", model: " deepseek-chat " })).toEqual({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", apiKey: undefined });
@@ -18,13 +19,48 @@ describe("remote native model connection", () => {
     expect(knownRemoteVision("https://example.com", "deepseek-flash")).toBeUndefined();
     expect(knownRemoteVision("https://api.deepseek.com", "unknown")).toBeUndefined();
   });
-  it("persists explicit vision support in the native SDK instead of assuming text only", async () => {
-    const native = { agent_settings: { llm: { model: "openai/vision-model", base_url: "https://example.com", capability_overrides: { supports_vision: true } } }, llm_api_key_is_set: true };
+  it("automatically persists confirmed vision support without a user declaration", async () => {
+    const native = { agent_settings: { llm: { model: "openai/deepseek-v4-pro", base_url: "https://api.deepseek.com", capability_overrides: { supports_vision: false } } }, llm_api_key_is_set: true };
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => native }); vi.stubGlobal("fetch", fetchMock);
     const client = new RemoteModelClient("openhands", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture" }));
-    expect(await client.save({ protocol: "openai", baseUrl: "https://example.com", model: "vision-model", supportsImages: true })).toMatchObject({ supportsImages: true });
+    await client.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-flash" });
     const call = fetchMock.mock.calls.find(args => args[1]?.method === "PATCH");
     expect(JSON.parse(call![1].body).agent_settings_diff.llm.capability_overrides).toEqual({ supports_vision: true });
+  });
+  it("clears inherited vision when changing the address, even with the same model ID", async () => {
+    const native = { agent_settings: { llm: { model: "openai/custom-model", base_url: "https://first.example", capability_overrides: { supports_vision: true } } }, llm_api_key_is_set: true };
+    const saved = { agent_settings: { llm: { model: "openai/custom-model", base_url: "https://other.example", capability_overrides: {} } }, llm_api_key_is_set: true };
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => native }).mockResolvedValueOnce({ ok: true, json: async () => saved }); vi.stubGlobal("fetch", fetchMock);
+    const client = new RemoteModelClient("openhands", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture" }));
+    expect(await client.save({ protocol: "openai", baseUrl: "https://other.example", model: "custom-model" })).not.toHaveProperty("supportsImages");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).agent_settings_diff.llm.capability_overrides).toEqual({ supports_vision: null });
+  });
+  it("retains native capability settings for the exact same unknown connection", async () => {
+    const native = { agent_settings: { llm: { model: "openai/custom-model", base_url: "https://example.com/", capability_overrides: { supports_vision: true } } }, llm_api_key_is_set: true };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => native }); vi.stubGlobal("fetch", fetchMock);
+    const client = new RemoteModelClient("openhands", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture" }));
+    await client.save({ protocol: "openai", baseUrl: "https://example.com", model: "custom-model" });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).agent_settings_diff.llm).not.toHaveProperty("capability_overrides");
+  });
+  it.each([
+    ["https://api.deepseek.com", "deepseek-flash", ["text", "image"]],
+    ["https://api.deepseek.com", "deepseek-v4-pro", ["text"]],
+    ["https://api.deepseek.com", "unknown-model", undefined],
+    ["https://other.example", "deepseek-v4-pro", undefined],
+  ])("configures OpenClaw automatically without making unknown models text-only: %s / %s", async (baseUrl, model, input) => {
+    const native = { hash: "fixture-version", config: { agents: { defaults: { model: { primary: "selfme/deepseek-v4-pro" } } }, models: { providers: { selfme: { api: "openai-completions", baseUrl: "https://api.deepseek.com", apiKey: "fixture", models: [{ id: "deepseek-v4-pro", input: ["text"] }] } } } } };
+    const rpc = vi.spyOn(gateway, "openClawRpc").mockResolvedValue(native);
+    const client = new RemoteModelClient("openclaw", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture", device: gateway.createOpenClawIdentity() }));
+    const result = await client.save({ protocol: "openai", baseUrl, model });
+    const params = rpc.mock.calls.find(args => args[3] === "config.patch")?.[4] as { raw: string; replacePaths?: string[] };
+    const definition = JSON.parse(params.raw).models.providers.selfme.models[0];
+    expect(params.replacePaths).toEqual("input" in definition ? ["models.providers.selfme.models[].input"] : undefined);
+    if (input) { expect(definition.input).toEqual(input); expect(result.supportsImages).toBe(input.includes("image")); }
+    else {
+      if (model === "deepseek-v4-pro") expect(definition.input).toBeNull();
+      else expect(definition).not.toHaveProperty("input");
+      expect(result).not.toHaveProperty("supportsImages");
+    }
   });
   it("preserves an existing native key on an omitted/empty API Key", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ agent_settings: { llm: { model: "openai/deepseek-chat", base_url: "https://api.deepseek.com", api_key: "**********" } }, llm_api_key_is_set: true }) });

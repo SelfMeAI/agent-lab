@@ -11,8 +11,7 @@ export function validateRemoteModel(value: RemoteModelInput): RemoteModelInput {
   const model = value.model?.trim();
   if (!model || model.length > 200 || /[\s\x00-\x1f]/.test(model)) throw new Error("请填写有效的 Model ID");
   if (value.apiKey !== undefined && (typeof value.apiKey !== "string" || value.apiKey.length > 8192 || /[\r\n\x00]/.test(value.apiKey))) throw new Error("API Key 格式无效");
-  if (value.supportsImages !== undefined && typeof value.supportsImages !== "boolean") throw new Error("图像输入设置无效");
-  return { protocol: value.protocol, baseUrl: url.toString().replace(/\/+$/, ""), model, apiKey: value.apiKey?.trim() || undefined, ...(value.supportsImages !== undefined ? { supportsImages: value.supportsImages } : {}) };
+  return { protocol: value.protocol, baseUrl: url.toString().replace(/\/+$/, ""), model, apiKey: value.apiKey?.trim() || undefined };
 }
 
 type Settings = { agent_settings?: { llm?: { model?: string; base_url?: string; capability_overrides?: { supports_vision?: boolean } } }; llm_api_key_is_set?: boolean };
@@ -74,24 +73,34 @@ export class RemoteModelClient {
   async save(input: RemoteModelInput): Promise<RemoteModelConnection> {
     const value = validateRemoteModel(input);
     const previous = await this.get();
-    const supportsImages = value.supportsImages ?? knownRemoteVision(value.baseUrl, value.model) ?? (value.model === previous.model ? previous.supportsImages : undefined);
+    const sameConnection = value.model === previous.model && value.protocol === previous.protocol && value.baseUrl === previous.baseUrl.replace(/\/+$/, "");
+    const confirmedImages = knownRemoteVision(value.baseUrl, value.model);
+    const supportsImages = confirmedImages ?? (sameConnection ? previous.supportsImages : undefined);
     if (!previous.configured && !value.apiKey) throw new Error("请填写 API Key");
     if (this.engine === "openhands") {
       return this.handsConnection(await this.hands<Settings>("/api/settings", "PATCH", { agent_settings_diff: { llm: {
         model: `${value.protocol}/${value.model}`, base_url: value.baseUrl, ...(value.apiKey ? { api_key: value.apiKey } : {}),
         model_canonical_name: remoteCanonicalModel(value.baseUrl, value.model),
-        ...(supportsImages !== undefined ? { capability_overrides: { supports_vision: supportsImages } } : {}),
+        // Native nested null deletes a stale override when changing to an unknown model.
+        ...(confirmedImages !== undefined || !sameConnection ? { capability_overrides: { supports_vision: confirmedImages ?? null } } : {}),
       } } }));
     }
     const snapshot = await this.claw<ClawConfig>("config.get");
     if (!snapshot.hash) throw new Error("OpenClaw 未返回配置版本，未写入设置");
-    const model = { id: value.model, name: value.model, input: supportsImages ? ["text", "image"] : ["text"] };
+    // Null is an unset only when merging an existing ID-keyed row; a new row
+    // must omit input. Leave the same unknown connection's native settings alone.
+    const existingModel = snapshot.config?.models?.providers?.selfme?.models?.some(row => row.id === value.model);
+    const model = { id: value.model, name: value.model, ...(confirmedImages !== undefined
+      ? { input: confirmedImages ? ["text", "image"] : ["text"] }
+      : !sameConnection && existingModel ? { input: null } : {}) };
     const patch = { models: { providers: { selfme: { baseUrl: value.baseUrl,
       api: value.protocol === "anthropic" ? "anthropic-messages" : "openai-completions",
       ...(value.apiKey ? { apiKey: value.apiKey } : {}), models: [model] } } }, agents: { defaults: { model: { primary: `selfme/${value.model}` } } } };
-    await this.claw("config.patch", { raw: JSON.stringify(patch), baseHash: snapshot.hash });
+    await this.claw("config.patch", { raw: JSON.stringify(patch), baseHash: snapshot.hash,
+      ...("input" in model ? { replacePaths: ["models.providers.selfme.models[].input"] } : {}),
+    });
     // config.patch can legitimately reload the gateway; the write acknowledgement
     // is authoritative. A later GET verifies native state without duplicate writes.
-    return { protocol: value.protocol, baseUrl: value.baseUrl, model: value.model, configured: true, supportsImages: supportsImages ?? false };
+    return { protocol: value.protocol, baseUrl: value.baseUrl, model: value.model, configured: true, ...(supportsImages !== undefined ? { supportsImages } : {}) };
   }
 }

@@ -29,7 +29,7 @@ export class OpenHandsTasks {
     if (!settings.llm_api_key_is_set) throw new Error("请先保存 OpenHands 的模型连接");
     const llm = record(settings.agent_settings.llm), model = text(llm.model).replace(/^(?:openai|anthropic)\//, "");
     const canonical = remoteCanonicalModel(text(llm.base_url), model), capabilities = record(llm.capability_overrides);
-    const vision = typeof capabilities.supports_vision === "boolean" ? capabilities.supports_vision : knownRemoteVision(text(llm.base_url), model);
+    const vision = knownRemoteVision(text(llm.base_url), model) ?? (typeof capabilities.supports_vision === "boolean" ? capabilities.supports_vision : undefined);
     const agent = { ...settings.agent_settings, llm: { ...llm, stream: true,
       ...(canonical ? { model_canonical_name: canonical } : {}),
       ...(vision !== undefined ? { capability_overrides: { ...record(llm.capability_overrides), supports_vision: vision } } : {}),

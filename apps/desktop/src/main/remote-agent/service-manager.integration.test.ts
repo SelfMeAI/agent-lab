@@ -35,8 +35,22 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         // OpenClaw may hot-reload config.patch; wait on native readiness, no repeated write.
         await ready();
         expect(await models.get()).toMatchObject({ model: "deepseek-chat", baseUrl: "https://api.deepseek.com", configured: true });
-        await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-reasoner" });
+        await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-flash" });
         await ready();
+        expect(await models.get()).toMatchObject({ model: "deepseek-flash", supportsImages: true });
+        await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-pro" });
+        await ready();
+        expect(await models.get()).toMatchObject({ model: "deepseek-v4-pro", supportsImages: false });
+        const existingUnconfirmed = await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-chat" });
+        await ready();
+        expect(existingUnconfirmed).not.toHaveProperty("supportsImages");
+        expect((await models.get()).supportsImages).not.toBe(true);
+        const unconfirmed = await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-reasoner" });
+        await ready();
+        expect(unconfirmed).not.toHaveProperty("supportsImages");
+        // OpenClaw resolves absent input metadata using its catalog/text default;
+        // that runtime default is not a confirmed provider capability in the UI.
+        expect((await models.get()).supportsImages).not.toBe(true);
         await container.restart();
         expect(await models.get()).toMatchObject({ model: "deepseek-reasoner", configured: true });
         // A container-local fixture exercises the real authenticated lookup,
