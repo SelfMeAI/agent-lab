@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { RemoteTask, RemoteTaskSnapshot, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
-import { applyOpenHandsEvent, contentText, record, taskStatus, text, timestamp } from "../transcript";
+import { applyOpenHandsEvent, contentText, executionFailure, record, taskStatus, text, timestamp } from "../transcript";
 import { RemoteHttp, RemoteHttpError, remoteTaskId } from "../transport/http";
 import { knownRemoteVision, remoteCanonicalModel } from "../model-capabilities";
 
@@ -69,7 +69,7 @@ export class OpenHandsTasks {
           // Resolve open only after that watermark, not with a blank history.
           if (frame.type === "sync") { synced = true; through = Number.isSafeInteger(frame.through_seq) ? Number(frame.through_seq) : undefined; }
           this.frame(view, frame);
-          if (!ready && synced && (through === undefined || view.seq >= through)) { ready = true; clearTimeout(timer); view.snapshot.connection = "connected"; resolve(); }
+          if (!ready && synced && (through === undefined || view.seq >= through)) { ready = true; clearTimeout(timer); view.snapshot.connection = "connected"; view.snapshot.error = undefined; resolve(); }
           this.emit(structuredClone(view.snapshot));
         } catch (error) { view.snapshot.error = error instanceof Error ? error.message : "会话输出解析失败"; }
       });
@@ -91,7 +91,10 @@ export class OpenHandsTasks {
       if (frame.type === "durable" && typeof frame.seq === "number") { if (frame.seq <= view.seq) return; view.seq = frame.seq; }
       if (event.kind === "ConversationStateUpdateEvent") {
         const state = event.key === "full_state" ? record(event.value) : { [text(event.key)]: event.value };
-        if (state.execution_status) snapshot.task.status = taskStatus(state.execution_status);
+        if (state.execution_status) {
+          snapshot.task.status = taskStatus(state.execution_status);
+          if (snapshot.task.status !== "error") snapshot.failure = undefined;
+        }
         const pending = Array.isArray(state.pending_actions) ? state.pending_actions.map(record) : [];
         if (snapshot.task.status === "waiting") {
           const tool = [...snapshot.items].reverse().find(item => item.tool?.status === "running");
@@ -101,7 +104,10 @@ export class OpenHandsTasks {
         } else snapshot.items = snapshot.items.filter(item => !item.approval);
       } else {
         snapshot.items = applyOpenHandsEvent(snapshot.items, event);
-        if (event.kind === "ConversationErrorEvent") snapshot.task.status = "error";
+        if (event.kind === "ConversationErrorEvent") {
+          snapshot.task.status = "error";
+          snapshot.failure = executionFailure(text(event.detail) || text(event.error) || text(event.message), timestamp(event.timestamp));
+        }
         if (event.kind === "MessageEvent" && event.source === "user") snapshot.task.updatedAt = timestamp(event.timestamp) ?? snapshot.task.updatedAt;
       }
     } else if (frame.type === "item_started") {
@@ -130,7 +136,7 @@ export class OpenHandsTasks {
       paused = true;
       const view = this.views.get(id); if (view) { view.snapshot.error = "消息已保存，服务暂时繁忙。稍后点击继续，不要重复发送。"; view.snapshot.task.status = "paused"; this.emit(structuredClone(view.snapshot)); }
     }
-    const view = this.views.get(id); if (view && !paused) { view.snapshot.task.status = "running"; view.snapshot.error = undefined; view.snapshot.task.updatedAt = new Date().toISOString(); this.emit(structuredClone(view.snapshot)); }
+    const view = this.views.get(id); if (view && !paused) { view.snapshot.task.status = "running"; view.snapshot.error = undefined; view.snapshot.failure = undefined; view.snapshot.task.updatedAt = new Date().toISOString(); this.emit(structuredClone(view.snapshot)); }
     // The SDK's agent callback does not reliably broadcast user events live.
     // Read the accepted canonical user event; do not invent/persist a client row.
     if (view) {

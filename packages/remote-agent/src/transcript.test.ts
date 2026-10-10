@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionTitle, applyOpenHandsEvent, contentText, openClawMessage, openHandsItem, taskStatus, timestamp, toolDiff, toolInput } from "./transcript";
+import { actionTitle, applyOpenHandsEvent, contentText, executionFailure, openClawMessage, openHandsItem, taskStatus, timestamp, toolDiff, toolInput } from "./transcript";
 
 describe("remote native transcript projection", () => {
   it("projects actual user text without forwarding native secrets/config", () => {
@@ -60,5 +60,21 @@ describe("remote native transcript projection", () => {
     expect(taskStatus("awaiting_user_confirmation")).toBe("waiting"); expect(taskStatus("finished")).toBe("completed");
     expect(taskStatus("paused")).toBe("paused"); expect(taskStatus("unknown")).toBe("idle");
     expect(timestamp("not-a-date")).toBeUndefined(); expect(timestamp(Number.MAX_VALUE)).toBeUndefined(); expect(contentText({ secret: "not text" })).toBe("");
+  });
+  it("keeps durable OpenClaw execution errors even without visible assistant text", () => {
+    const failure = openClawMessage({ id: "native-error", timestamp: "2026-10-10T04:17:39Z", message: { role: "assistant", content: [], stopReason: "error", errorMessage: "Provider returned an incomplete or malformed tool call", __openclaw: { runId: "failed-run" } } }, "fallback");
+    expect(failure).toMatchObject({ id: "native-error", text: "", failure: { message: "Provider returned an incomplete or malformed tool call", runId: "failed-run", at: "2026-10-10T04:17:39.000Z" } });
+    expect(openClawMessage({ role: "assistant", stopReason: "error", errorMessage: "Failed", content: [{ text: "Failed" }] }, "error")?.text).toBe("");
+    expect(openClawMessage({ role: "assistant", stopReason: "error", errorMessage: "Failed", content: [{ text: "Already created the file" }] }, "error")?.text).toBe("Already created the file");
+    expect(openClawMessage({ role: "user", stopReason: "error", content: "Quoted error" }, "user")?.failure).toBeUndefined();
+  });
+  it("projects fatal OpenHands errors separately from recoverable tool failures", () => {
+    const item = openHandsItem({ id: "fatal", kind: "ConversationErrorEvent", detail: "API Error: 524", timestamp: "2026-10-10T04:00:00Z" });
+    expect(item).toMatchObject({ role: "notice", text: "", failure: { message: "API Error: 524", at: "2026-10-10T04:00:00.000Z" } });
+    expect(openHandsItem({ id: "tool", kind: "AgentErrorEvent", error: "Tool failed" })?.failure).toBeUndefined();
+  });
+  it("does not leak credential-shaped fields in failure details", () => {
+    const failure = executionFailure('API key sk-fixture-private-secret authorization=BearerValue token="sensitive" password=hidden Bearer secret-auth-value');
+    expect(failure.message).not.toContain("fixture-private"); expect(failure.message).not.toContain("sensitive"); expect(failure.message).not.toContain("secret-auth-value"); expect(failure.message).not.toContain("BearerValue");
   });
 });

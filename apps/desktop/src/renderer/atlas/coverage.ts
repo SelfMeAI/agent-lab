@@ -202,7 +202,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "sessions.resume", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
     evidence: ["packages/remote-agent/src/openhands/client.test.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
-    note: "历史来自服务端，不复制到本地会话库；切换任务、重开应用和服务重启后恢复真实记录及文件，读取历史不重复执行工具。OpenClaw 按页加载并保留先前读到的页，新消息会移动旧记录游标避免缺口。原生不可恢复删除不提供最近删除恢复。",
+    note: "历史来自服务端，不复制到本地会话库；切换任务、重开应用和服务重启后恢复真实记录及文件，读取历史不重复执行工具。中断轮次可从原生历史恢复标记，用户可发送新要求继续同一任务；不自动重跑原始任务。OpenClaw 按页加载并保留先前读到的页，新消息会移动旧记录游标避免缺口。原生不可恢复删除不提供最近删除恢复。",
   },
   {
     capabilityId: "sessions.list-search", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -291,8 +291,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "live-experience.live-status", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2], checkedAt: "2026-10-10",
-    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "packages/remote-agent/src/transcript.test.ts"],
-    note: "任务、工具、确认、暂停、完成、错误各自显示实际状态和等待动效，不虚构完成百分比。单个工具失败不冒充整个会话失败；等待确认显示实际审批卡片，重连提示任务仍在服务端。",
+    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/task-presentation.test.ts", "packages/remote-agent/src/transcript.test.ts"],
+    note: "任务、工具、确认、暂停、完成与本轮中断各自显示实际状态和等待动效，不虚构完成百分比。单个工具失败不冒充整个会话失败；执行中断在对话中显示原因卡片及补充要求、继续任务入口，已有草稿不会被继续按钮覆盖。连接故障独立提示，仅连接失效提供重连。OpenClaw 历史可能过滤错误详情，仅同一原生 run 保留已收到的实时原因，缺少详情不从模型正文推断。等待确认显示实际审批卡片。",
   },
   {
     capabilityId: "live-experience.action-stream", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

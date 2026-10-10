@@ -19,13 +19,15 @@ export interface RemoteApproval {
 export interface RemoteQuestion {
   id: string; questions: Array<{ id: string; title: string; prompt: string; options: Array<{ label: string; description?: string }>; multiple: boolean; other: boolean; secret: boolean }>;
 }
+/** An interrupted execution, not a failed connection or a failed individual tool. */
+export interface RemoteFailure { message: string; at?: string; runId?: string }
 export interface RemoteItem {
   id: string; role: "user" | "assistant" | "tool" | "notice"; text: string; at?: string;
-  reasoning?: string; streaming?: boolean; tool?: RemoteTool; approval?: RemoteApproval; question?: RemoteQuestion;
+  reasoning?: string; streaming?: boolean; tool?: RemoteTool; approval?: RemoteApproval; question?: RemoteQuestion; failure?: RemoteFailure;
 }
 export interface RemoteTaskSnapshot {
   task: RemoteTask; items: RemoteItem[]; connection: "connected" | "reconnecting" | "disconnected";
-  error?: string; hasEarlier?: boolean; humanControl?: boolean;
+  error?: string; failure?: RemoteFailure; hasEarlier?: boolean; humanControl?: boolean;
 }
 export interface RemoteTaskUpdate { engine: RemoteAgentId; taskId: string; snapshot: RemoteTaskSnapshot }
 export interface RemoteWorkspaceFile { path: string; name: string; size: number; directory: boolean; modifiedAt?: string }

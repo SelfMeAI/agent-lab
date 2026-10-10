@@ -1,14 +1,27 @@
 import { useState, type JSX } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { RemoteAgentId, RemoteItem, RemoteQuestion } from "../../../../../../packages/contracts/src/remote-agent";
+import type { RemoteAgentId, RemoteFailure, RemoteItem, RemoteQuestion } from "../../../../../../packages/contracts/src/remote-agent";
 import { clockTime, exactTime, toolDuration } from "../agent-lab/conversation-time";
 import { RemoteMark, remoteEngines } from "./RemoteAgentPage";
+import { remoteFailureSummary } from "./task-presentation";
+
+export interface RemoteRecoveryActions {
+  disabled: boolean; continueDisabled: boolean; onContinue(): void; onCompose(): void;
+}
+export function RemoteFailureCard({ failure, recovery, showTime = true }: { failure: RemoteFailure; recovery?: RemoteRecoveryActions; showTime?: boolean }): JSX.Element {
+  return <section className={`remote-failure${recovery ? " is-current" : ""}`} aria-label="本轮执行中断">
+    <header><span className="remote-failure__mark" aria-hidden="true">!</span><strong>本轮执行中断</strong>{showTime && failure.at && <time dateTime={failure.at} title={exactTime(failure.at) ?? undefined}>{clockTime(failure.at)}</time>}</header>
+    <p>{remoteFailureSummary(failure.message)}</p>
+    {failure.message && <details><summary>错误详情</summary><pre>{failure.message}</pre></details>}
+    {recovery && <><p className="remote-failure__hint">已有对话和文件保留。可以继续任务，也可以直接发送新要求。</p><footer><button className="remote-button" type="button" disabled={recovery.disabled} onClick={recovery.onCompose}>补充要求</button><button className="remote-button remote-button--primary" type="button" disabled={recovery.disabled || recovery.continueDisabled} title={recovery.continueDisabled ? "输入框中有待发送内容，请先发送或清空" : "先核对已有进度，再继续；不会重新发送原始任务"} onClick={recovery.onContinue}>继续任务</button></footer></>}
+  </section>;
+}
 
 export function RemoteMarkdown({ value }: { value: string }): JSX.Element {
   return <div className="remote-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ children, href }) => <span className="remote-link" title={href}>{children ?? href}</span>, img: ({ alt }) => <span>[图片：{alt || "请到产物中查看"}]</span> }}>{value}</ReactMarkdown></div>;
 }
-export function RemoteTranscriptItem({ item, engine, busy, onApproval, onAnswer }: { item: RemoteItem; engine: RemoteAgentId; busy: boolean;
+export function RemoteTranscriptItem({ item, engine, busy, onApproval, onAnswer, recovery }: { item: RemoteItem; engine: RemoteAgentId; busy: boolean; recovery?: RemoteRecoveryActions;
   onApproval(id: string, decision: "once" | "always" | "reject"): void; onAnswer(id: string, answers: Record<string, string[]> | null): void }): JSX.Element {
   const time = item.at && <time dateTime={item.at} title={exactTime(item.at) ?? undefined}>{clockTime(item.at)}</time>;
   if (item.question) return <RemoteQuestionCard key={item.question.id} question={item.question} busy={busy} onAnswer={onAnswer} />;
@@ -17,10 +30,10 @@ export function RemoteTranscriptItem({ item, engine, busy, onApproval, onAnswer 
     const tool = item.tool, duration = tool.startedAt && tool.endedAt ? toolDuration(new Date(tool.endedAt).getTime() - new Date(tool.startedAt).getTime()) : null;
     return <article className="remote-tool">{item.text && <RemoteMarkdown value={item.text} />}<details open={tool.status === "running" || tool.status === "failed"}><summary><span className={tool.status === "running" ? "remote-spinner" : `remote-tool__state is-${tool.status}`} aria-hidden="true">{tool.status === "completed" ? "✓" : tool.status === "failed" ? "!" : tool.status === "rejected" ? "−" : ""}</span><strong>{tool.title}</strong><small>{tool.status === "running" ? "执行中" : tool.status === "completed" ? "已完成" : tool.status === "failed" ? "失败" : "已拒绝"}</small>{duration && <small title="工具执行用时">{duration}</small>}{time}</summary><div className="remote-tool__detail">{tool.input && <pre className="remote-tool__input">{tool.input}</pre>}{tool.diff && <div className="remote-diff" aria-label="文件变更">{tool.diff.split("\n").map((line, i) => <div key={i} className={line.startsWith("+") && !line.startsWith("+++") ? "is-added" : line.startsWith("-") && !line.startsWith("---") ? "is-removed" : ""}>{line || " "}</div>)}</div>}{tool.output && <pre className="remote-tool__output">{tool.output}</pre>}{tool.path && <small className="remote-tool__path">{tool.path}</small>}</div></details></article>;
   }
-  if (item.role === "notice") return <div className="remote-message-notice">{item.text}</div>;
+  if (item.role === "notice") return item.failure ? <RemoteFailureCard failure={item.failure} recovery={recovery} /> : <div className="remote-message-notice">{item.text}</div>;
   return <article className={`remote-message remote-message--${item.role}`}>
     {item.role === "user" ? <span className="remote-user-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><circle cx="12" cy="8" r="3.1" /><path d="M5.4 19c.6-3.4 2.9-5.1 6.6-5.1s6 1.7 6.6 5.1" /></svg></span> : <RemoteMark engine={engine} />}
-    <div className="remote-message__body"><header><span>{item.role === "user" ? "You" : remoteEngines[engine].name}</span>{time}{item.streaming && <span className="remote-spinner" aria-label="正在输出" />}</header>{item.reasoning && <details className="remote-reasoning"><summary>思考过程</summary><RemoteMarkdown value={item.reasoning} /></details>}{item.role === "user" ? <p className="remote-user-text">{item.text}</p> : <RemoteMarkdown value={item.text} />}</div>
+    <div className="remote-message__body"><header><span>{item.role === "user" ? "You" : remoteEngines[engine].name}</span>{time}{item.streaming && <span className="remote-spinner" aria-label="正在输出" />}</header>{item.reasoning && <details className="remote-reasoning"><summary>思考过程</summary><RemoteMarkdown value={item.reasoning} /></details>}{item.role === "user" ? <p className="remote-user-text">{item.text}</p> : item.text && <RemoteMarkdown value={item.text} />}{item.failure && <RemoteFailureCard failure={item.failure} recovery={recovery} showTime={false} />}</div>
   </article>;
 }
 function RemoteQuestionCard({ question, busy, onAnswer }: { question: RemoteQuestion; busy: boolean; onAnswer(id: string, answers: Record<string, string[]> | null): void }): JSX.Element {

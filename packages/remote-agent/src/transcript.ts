@@ -1,5 +1,5 @@
 import { createPatch } from "diff";
-import type { RemoteItem, RemoteTaskStatus } from "../../contracts/src/remote-agent";
+import type { RemoteFailure, RemoteItem, RemoteTaskStatus } from "../../contracts/src/remote-agent";
 
 export type RecordValue = Record<string, unknown>;
 export function record(value: unknown): RecordValue { return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {}; }
@@ -23,6 +23,12 @@ export function taskStatus(value: unknown): RemoteTaskStatus {
   if (/finished|done|completed/.test(state)) return "completed";
   if (/error|failed|timeout|stuck/.test(state)) return "error";
   return "idle";
+}
+export function executionFailure(message: string, at?: string, runId?: string): RemoteFailure {
+  const clean = message.replace(/\bsk-[a-zA-Z0-9_-]{10,}/g, "[已隐藏]")
+    .replace(/\bBearer\s+[a-zA-Z0-9._~+/=-]+/gi, "Bearer [已隐藏]")
+    .replace(/((?:"?(?:api[_ -]?key|authorization|token|password)"?)\s*[=:]\s*)(?:"[^"]*"|'[^']*'|[^\s,}]+)/gi, "$1[已隐藏]");
+  return { message: clean.slice(0, 12_000), at, runId };
 }
 export function toolInput(value: unknown): string {
   const args = record(value);
@@ -77,6 +83,7 @@ export function openHandsItem(event: unknown): RemoteItem | undefined {
     return { id, at, role: "tool", text: contentText(e.thought), reasoning: text(e.reasoning_content) || undefined,
       tool: { name, title: actionTitle(name, action, e.summary), input: toolInput(action), status: "running", diff: toolDiff(action), path: text(action.path) || undefined, startedAt: at, callId: text(e.tool_call_id) || undefined } };
   }
+  if (kind === "ConversationErrorEvent") return { id, at, role: "notice", text: "", failure: executionFailure(text(e.detail) || text(e.error) || text(e.message), at) };
   if (/ErrorEvent/.test(kind)) return { id, at, role: "notice", text: text(e.detail) || text(e.error) || text(e.message) || "远端执行发生错误" };
   return undefined;
 }
@@ -101,6 +108,7 @@ export function openClawMessage(value: unknown, fallbackId: string): RemoteItem 
   if (!["user", "assistant"].includes(role)) return undefined;
   const visible = contentText(msg.content) || text(msg.text);
   const parts = Array.isArray(msg.content) ? msg.content.map(record) : [];
-  return { id, at, role: role as "user" | "assistant", text: visible,
-    reasoning: parts.filter(part => part.type === "thinking").map(part => text(part.thinking)).join("\n") || undefined };
+  return { id, at, role: role as "user" | "assistant", text: role === "assistant" && msg.stopReason === "error" && visible === text(msg.errorMessage) ? "" : visible,
+    reasoning: parts.filter(part => part.type === "thinking").map(part => text(part.thinking)).join("\n") || undefined,
+    ...(role === "assistant" && msg.stopReason === "error" ? { failure: executionFailure(text(msg.errorMessage), at, text(record(msg.__openclaw).runId) || undefined) } : {}) };
 }

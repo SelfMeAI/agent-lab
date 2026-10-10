@@ -130,6 +130,54 @@ describe("OpenClaw native task projections and custody", () => {
     const retry = request.mock.calls.filter(([name]) => name === "chat.send").at(-1)?.[1];
     expect(retry).not.toHaveProperty("queueMode"); client.shutdown();
   });
+  it("restores the failed native turn on reopen and starts a new turn without losing history", async () => {
+    const { client, request, updates } = fixture();
+    request.mockImplementation(async method => {
+      if (method === "sessions.list") return { sessions: [{ key: id, status: "failed" }] };
+      if (method === "chat.history") return { messages: [message("task"), { id: "native-failure", message: { role: "assistant", content: [], stopReason: "error", errorMessage: "Provider returned an incomplete or malformed tool call", __openclaw: { runId: "failed" } } }] };
+      if (method === "question.list") return { questions: [] }; return {};
+    });
+    const snapshot = await client.open(id);
+    expect(snapshot.task.status).toBe("error"); expect(snapshot.error).toBeUndefined();
+    expect(snapshot.items.at(-1)).toMatchObject({ id: "native-failure", failure: { runId: "failed" } });
+    expect(snapshot.failure?.message).toContain("malformed tool call");
+    await client.close(id); expect((await client.open(id)).failure).toEqual(snapshot.failure);
+    await client.send(id, "Continue after checking existing files");
+    expect(request).toHaveBeenCalledWith("chat.send", expect.objectContaining({ sessionKey: id, message: "Continue after checking existing files" }));
+    expect(request.mock.calls.filter(([name]) => name === "chat.send").at(-1)?.[1]).not.toHaveProperty("queueMode");
+    expect(updates.at(-1)?.task.status).toBe("running"); expect(updates.at(-1)?.failure).toBeUndefined();
+    expect(updates.at(-1)?.items.at(-1)?.failure).toBeDefined(); client.shutdown();
+  });
+  it("keeps live execution failure out of the connection banner and replaces it with durable history", async () => {
+    const { client, request, event, updates } = fixture(); await client.open(id);
+    event({ event: "chat", payload: { sessionKey: id, runId: "failed", state: "error", errorMessage: "API Error: 524", ts: "2026-10-10T04:17:39Z" } });
+    expect(updates.at(-1)).toMatchObject({ connection: "connected", failure: { message: "API Error: 524", runId: "failed" } });
+    expect(updates.at(-1)?.error).toBeUndefined();
+    request.mockImplementation(async method => method === "chat.history" ? { sessionInfo: { status: "failed" }, messages: [message("task"), { id: "durable-error", message: { role: "assistant", content: [], stopReason: "error", errorMessage: "API Error: 524", __openclaw: { runId: "failed" } } }] } : {});
+    await vi.waitFor(() => expect(updates.at(-1)?.items.at(-1)?.id).toBe("durable-error"));
+    expect(updates.at(-1)?.items.filter(item => item.failure)).toHaveLength(1); expect(updates.at(-1)?.error).toBeUndefined(); client.shutdown();
+  });
+  it("keeps the live reason when native history strips diagnostics, without inventing a reason on reopen", async () => {
+    const { client, request, event, updates } = fixture(); await client.open(id);
+    event({ event: "chat", payload: { sessionKey: id, runId: "failed", state: "error", errorMessage: "Provider returned an incomplete or malformed tool call", ts: "2026-10-10T04:17:39Z" } });
+    request.mockImplementation(async method => method === "sessions.list" ? { sessions: [{ key: id, status: "failed" }] } : method === "chat.history" ? { sessionInfo: { status: "failed" }, messages: [message("task"), { id: "durable-error", message: { role: "assistant", content: [{ type: "text", text: "Partial work already done" }], stopReason: "error", __openclaw: { runId: "failed" } } }] } : {});
+    await vi.waitFor(() => expect(updates.at(-1)?.items.at(-1)?.id).toBe("durable-error"));
+    expect(updates.at(-1)?.items.at(-1)).toMatchObject({ text: "Partial work already done", failure: { message: "Provider returned an incomplete or malformed tool call" } });
+    event({ event: "session.message", payload: { sessionKey: id } });
+    await vi.waitFor(() => expect(request.mock.calls.filter(([name]) => name === "chat.history")).toHaveLength(3));
+    expect(updates.at(-1)?.failure?.message).toContain("malformed tool call");
+    await client.close(id); const reopened = await client.open(id);
+    expect(reopened.task.status).toBe("error"); expect(reopened.failure?.message).toBe("");
+    expect(reopened.items.at(-1)?.text).toBe("Partial work already done"); client.shutdown();
+  });
+  it("does not attribute a different run's live reason to a historical failure", async () => {
+    const { client, request, event, updates } = fixture(); await client.open(id);
+    event({ event: "chat", payload: { sessionKey: id, runId: "new-run", state: "error", errorMessage: "API Error: 524" } });
+    request.mockImplementation(async method => method === "chat.history" ? { sessionInfo: { status: "failed" }, messages: [message("task"), { id: "old-error", message: { role: "assistant", content: [], stopReason: "error", __openclaw: { runId: "old-run" } } }] } : {});
+    await vi.waitFor(() => expect(updates.at(-1)?.items.at(-1)?.id).toBe("old-error"));
+    expect(updates.at(-1)?.items.at(-1)?.failure?.message).toBe("");
+    expect(updates.at(-1)?.failure).toMatchObject({ runId: "new-run", message: "API Error: 524" }); client.shutdown();
+  });
   it("projects native questions including Other and cancels without fabricating answers", async () => {
     const { client, request, event, updates } = fixture(); await client.open(id);
     event({ event: "question.requested", payload: { sessionKey: id, id: "question", status: "pending", questions: [{ questionId: "q", header: "方案", question: "选择方案", options: [{ label: "A", description: "描述" }], multiSelect: false, isOther: true }] } });

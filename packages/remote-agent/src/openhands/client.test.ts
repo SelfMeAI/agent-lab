@@ -98,6 +98,23 @@ describe("OpenHands ordered native task stream", () => {
     expect(updates.at(-1)?.items.some(item => item.id === "canonical-user")).toBe(true);
     expect(json.mock.calls.filter(([path, method]) => path.endsWith("/events") && method === "POST")).toHaveLength(1); client.shutdown();
   });
+  it("replays execution failure with its reason and accepts a continuation in the same conversation", async () => {
+    const { client, json, updates } = fixture(); NativeSocket.through = 0;
+    const opening = client.open(id);
+    await vi.waitFor(() => { expect(String(NativeSocket.current.url)).toContain(id); expect(NativeSocket.current.closed).toBe(false); });
+    const fatal = { type: "durable", seq: 0, event: { id: "native-failure", kind: "ConversationErrorEvent", detail: "API Error: 524", timestamp: "2026-10-10T04:17:39Z" } };
+    NativeSocket.current.frame(fatal);
+    const snapshot = await opening;
+    expect(snapshot).toMatchObject({ connection: "connected", task: { status: "error" }, failure: { message: "API Error: 524" } });
+    expect(snapshot.error).toBeUndefined(); expect(snapshot.items[0].failure?.message).toBe("API Error: 524");
+    client.close(id); const reopened = client.open(id);
+    await vi.waitFor(() => expect(NativeSocket.current.closed).toBe(false)); NativeSocket.current.frame(fatal);
+    expect((await reopened).failure).toEqual(snapshot.failure);
+    await client.send(id, "Continue after checking existing files");
+    expect(json).toHaveBeenCalledWith(`/api/conversations/${id}/events`, "POST", expect.objectContaining({ run: true }));
+    expect(updates.at(-1)?.task.status).toBe("running"); expect(updates.at(-1)?.failure).toBeUndefined();
+    expect(updates.at(-1)?.items.some(item => item.failure)).toBe(true); client.shutdown();
+  });
   it("native always permission is scoped to this conversation", async () => {
     const { client, json, updates } = fixture(); await client.open(id);
     NativeSocket.current.frame({ type: "transient", event: { id: "approval-state", kind: "ConversationStateUpdateEvent", key: "full_state", value: { execution_status: "awaiting_user_confirmation", pending_actions: [{ id: "native-action", tool_name: "terminal" }] } } });

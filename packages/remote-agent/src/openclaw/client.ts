@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { RemoteBrowserGrant, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
-import { actionTitle, clawToolCall, contentText, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
+import { actionTitle, clawToolCall, contentText, executionFailure, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
 import type { OpenClawIdentity } from "./gateway";
@@ -103,6 +103,13 @@ export class OpenClawTasks {
       }
       const items = messages.flatMap((message, i) => this.messageItems(message, `history-${text(record(page).sessionId)}-${earlier ? view.offset : 0}-${i}`)).map(item => {
         const prior = view.snapshot.items.find(row => row.id === item.id);
+        // chat.history intentionally strips raw provider errors. Keep a reason
+        // already received live, but only for the same native run; never infer
+        // one from partial assistant prose or borrow a previous turn's error.
+        if (item.failure && !item.failure.message.trim() && item.failure.runId) {
+          const failure = prior?.failure?.message ? prior.failure : view.snapshot.failure;
+          if (failure?.message && failure.runId === item.failure.runId) item = { ...item, failure: { ...item.failure, message: failure.message } };
+        }
         // A history tool-call row alone is not a new start. Retain its native
         // live terminal receipt, especially for nested plugin operations.
         return item.tool?.status === "running" && prior?.tool && prior.tool.status !== "running" ? { ...item, tool: { ...item.tool, ...prior.tool } } : item;
@@ -128,7 +135,14 @@ export class OpenClawTasks {
         const runText = text(run.text), runId = text(run.runId);
         if (runText && runId && !view.snapshot.items.some(item => item.id === `stream:${runId}`)) view.snapshot.items.push({ id: `stream:${runId}`, role: "assistant", text: runText, streaming: true });
       } else view.snapshot.items = view.snapshot.items.filter(item => !item.streaming);
+      if (view.snapshot.task.status === "error") {
+        const terminal = [...view.snapshot.items].reverse().find(item => item.failure || item.role === "user");
+        // A durable tail can lag behind the current live failure. Do not move
+        // the active recovery actions back onto a different, older run.
+        if (terminal?.failure && (!view.snapshot.failure?.runId || terminal.failure.runId === view.snapshot.failure.runId)) view.snapshot.failure = terminal.failure;
+      } else view.snapshot.failure = undefined;
       view.snapshot.connection = "connected";
+      view.snapshot.error = undefined;
       this.publish(view);
     })().finally(() => { view.refreshing = undefined; });
     await view.refreshing;
@@ -136,7 +150,7 @@ export class OpenClawTasks {
   private messageItems(value: unknown, fallback: string): RemoteItem[] {
     const message = record(value), msg = record(message.message ?? value);
     const meta = record(msg.__openclaw), stable = text(meta.id) || text(msg.id) || fallback;
-    const main = openClawMessage(value, stable), items = main && (main.text || main.tool || main.reasoning) ? [main] : [];
+    const main = openClawMessage(value, stable), items = main && (main.text || main.tool || main.reasoning || main.failure) ? [main] : [];
     const parts = Array.isArray(msg.content) ? msg.content.map(record) : [];
     for (const part of parts) {
       if (part.type === "toolCall" || part.type === "tool_use") {
@@ -205,7 +219,7 @@ export class OpenClawTasks {
       } else if (p.state === "status") view.snapshot.task.status = "running";
       else if (["final", "error", "aborted"].includes(text(p.state))) {
         view.snapshot.task.status = p.state === "error" ? "error" : p.state === "aborted" ? "paused" : "completed";
-        if (p.state === "error") view.snapshot.error = text(p.errorMessage) || "远端任务失败，可修改消息后重试";
+        view.snapshot.failure = p.state === "error" ? executionFailure(text(p.errorMessage), timestamp(p.ts), runId || undefined) : undefined;
         view.snapshot.items = view.snapshot.items.map(item => item.id === streamId ? { ...item, streaming: false } : item); this.schedule(id);
       }
     } else if (event.event === "session.message") { this.schedule(id); }
@@ -239,7 +253,7 @@ export class OpenClawTasks {
     // after cancellation. An idle/paused task must start a normal native turn.
     const active = view?.snapshot.task.status === "running" || view?.snapshot.task.status === "waiting";
     await this.request("chat.send", { sessionKey: id, message, ...(active ? { queueMode: "steer" } : {}), idempotencyKey: randomUUID() });
-    if (view) { view.snapshot.error = undefined; view.snapshot.task.status = "running"; this.publish(view); }
+    if (view) { view.snapshot.error = undefined; view.snapshot.failure = undefined; view.snapshot.task.status = "running"; this.publish(view); }
     this.schedule(id);
     if (view?.snapshot.task.title === "新任务") {
       const title = prompt.trim().slice(0, 36) || files[0]?.name || "文件任务";
