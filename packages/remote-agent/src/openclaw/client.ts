@@ -114,10 +114,24 @@ export class OpenClawTasks {
         // live terminal receipt, especially for nested plugin operations.
         return item.tool?.status === "running" && prior?.tool && prior.tool.status !== "running" ? { ...item, tool: { ...item.tool, ...prior.tool } } : item;
       });
-      const transient = view.snapshot.items.filter(item => item.approval || item.question || item.streaming || (item.tool && item.id.startsWith("live:")));
+      const tailStart = items.map(item => item.at ? Date.parse(item.at) : NaN).filter(Number.isFinite).reduce((min, at) => Math.min(min, at), Infinity);
+      const transient = view.snapshot.items.filter(item => {
+        if (item.approval || item.question || item.streaming) return true;
+        if (!item.tool || !item.id.startsWith("live:")) return false;
+        // The durable tail is bounded. A completed live call outside that
+        // window is older history, not a new failure to append after this turn.
+        const at = item.at ? Date.parse(item.at) : NaN;
+        return item.tool.status === "running" || !page.hasMore || !Number.isFinite(tailStart) || (Number.isFinite(at) && at >= tailStart);
+      });
       if (earlier) { view.loadedEarlier = true; view.earlierItems = [...items, ...view.earlierItems]; }
       else if (view.loadedEarlier) view.earlierItems = view.snapshot.items.filter(item => !item.approval && !item.question && !item.streaming);
-      const merged = earlier ? [...items, ...view.snapshot.items] : [...view.earlierItems, ...items, ...transient.filter(item => !items.some(durable => durable.id === item.id))];
+      const merged = earlier ? [...items, ...view.snapshot.items] : [...view.earlierItems, ...items];
+      if (!earlier) for (const item of transient) {
+        if (merged.some(durable => durable.id === item.id)) continue;
+        const at = item.at ? Date.parse(item.at) : NaN;
+        const index = Number.isFinite(at) ? merged.findIndex(row => row.at && Date.parse(row.at) > at) : -1;
+        if (index < 0) merged.push(item); else merged.splice(index, 0, item);
+      }
       view.snapshot.items = merged.reduce(upsert, [] as RemoteItem[]);
       const pagination = record(page.pagination);
       const raw = typeof pagination.rawPageMessages === "number" ? pagination.rawPageMessages : messages.length;

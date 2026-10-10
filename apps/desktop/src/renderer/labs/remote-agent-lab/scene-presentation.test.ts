@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browserFrame, followBrowserTab, observerLabel, remoteCommandItems } from "./scene-presentation";
+import { browserFrame, browserReconnectOptions, desktopInputEnabled, followBrowserTab, observerLabel, remoteCommandItems } from "./scene-presentation";
 import type { RemoteItem } from "../../../../../../packages/contracts/src/remote-agent";
 
 describe("remote scene presentation", () => {
@@ -13,6 +13,22 @@ describe("remote scene presentation", () => {
     expect(observerLabel("loading", false, false)).toContain("正在连接");
     expect(observerLabel("connected", false, true)).toContain("人工接管");
     expect(observerLabel("error", false, false)).toContain("已断开");
+  });
+  it("reconnects only to a still-current target, without replaying closed page IDs", () => {
+    const tabs = [{ targetId: "current", url: "about:blank", title: "" }];
+    expect(browserReconnectOptions(tabs, "current", false)).toEqual({ targetId: "current" });
+    expect(browserReconnectOptions(tabs, "closed", false)).toEqual({});
+    expect(browserReconnectOptions([], "closed", false)).toBeUndefined();
+    expect(browserReconnectOptions([], "closed", true)).toEqual({});
+  });
+  it("enables desktop input only for an explicit live control grant, never an observer", () => {
+    expect(desktopInputEnabled(true, true, "connected", false, false)).toBe(true);
+    expect(desktopInputEnabled(false, true, "connected", false, false)).toBe(false);
+    expect(desktopInputEnabled(true, false, "connected", false, false)).toBe(false);
+    expect(desktopInputEnabled(true, true, "loading", false, false)).toBe(false);
+    expect(desktopInputEnabled(true, true, "error", false, false)).toBe(false);
+    expect(desktopInputEnabled(true, true, "connected", true, false)).toBe(false);
+    expect(desktopInputEnabled(true, true, "connected", false, true)).toBe(false);
   });
   it("keeps command/fs query receipts but not unrelated edits/browser tools", () => {
     const items = ["exec", "terminal", "openclaw:exec", "exec_command", "ls", "grep", "process", "browser", "write", "read", "request_user_input"].map(name => ({ id: name, role: "tool", text: "", tool: { name, title: name, input: "", status: "completed" } })) as RemoteItem[];

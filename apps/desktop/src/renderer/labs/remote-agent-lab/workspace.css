@@ -156,6 +156,8 @@
 .remote-observer-bar .remote-button { min-height: 28px; font-size: 11px; padding: 5px 10px; }
 .remote-rfb-stage { flex: 1; min-height: 0; position: relative; margin: 10px; border: 1px solid #233947; border-radius: 4px; overflow: hidden; background: #05090d; }
 .remote-rfb { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+.remote-rfb.is-view-only, .remote-rfb.is-view-only * { cursor: default !important; }
+.remote-rfb.is-view-only canvas { pointer-events: none; }
 .remote-frame-size { display: block; flex-shrink: 0; color: #7396a7; font: 10px/1.6 Menlo, monospace; padding: 0 12px 7px; }
 .remote-rfb-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; padding: 30px; text-align: center; background: #050c12dc; color: #8babbc; }
 .remote-rfb-overlay p { margin: 0; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }

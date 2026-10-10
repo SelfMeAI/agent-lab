@@ -100,6 +100,39 @@ describe("OpenClaw native task projections and custody", () => {
     event({ event: "session.tool", payload: { sessionKey: id, data: { phase: "start", name: "exec", toolCallId: "call" } } });
     expect(updates.at(-1)?.items.find(item => item.id === "live:call")?.tool).toMatchObject({ status: "completed", output: "path" }); client.shutdown();
   });
+  it("does not append old failed tools after a newer bounded history tail", async () => {
+    const { client, request, updates, event } = fixture(); let latest = false;
+    const older = [
+      { role: "assistant", timestamp: "2026-10-10T03:10:00Z", content: [{ type: "toolCall", id: "old-browser", name: "browser", arguments: { action: "screenshot" } }] },
+      { role: "toolResult", toolCallId: "old-browser", toolName: "browser", timestamp: "2026-10-10T03:10:20Z", isError: true, content: [{ type: "text", text: "Browser not running" }] },
+    ];
+    request.mockImplementation(async (method, params: unknown) => {
+      if (method === "sessions.list") return { sessions: [{ key: id, status: "done" }] };
+      if (method === "chat.history") return latest && !(params as { offset: number }).offset ? { messages: [{ ...message("new"), timestamp: "2026-10-10T05:59:00Z" }], hasMore: true, nextOffset: 1 } : { messages: older, hasMore: false, nextOffset: 3 };
+      if (method === "question.list") return { questions: [] }; return {};
+    });
+    expect((await client.open(id)).items[0]?.tool?.status).toBe("failed");
+    latest = true; event({ event: "session.message", payload: { sessionKey: id } });
+    await vi.waitFor(() => expect(updates.at(-1)?.items.map(item => item.id)).toEqual(["new"]));
+    expect(updates.at(-1)?.hasEarlier).toBe(true);
+    const loaded = await client.earlier(id);
+    expect(loaded.items[0]).toMatchObject({ id: "live:old-browser", tool: { status: "failed" } });
+    expect(loaded.items.at(-1)?.id).toBe("new"); client.shutdown();
+  });
+  it("keeps a recent live receipt in chronological position while native persistence catches up", async () => {
+    const { client, request, updates, event } = fixture(); let latest = false;
+    request.mockImplementation(async method => {
+      if (method === "sessions.list") return { sessions: [{ key: id }] };
+      if (method === "chat.history") return { messages: [{ ...message("tail"), timestamp: "2026-10-10T06:00:00Z" }, ...(latest ? [{ ...message("new"), timestamp: "2026-10-10T06:00:05Z" }] : [])], hasMore: false };
+      if (method === "question.list") return { questions: [] }; return {};
+    });
+    await client.open(id);
+    event({ event: "session.tool", payload: { sessionKey: id, ts: "2026-10-10T06:00:01Z", data: { phase: "start", name: "browser", toolCallId: "recent" } } });
+    event({ event: "session.tool", payload: { sessionKey: id, ts: "2026-10-10T06:00:02Z", data: { phase: "result", name: "browser", toolCallId: "recent", result: { content: [{ text: "Page opened" }] } } } });
+    latest = true; event({ event: "session.message", payload: { sessionKey: id } });
+    await vi.waitFor(() => expect(updates.at(-1)?.items.map(item => item.id)).toEqual(["tail", "live:recent", "new"]));
+    expect(updates.at(-1)?.items[1]?.tool).toMatchObject({ status: "completed", output: "Page opened" }); client.shutdown();
+  });
   it("retains output position on deltas while mid-run user messages arrive", async () => {
     const { client, updates, event } = fixture(); await client.open(id);
     event({ event: "chat", payload: { sessionKey: id, runId: "run", state: "delta", deltaText: "a" } });

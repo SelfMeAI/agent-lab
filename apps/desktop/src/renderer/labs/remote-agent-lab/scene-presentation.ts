@@ -1,4 +1,4 @@
-import type { RemoteBrowserTab, RemoteItem } from "../../../../../../packages/contracts/src/remote-agent";
+import type { RemoteBrowserOptions, RemoteBrowserTab, RemoteItem } from "../../../../../../packages/contracts/src/remote-agent";
 
 /** Follow genuinely new pages, not arbitrary reordering of a CDP listing. */
 export function followBrowserTab(previousIds: ReadonlySet<string>, tabs: RemoteBrowserTab[], currentId: string): string | undefined {
@@ -28,4 +28,14 @@ export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: strin
 export function observerLabel(state: "loading" | "connected" | "error", busy: boolean, control: boolean): string {
   if (busy || state === "loading") return "正在连接远端画面…";
   return state === "connected" ? control ? "CONTROL · 人工接管中" : "LIVE · 只读观察" : "观察连接已断开";
+}
+
+export function desktopInputEnabled(control: boolean, granted: boolean, state: "loading" | "connected" | "error", busy: boolean, dialog: boolean): boolean {
+  return control && granted && state === "connected" && !busy && !dialog;
+}
+
+/** A reconnect is a fresh lookup, not a replay of a historical page identity. */
+export function browserReconnectOptions(tabs: RemoteBrowserTab[], previousId: string, openIfMissing: boolean): RemoteBrowserOptions | undefined {
+  if (!tabs.length && !openIfMissing) return undefined;
+  return tabs.some(tab => tab.targetId === previousId) ? { targetId: previousId } : {};
 }
