@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+Name[zh_CN]=终端
+Icon=utilities-terminal
+Exec=/usr/local/bin/node /opt/selfme/desktop/launch.mjs terminal
+Terminal=false
+StartupNotify=true

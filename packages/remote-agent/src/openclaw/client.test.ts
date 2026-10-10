@@ -219,8 +219,11 @@ describe("OpenClaw native task projections and custody", () => {
   });
   it("binds PTY actions to the task and deduplicates the attached buffer's sequence", async () => {
     const { client, request, event, terminalEvents } = fixture();
-    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/remote/workspace", confined: false } : method === "terminal.attach" ? { buffer: "initial", seq: 7 } : {});
+    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00", confined: false } : method === "terminal.attach" ? { buffer: "initial", seq: 7 } : {});
     expect(await client.terminal(id)).toMatchObject({ id: "term", buffer: "initial" });
+    expect(request).toHaveBeenCalledWith("selfme.terminal.prepare", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" });
+    expect(request).toHaveBeenCalledWith("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "selfme-lab-terminal", hostId: "gateway", threadId: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" } });
+    expect(request).not.toHaveBeenCalledWith("terminal.input", expect.anything());
     event({ event: "terminal.data", payload: { sessionId: "term", seq: 7, data: "initial" } });
     event({ event: "terminal.data", payload: { sessionId: "term", seq: 8, data: "next" } });
     expect(terminalEvents).toHaveLength(1); expect(terminalEvents[0].data).toBe("next");
@@ -357,7 +360,7 @@ describe("OpenClaw native task projections and custody", () => {
     const { client, request } = fixture();
     request.mockImplementation(async method => {
       if (method === "selfme.scene.prepare") return { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" };
-      if (method === "terminal.open") return { sessionId: "failed-term" };
+      if (method === "terminal.open") return { sessionId: "failed-term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" };
       if (method === "terminal.attach") throw new Error("attach failed"); return {};
     });
     await expect(client.terminal(id)).rejects.toThrow("attach failed");

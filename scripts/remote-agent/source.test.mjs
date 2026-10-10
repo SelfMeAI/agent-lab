@@ -50,11 +50,12 @@ test("deployment layers are explicit, source-derived and ownership-labelled", as
   assert.throws(() => deploymentArguments({ ...definition, deployment: { ...definition.deployment, dockerfile: "../Dockerfile" } }, source, "/workspace/service"));
 });
 
-test("OpenClaw adds the default Xfce desktop in the deployment layer", async () => {
+test("OpenClaw adds the curated Xfce desktop and shared terminal in the deployment layer", async () => {
   const definition = JSON.parse(await readFile(new URL("../../services/remote-agent/openclaw/service.json", import.meta.url), "utf8"));
   const dockerfile = await readFile(new URL("../../services/remote-agent/openclaw/deployment.Dockerfile", import.meta.url), "utf8");
-  assert.ok(definition.deployment.image.endsWith("-lab5"));
-  assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common/);
-  assert.doesNotMatch(dockerfile, /xfconf-query|COPY.*(?:wallpaper|background|backdrop)/);
+  assert.ok(definition.deployment.image.endsWith("-lab7"));
+  assert.match(dockerfile, /COPY --from=panel-build \/panel-root\/usr\/bin\/xfce4-panel/);
+  assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl/);
+  assert.match(dockerfile, /COPY desktop \/opt\/selfme\/desktop/);
   assert.match(dockerfile, /COPY bootstrap \/opt\/selfme\/bootstrap/);
 });

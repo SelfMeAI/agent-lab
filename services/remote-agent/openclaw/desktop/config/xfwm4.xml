@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0"><property name="general" type="empty">
+  <property name="workspace_count" type="int" value="1"/>
+  <property name="scroll_workspaces" type="bool" value="false"/>
+  <property name="wrap_workspaces" type="bool" value="false"/>
+  <property name="button_layout" type="string" value="|HMC"/>
+  <property name="borderless_maximize" type="bool" value="true"/>
+  <property name="use_compositing" type="bool" value="false"/>
+  <property name="show_app_icon" type="bool" value="false"/>
+</property></channel>

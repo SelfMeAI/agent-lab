@@ -277,7 +277,7 @@ export class OpenClawTasks {
     }
   }
   async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); if (action === "stop") await this.request("chat.abort", { sessionKey: id }); else await this.send(id, "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。"); this.schedule(id); }
-  async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
+  async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("selfme.terminal.dispose", { task: remoteTaskId(id) }); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
   async desktop(id: string, control: boolean): Promise<RemoteDesktopGrant> {
     await this.prepareScene(id); if (control && !this.hold) {
       const lease = record(await this.request("selfme.control.acquire", { task: remoteTaskId(id) }));
@@ -353,15 +353,18 @@ export class OpenClawTasks {
     const workspace = await this.prepareScene(id);
     const cwd = text(workspace.root), expected = `/home/node/.openclaw/workspace/selfme/${remoteTaskId(id)}`;
     if (cwd !== expected) throw new Error("远端任务工作区无效，未打开终端");
-    const result = record(await this.request("terminal.open", { sessionKey: id, cols: 100, rows: 30 }));
+    await this.request("selfme.terminal.prepare", { task: remoteTaskId(id) });
+    // This is a connection-owned *viewer*, not an agent-owned shell. Native
+    // close kills this tmux attachment; the task's shared shell stays alive.
+    const result = record(await this.request("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "selfme-lab-terminal", hostId: "gateway", threadId: remoteTaskId(id) } }));
     const terminalId = text(result.sessionId); this.terminals.set(terminalId, id);
     this.terminalSeq.set(terminalId, Infinity);
     try {
+      if (text(result.cwd) !== cwd) throw new Error("终端工作区与当前任务不一致");
       const attached = record(await this.request("terminal.attach", { sessionId: terminalId }));
       if (typeof attached.seq === "number") this.terminalSeq.set(terminalId, attached.seq);
-      // Native terminal.open binds custody to the session but starts in the
-      // agent's global workspace. Enter only the verified task root above.
-      await this.request("terminal.input", { sessionId: terminalId, data: `cd -- '${cwd}' && clear\r` });
+      // The native catalog plan attaches tmux directly in the verified task
+      // root. No injected startup command races the user's first input.
       return { id: terminalId, cwd, confined: result.confined === true, buffer: text(attached.buffer) };
     } catch (error) { await this.terminalClose(id, terminalId).catch(() => {}); throw error; }
   }

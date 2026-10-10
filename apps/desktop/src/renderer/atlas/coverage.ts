@@ -231,8 +231,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "shell.pty", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
-    evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "选择交互终端后自动连接原生 terminal.open / attach / input / resize / close，并切换到服务端验证的当前任务目录。打包版实际输入 printf / pwd / printenv DISPLAY / ls，核对其与桌面使用同一显示环境，能读取智能体创建的文件。智能体输出与独立手动 PTY 明确区分；缓冲连接前事件、原生序号去重，离开终端释放连接。手动命令不经过智能体审批，也不自动加入对话；不宣称所有后台子进程会随终端关闭。",
+    evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/session.mjs", "scripts/remote-agent/desktop.test.mjs", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
+    note: "原生 terminal.open / attach / input / resize / close 经受控 catalog 连接当前任务的共享 tmux shell，任务 UUID、标记及真实目录先校验。桌面终端与 Terminal 页共用同一会话；打包版双向输入输出及 shell 变量已实测，不只是文件目录相同。离开页签只断开原生 PTY 附件，返回恢复 shell；容器集成测试核对反复重连不会累积附件，删除任务结束对应 shell。手动命令不经过智能体审批、不自动加入对话；智能体 exec 输出另列，不伪造为桌面操作。容器重启不保留正在运行的 shell 进程。",
   },
   {
     capabilityId: "files.attachments", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -345,8 +345,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "visual-system.layout", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-10",
-    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/workspace.css", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "按已确认设计落地三栏任务、对话和现场；两种引擎保持各自颜色和能力差异，不硬塞统一假功能。原生窗口已检查 1440×900 与 1024×700、长输入和数据载入，无整页微滚动；现场支持展开。当前没有可拖动分栏。",
+    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/workspace.css", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/configure.mjs", "scripts/remote-agent/desktop.test.mjs"],
+    note: "按已确认设计落地三栏任务、对话和现场；两种引擎保持各自颜色和能力差异，不硬塞统一假功能。原生窗口已检查 1440×900 与 1024×700、长输入和数据载入，无整页微滚动；现场支持展开。OpenClaw 桌面采用清爽星空壁纸，顶栏仅运行窗口，Dock 仅文件、托管浏览器、共享终端；最大化窗口保留 Dock。F11 原生全屏仍占据整屏，不将最大化验收冒充真全屏。桌面入口收敛不是安全沙箱。当前没有可拖动分栏。",
   },
   {
     capabilityId: "visual-system.scroll", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

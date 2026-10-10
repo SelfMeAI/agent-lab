@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+Name[zh_CN]=文件
+Icon=system-file-manager
+Exec=/usr/local/bin/node /opt/selfme/desktop/launch.mjs files
+Terminal=false
+StartupNotify=true

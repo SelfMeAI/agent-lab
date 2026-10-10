@@ -1,0 +1,9 @@
+[Configuration]
+FontName=Monospace 11
+MiscMenubarDefault=FALSE
+MiscToolbarDefault=FALSE
+MiscBordersDefault=TRUE
+MiscConfirmClose=TRUE
+ColorForeground=#d7e0e9
+ColorBackground=#111821
+ScrollingLines=5000

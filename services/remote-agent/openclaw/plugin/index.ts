@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { discoverConnectedModels, type ProviderModelsInput } from "./provider-models";
+import { disposeTerminal, prepareTerminal, setDesktopTask, showTerminal, terminalArgv } from "../desktop/session.mjs";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -67,6 +68,7 @@ async function http(req: IncomingMessage, res: ServerResponse): Promise<boolean>
 type DesktopLease = { env: NodeJS.ProcessEnv; isCurrent(): boolean; release(): void };
 type HostDesktopService = { acquireComputer(options: { onStop(): Promise<void> }): Promise<DesktopLease> };
 type PluginApi = {
+  registerSessionCatalog(provider: { id: string; label: string; audience: "gateway-operators"; supportsProcessHomeIsolation: true; list(): Promise<[]>; read(): Promise<never>; openTerminal(request: { hostId: string; threadId: string }): Promise<{ kind: "local"; argv: string[]; cwd: string; title: string }> }): void;
   registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService; getRuntimeConfig(): { models?: { providers?: Record<string, { baseUrl?: string; api?: string; apiKey?: unknown }> } } }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
   registerHttpRoute(route: { path: string; auth: "gateway"; match: "exact"; handler: typeof http }): void;
   on(name: "before_tool_call", handler: () => { block: true; blockReason: string } | undefined, options?: { priority: number }): void;
@@ -101,6 +103,27 @@ async function prepareDesktop(service: HostDesktopService): Promise<void> {
 export default {
   id: "selfme-lab", name: "SelfMe Lab Remote Files",
   register(api: PluginApi): void {
+    // Let the native PTY manager retain admission, custody and flow control.
+    // Its catalog launch extension attaches the same tmux shell as the desktop.
+    api.registerSessionCatalog({
+      id: "selfme-lab-terminal", label: "SelfMe task terminals", audience: "gateway-operators", supportsProcessHomeIsolation: true,
+      list: async () => [], read: async () => { throw new Error("此目录仅用于连接任务终端"); },
+      openTerminal: async ({ hostId, threadId }) => {
+        if (hostId !== "gateway") throw new Error("终端主机无效");
+        const identity = await prepareTerminal(taskId(threadId));
+        return { kind: "local", argv: terminalArgv(identity.task), cwd: identity.cwd, title: "Terminal · " + identity.task.slice(0, 8) };
+      },
+    });
+    for (const operation of ["prepare", "dispose"] as const) api.registerGatewayMethod(`selfme.terminal.${operation}`, async ({ params, respond }) => {
+      try {
+        const id = taskId(params.task); await root(id);
+        if (operation === "prepare") {
+          if (!desktopLease?.isCurrent()) throw new Error("请先连接远端桌面");
+          await showTerminal(id);
+        } else await disposeTerminal(id);
+        respond(true, { ok: true });
+      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "任务终端连接失败" }); }
+    }, { scope: "operator.admin" });
     api.registerGatewayMethod("selfme.models.list", async ({ params, context, respond }) => {
       try {
         const provider = context.getRuntimeConfig().models?.providers?.selfme;
@@ -114,6 +137,7 @@ export default {
         const workspace = await root(taskId(params.task));
         if (!context.hostDesktopService) throw new Error("原生桌面服务不可用");
         await prepareDesktop(context.hostDesktopService);
+        await setDesktopTask(taskId(params.task));
         respond(true, { root: workspace, display: desktopLease?.env.DISPLAY });
       } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "现场准备失败" }); }
     }, { scope: "operator.write" });
