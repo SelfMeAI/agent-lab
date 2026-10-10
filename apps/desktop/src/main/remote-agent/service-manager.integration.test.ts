@@ -9,6 +9,7 @@ import { RemoteAgentContainer } from "./service-manager";
 import { RemoteModelClient } from "../../../../../packages/remote-agent/src/model-connection";
 import { RemoteTaskController } from "./task-controller";
 import { remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
+import type { RemoteTerminalEvent } from "../../../../../packages/contracts/src/remote-agent";
 
 // Explicit Docker integration; fixture-only connection keys, never real API calls.
 describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-built remote services", () => {
@@ -21,7 +22,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
       const container = new RemoteAgentContainer(root, () => credentials.get(), engine);
       const models = new RemoteModelClient(engine, () => container.requireEndpoint(), () => credentials.get());
       const connection = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get() };
-      const tasks = new RemoteTaskController({ openhands: connection, openclaw: connection }, { choose: async () => [], save: async () => null }, () => {}, () => {});
+      const terminalEvents: RemoteTerminalEvent[] = [];
+      const tasks = new RemoteTaskController({ openhands: connection, openclaw: connection }, { choose: async () => [], save: async () => null }, () => {}, event => terminalEvents.push(event));
       try {
         const state = await container.start();
         expect(state.phase).toBe("ready");
@@ -52,6 +54,17 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(grant.control).toBe(false); expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await expect(framebufferHeader(grant.url)).rejects.toThrow();
         } else {
+          const grant = await tasks.desktop(engine, task.id, false);
+          expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
+          const terminal = await tasks.claw.terminal(task.id);
+          expect(terminal.cwd).toBe(`/home/node/.openclaw/workspace/selfme/${remoteTaskId(task.id)}`);
+          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd\r");
+          await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 15_000 }).toMatch(/\r?\nREMOTE_PTY_OK\r?\n/);
+          await tasks.claw.terminalClose(task.id, terminal.id);
+          const browser = await tasks.claw.browser(task.id);
+          expect(browser.pageUrl).toBe("about:blank"); expect(browser.tabs.some(tab => tab.targetId === browser.targetId)).toBe(true);
+          expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
+          await expect(tasks.claw.browser(task.id, { targetId: "unowned" })).rejects.toThrow("不属于");
           const lease = await tasks.claw.request<{ id: string }>("selfme.control.acquire", { task: remoteTaskId(task.id) });
           await expect(tasks.claw.request("selfme.control.acquire", { task: remoteTaskId(task.id) })).rejects.toThrow("已有接管者");
           await tasks.claw.request("selfme.control.release", { id: lease.id });
@@ -102,5 +115,16 @@ async function framebufferHeader(url: string): Promise<string> {
     socket.addEventListener("message", event => finish(undefined, new TextDecoder().decode(new Uint8Array(event.data as ArrayBuffer))));
     socket.addEventListener("error", () => finish(new Error("观察连接被拒绝")));
     socket.addEventListener("close", event => finish(new Error(`观察连接已关闭（${event.code}）${event.reason}`)));
+  });
+}
+
+async function browserFrameLength(url: string): Promise<number> {
+  const socket = new WebSocket(url); socket.binaryType = "arraybuffer";
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error("浏览器没有传回实际画面")), 20_000); let settled = false;
+    const finish = (error?: Error, size?: number) => { if (settled) return; settled = true; clearTimeout(timer); socket.close(); if (error) reject(error); else resolve(size!); };
+    socket.addEventListener("message", event => { if (typeof event.data !== "string") finish(undefined, (event.data as ArrayBuffer).byteLength); });
+    socket.addEventListener("error", () => finish(new Error("浏览器画面连接失败")));
+    socket.addEventListener("close", () => finish(new Error("浏览器画面连接已关闭")));
   });
 }

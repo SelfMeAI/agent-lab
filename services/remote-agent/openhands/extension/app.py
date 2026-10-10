@@ -14,7 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse
 from openhands.agent_server.api import create_app
-from openhands.agent_server.dependencies import check_session_api_key
+from openhands.agent_server.dependencies import check_session_api_key, get_conversation_service
 
 app = create_app()
 router = APIRouter(prefix="/api/selfme", dependencies=[Depends(check_session_api_key)])
@@ -115,7 +115,24 @@ async def upload(request: Request, task: str, path: str):
 
 
 @router.post("/observer")
-async def observer():
+async def observer(request: Request):
+    # Start the conversation's own headful SDK browser by querying its tabs.
+    # No navigation, clicks, model calls, duplicate browser or agent loop.
+    # An authenticated observer must never report LIVE against an empty Xvfb.
+    task = identity((await request.json()).get("task", ""))
+    service = await get_conversation_service(request).get_event_service(UUID(task))
+    if service is None:
+        raise HTTPException(404, "任务不存在或已删除")
+    conversation = service.get_conversation()
+    from openhands.tools.browser_use.definition import BrowserListTabsAction
+    try:
+        # Public native API also handles lazy tool/plugin initialization and
+        # locking before the first agent turn. Do not reach into tools_map.
+        observation = await asyncio.to_thread(conversation.execute_tool, "browser_list_tabs", BrowserListTabsAction())
+    except (KeyError, NotImplementedError):
+        raise HTTPException(503, "此任务没有可用的原生浏览器工具，请新建任务后重试")
+    if observation.is_error:
+        raise HTTPException(503, "原生浏览器启动失败，请检查服务日志后重试")
     now = time.time()
     for token, expiry in list(tickets.items()):
         if expiry <= now:

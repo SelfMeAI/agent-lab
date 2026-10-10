@@ -22,6 +22,7 @@ export interface RemoteModelConnection {
   baseUrl: string;
   model: string;
   configured: boolean;
+  supportsImages?: boolean;
 }
 export interface RemoteModelInput {
   protocol: RemoteModelProtocol;
@@ -29,6 +30,7 @@ export interface RemoteModelInput {
   model: string;
   /** Omitted or empty keeps the server's existing key. Never returned to the UI. */
   apiKey?: string;
+  supportsImages?: boolean;
 }
 export interface RemoteServiceBridge {
   getRemoteServiceState(engine: RemoteAgentId): Promise<RemoteServiceState>;

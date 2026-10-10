@@ -37,7 +37,10 @@ export class OpenClawConnection {
               const { nonce, ts } = packet.payload ?? {};
               if (typeof nonce !== "string" || !nonce || !Number.isSafeInteger(ts)) { finish(new Error("认证挑战无效")); return; }
               const params = openClawConnect(this.identity, this.token, nonce, ts);
-              params.caps = ["tool-events", "terminal-offset-seq"];
+              // This persistent connection renders native exec/plugin approval
+              // cards. Scopes alone do not declare an approval delivery surface.
+              // Short-lived status/config RPCs intentionally advertise no caps.
+              params.caps = ["tool-events", "terminal-offset-seq", "approvals"];
               void this.requestRaw("connect", params).then(() => finish(), error => finish(error));
             } else if (this.ready) this.receive(packet);
           } else if (packet.type === "res") {

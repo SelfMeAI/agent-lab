@@ -26,6 +26,22 @@ function fixture() {
   return { client, json, updates };
 }
 describe("OpenHands ordered native task stream", () => {
+  it("creates a visible browser and preserves DeepSeek reasoning with explicit vision settings", async () => {
+    const { client, json } = fixture();
+    json.mockImplementation(async (path: string) => {
+      if (path === "/api/selfme/workspace") return { root: "/workspace/selfme/fixture" };
+      if (path === "/api/settings") return { llm_api_key_is_set: true, agent_settings: { llm: { model: "openai/deepseek-flash", base_url: "https://api.deepseek.com", api_key: "encrypted-fixture", capability_overrides: { supports_vision: false } } } };
+      return { id, title: "新任务", execution_status: "idle" };
+    });
+    await client.create();
+    expect(json).toHaveBeenCalledWith("/api/conversations", "POST", expect.objectContaining({
+      secrets_encrypted: true,
+      agent_settings: expect.objectContaining({
+        llm: expect.objectContaining({ model_canonical_name: "deepseek/deepseek-v4.1-flash", stream: true, capability_overrides: { supports_vision: false } }),
+        tools: expect.arrayContaining([expect.objectContaining({ name: "browser_tool_set", params: expect.objectContaining({ headless: false }) })]),
+      }),
+    })); client.shutdown();
+  });
   it("waits for the advertised native replay watermark before returning history", async () => {
     const { client } = fixture(); NativeSocket.through = 1;
     let resolved = false; const opening = client.open(id).then(snapshot => { resolved = true; return snapshot; });

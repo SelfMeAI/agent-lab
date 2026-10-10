@@ -34,7 +34,9 @@ export interface RemoteUploadedFile extends RemoteWorkspaceFile { absolutePath: 
 export interface RemoteFilePreview { kind: "text" | "image" | "pdf" | "html" | "binary"; url?: string; text?: string; truncated: boolean; size: number; mime: string }
 /** One-use, short-lived native framebuffer credentials, never persisted by the client. */
 export interface RemoteDesktopGrant { url: string; password?: string; control: boolean; expiresAt: number; warning?: string }
-export interface RemoteBrowserGrant { url: string; pageUrl: string; expiresAt: number }
+export interface RemoteBrowserTab { targetId: string; title: string; url: string }
+export interface RemoteBrowserOptions { targetId?: string; url?: string }
+export interface RemoteBrowserGrant { url: string; pageUrl: string; expiresAt: number; targetId: string; tabs: RemoteBrowserTab[] }
 export interface RemoteTerminal { id: string; cwd: string; confined: boolean; buffer?: string }
 export interface RemoteTerminalEvent { engine: RemoteAgentId; taskId: string; terminalId: string; data?: string; exited?: boolean; detail?: string }
 export interface RemoteTaskBridge {
@@ -53,7 +55,8 @@ export interface RemoteTaskBridge {
   previewRemoteTaskFile(engine: RemoteAgentId, id: string, path: string): Promise<RemoteFilePreview>;
   downloadRemoteTaskFile(engine: RemoteAgentId, id: string, path: string): Promise<boolean>;
   observeRemoteDesktop(engine: RemoteAgentId, id: string, control: boolean): Promise<RemoteDesktopGrant>;
-  observeRemoteBrowser(engine: RemoteAgentId, id: string): Promise<RemoteBrowserGrant>;
+  observeRemoteBrowser(engine: RemoteAgentId, id: string, options?: RemoteBrowserOptions): Promise<RemoteBrowserGrant>;
+  listRemoteBrowserTabs(engine: RemoteAgentId, id: string): Promise<RemoteBrowserTab[]>;
   returnRemoteDesktop(engine: RemoteAgentId, id: string, followUp?: string): Promise<RemoteDesktopGrant>;
   openRemoteTerminal(engine: RemoteAgentId, id: string): Promise<RemoteTerminal>;
   inputRemoteTerminal(engine: RemoteAgentId, id: string, terminalId: string, data: string): Promise<void>;

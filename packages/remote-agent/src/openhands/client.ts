@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { RemoteTask, RemoteTaskSnapshot, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { applyOpenHandsEvent, contentText, record, taskStatus, text, timestamp } from "../transcript";
 import { RemoteHttp, RemoteHttpError, remoteTaskId } from "../transport/http";
+import { knownRemoteVision, remoteCanonicalModel } from "../model-capabilities";
 
 type View = { snapshot: RemoteTaskSnapshot; socket?: WebSocket; seq: number; retry?: ReturnType<typeof setTimeout>; closed: boolean; slots: Map<string, { attempt: number; order: number; lossy: boolean }> };
 export function handsTask(value: unknown): RemoteTask {
@@ -26,9 +27,15 @@ export class OpenHandsTasks {
     // Encrypted round-trip stays in the main process -> same server, not the renderer.
     const settings = await this.http.json<{ agent_settings: Record<string, unknown>; llm_api_key_is_set: boolean }>("/api/settings", "GET", undefined, { "X-Expose-Secrets": "encrypted" });
     if (!settings.llm_api_key_is_set) throw new Error("请先保存 OpenHands 的模型连接");
-    const agent = { ...settings.agent_settings, llm: { ...record(settings.agent_settings.llm), stream: true }, tools: [
+    const llm = record(settings.agent_settings.llm), model = text(llm.model).replace(/^(?:openai|anthropic)\//, "");
+    const canonical = remoteCanonicalModel(text(llm.base_url), model), capabilities = record(llm.capability_overrides);
+    const vision = typeof capabilities.supports_vision === "boolean" ? capabilities.supports_vision : knownRemoteVision(text(llm.base_url), model);
+    const agent = { ...settings.agent_settings, llm: { ...llm, stream: true,
+      ...(canonical ? { model_canonical_name: canonical } : {}),
+      ...(vision !== undefined ? { capability_overrides: { ...record(llm.capability_overrides), supports_vision: vision } } : {}),
+    }, tools: [
       { name: "terminal" }, { name: "file_editor" }, { name: "task_tracker" }, { name: "switch_llm" },
-      { name: "browser_tool_set", params: { headless: false, chromium_sandbox: false } },
+      { name: "browser_tool_set", params: { headless: false, chromium_sandbox: false, window_size: { width: 1280, height: 800 }, viewport: { width: 1280, height: 720 } } },
     ] };
     const result = await this.http.json("/api/conversations", "POST", { conversation_id: id, agent_settings: agent, secrets_encrypted: true,
       workspace: { working_dir: workspace.root }, confirmation_policy: { kind: "AlwaysConfirm" }, title: "新任务", max_iterations: 500 });

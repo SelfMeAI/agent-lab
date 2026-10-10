@@ -140,7 +140,8 @@
 .remote-observer-status.is-error > i:not(.remote-spinner) { background: #d98674; }
 .remote-observer-bar .remote-button { min-height: 28px; font-size: 11px; padding: 5px 10px; }
 .remote-rfb-stage { flex: 1; min-height: 0; position: relative; margin: 10px; border: 1px solid #233947; border-radius: 4px; overflow: hidden; background: #05090d; }
-.remote-rfb { width: 100%; height: 100%; }
+.remote-rfb { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+.remote-frame-size { display: block; flex-shrink: 0; color: #7396a7; font: 10px/1.6 Menlo, monospace; padding: 0 12px 7px; }
 .remote-rfb-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; padding: 30px; text-align: center; background: #050c12dc; color: #8babbc; }
 .remote-rfb-overlay p { margin: 0; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .remote-rfb-overlay .remote-spinner { width: 20px; height: 20px; }
@@ -152,7 +153,16 @@
 .remote-inline-confirm textarea { resize: vertical; width: 100%; min-height: 70px; max-height: 150px; padding: 10px; margin-bottom: 14px; background: #060e15; border: 1px solid #405967; color: #c6d9e3; font: 12px/1.7 -apple-system, sans-serif; border-radius: 4px; }
 .remote-browser-url { padding: 8px 13px; font: 10px Menlo, monospace; color: #718fa1; border-bottom: 1px solid #203845; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .remote-browser-screen { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; background: #050a10; margin: 10px; border: 1px solid #233947; border-radius: 4px; overflow: hidden; }
-.remote-browser-screen img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.remote-browser-screen img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.remote-browser-address { display: flex; flex: 0 0 auto; gap: 7px; padding: 8px 10px; border-bottom: 1px solid #203845; }
+.remote-browser-address input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #355361; border-radius: 4px; background: #070f16; color: #bacfdb; font: 11px/1.5 Menlo, monospace; }
+.remote-browser-address input::placeholder { color: #618394; }
+.remote-browser-address input:focus { outline: 1px solid var(--remote-accent); }
+.remote-browser-address .remote-button { font-size: 11px; min-height: 29px; padding: 4px 10px; }
+.remote-browser-tab-select { flex: 0 0 auto; margin: 5px 10px 0; max-width: calc(100% - 20px); color: #a6c0cf; border: 1px solid #294754; border-radius: 4px; background: #08121a; font-size: 11px; padding: 6px; }
+.remote-browser-blank { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #5c6e7b; background: #f8fafc; font-size: 12px; pointer-events: none; }
+.remote-browser-blank strong { font-weight: 500; color: #344956; }
+.remote-browser-blank p { margin: 0; }
 .remote-preview > header, .remote-files > header { padding: 7px 10px; border-bottom: 1px solid #28444f; flex: 0 0 45px; display: flex; align-items: center; gap: 9px; font-size: 11px; color: #89a6b6; min-width: 0; }
 .remote-preview header strong, .remote-files header > span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 400; }
 .remote-preview header .remote-button { min-height: 28px; padding: 4px 10px; font-size: 11px; }
@@ -176,6 +186,8 @@
 .remote-agent-console header { display: flex; align-items: center; gap: 7px; font-size: 10px; color: #688798; padding-bottom: 8px; }
 .remote-agent-console pre { font: 10px/1.8 Menlo, monospace; color: #93adbd; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .remote-agent-console .remote-command { color: #c1d3dc; margin-bottom: 5px; }
+.remote-console-state { margin-left: auto; white-space: nowrap; }
+.remote-console-pending { margin: 0; color: #628494; font-size: 11px; }
 .remote-admin-terminal { display: flex; flex-direction: column; min-height: 0; flex: 1; position: relative; background: #060b0f; }
 .remote-terminal-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; flex-shrink: 0; }
 .remote-terminal-bar > span { font: 9px Menlo, monospace; color: #6c8b9d; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }

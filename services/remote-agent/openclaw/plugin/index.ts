@@ -63,15 +63,51 @@ async function http(req: IncomingMessage, res: ServerResponse): Promise<boolean>
   } catch (error) { if (!res.headersSent) reply(res, 400, { error: error instanceof Error ? error.message : "文件操作失败" }); else res.destroy(); return true; }
 }
 
+type DesktopLease = { env: NodeJS.ProcessEnv; isCurrent(): boolean; release(): void };
+type HostDesktopService = { acquireComputer(options: { onStop(): Promise<void> }): Promise<DesktopLease> };
 type PluginApi = {
-  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
+  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
   registerHttpRoute(route: { path: string; auth: "gateway"; match: "exact"; handler: typeof http }): void;
   on(name: "before_tool_call", handler: () => { block: true; blockReason: string } | undefined, options?: { priority: number }): void;
 };
 let controlLease: { id: string; owner: string; task: string } | undefined;
+let desktopLease: DesktopLease | undefined;
+let preparingDesktop: Promise<void> | undefined;
+// The container has one native managed desktop. Its allocated display and
+// private D-Bus address must also reach native browser/exec/PTY children. Never
+// guess :99 or start a second X server outside the native lifecycle.
+async function prepareDesktop(service: HostDesktopService): Promise<void> {
+  if (desktopLease?.isCurrent()) return;
+  if (preparingDesktop) return preparingDesktop;
+  const pending = (async () => {
+    const previous = new Map<string, string | undefined>();
+    let lease: DesktopLease;
+    const restore = () => {
+      for (const [name, value] of previous) if (process.env[name] === lease?.env[name]) {
+        if (value === undefined) delete process.env[name]; else process.env[name] = value;
+      }
+      if (desktopLease === lease) desktopLease = undefined;
+    };
+    lease = await service.acquireComputer({ onStop: async () => { restore(); lease?.release(); } });
+    if (!lease.isCurrent() || !/^:\d+$/.test(lease.env.DISPLAY ?? "")) { lease.release(); throw new Error("远端桌面显示服务未就绪"); }
+    for (const name of ["DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_TYPE", "PULSE_SERVER", "PULSE_COOKIE"] as const) {
+      if (lease.env[name] !== undefined) { previous.set(name, process.env[name]); process.env[name] = lease.env[name]; }
+    }
+    desktopLease = lease;
+  })().finally(() => { if (preparingDesktop === pending) preparingDesktop = undefined; });
+  preparingDesktop = pending; return pending;
+}
 export default {
   id: "selfme-lab", name: "SelfMe Lab Remote Files",
   register(api: PluginApi): void {
+    api.registerGatewayMethod("selfme.scene.prepare", async ({ params, context, respond }) => {
+      try {
+        const workspace = await root(taskId(params.task));
+        if (!context.hostDesktopService) throw new Error("原生桌面服务不可用");
+        await prepareDesktop(context.hostDesktopService);
+        respond(true, { root: workspace, display: desktopLease?.env.DISPLAY });
+      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "现场准备失败" }); }
+    }, { scope: "operator.write" });
     // The hold lives on the authenticated Gateway, not in a renderer flag.
     // RFB grants and this lease are both revoked when their owner disconnects.
     api.on("before_tool_call", () => controlLease ? { block: true, blockReason: "远端桌面正在由用户接管。停止操作，等待用户交还控制后再继续。" } : undefined, { priority: 10000 });

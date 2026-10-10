@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { RemoteBrowserGrant, RemoteDesktopGrant, RemoteItem, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import type { RemoteBrowserGrant, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { actionTitle, clawToolCall, contentText, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
@@ -143,6 +143,7 @@ export class OpenClawTasks {
       const result = item.id.startsWith("live:") ? results.get(item.id.slice(5)) : undefined;
       return result?.tool && item.tool ? { ...item, tool: { ...item.tool, output: result.tool.output, status: result.tool.status, endedAt: result.at } } : item;
     }).filter(item => (!item.id.startsWith("result:") || !view.snapshot.items.some(call => call.id === "live:" + item.id.slice(7))) && !(item.id.startsWith("live:") && nestedParents.has(item.id.slice(5))));
+    if (view.snapshot.task.status === "running" && view.snapshot.items.some(item => item.approval || item.question)) view.snapshot.task.status = "waiting";
     view.snapshot.humanControl = this.hold?.task === view.snapshot.task.id;
     this.emit(structuredClone(view.snapshot));
   }
@@ -209,8 +210,10 @@ export class OpenClawTasks {
     await this.request("approval.resolve", { id: requestId, kind: approval.kind, decision: decision === "reject" ? "deny" : decision === "always" ? "allow-always" : "allow-once" });
   }
   private assertNotControlled(): void { if (this.hold) throw new Error("正在接管远端桌面，请先交还智能体"); }
+  private async prepareScene(id: string): Promise<Record<string, unknown>> { key(id); return record(await this.request("selfme.scene.prepare", { task: remoteTaskId(id) })); }
   async send(id: string, prompt: string, files: RemoteUploadedFile[] = []): Promise<void> {
     key(id); this.assertNotControlled(); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
+    await this.prepareScene(id);
     const message = prompt + (files.length ? "\n\n上传文件（远端路径）：\n" + files.map(file => file.absolutePath).join("\n") : "");
     const view = this.views.get(id);
     // Steer targets an existing reply operation, including one still retiring
@@ -229,7 +232,7 @@ export class OpenClawTasks {
   async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); if (action === "stop") await this.request("chat.abort", { sessionKey: id }); else await this.send(id, "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。"); this.schedule(id); }
   async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
   async desktop(id: string, control: boolean): Promise<RemoteDesktopGrant> {
-    key(id); if (control && !this.hold) {
+    await this.prepareScene(id); if (control && !this.hold) {
       const lease = record(await this.request("selfme.control.acquire", { task: remoteTaskId(id) }));
       const leaseId = text(lease.id);
       this.hold = { task: id, id: leaseId, heartbeat: setInterval(() => void this.request("selfme.control.renew", { id: leaseId }).catch(() => this.disconnected()), 15_000) };
@@ -253,21 +256,55 @@ export class OpenClawTasks {
     try { await this.request("selfme.control.release", { id: hold.id }); }
     finally { const view = this.views.get(hold.task); if (view) this.publish(view); }
   }
-  async browser(id: string): Promise<RemoteBrowserGrant> {
+  async browserTabs(id: string): Promise<RemoteBrowserTab[]> {
     key(id);
     const listing = record(await this.request("browser.request", { method: "GET", path: "/tabs", tabScope: { sessionKey: id } }));
-    const tabs = Array.isArray(listing.tabs) ? listing.tabs.map(record) : [];
-    const targetId = text(tabs[0]?.targetId); if (!targetId) throw new Error("此任务还没有打开浏览器页面");
+    return (Array.isArray(listing.tabs) ? listing.tabs.map(record) : []).map(tab => ({ targetId: text(tab.targetId), title: text(tab.title), url: text(tab.url) })).filter(tab => Boolean(tab.targetId));
+  }
+  async browser(id: string, options: RemoteBrowserOptions = {}): Promise<RemoteBrowserGrant> {
+    key(id);
+    if (!options || typeof options !== "object" || (options.targetId !== undefined && (typeof options.targetId !== "string" || options.targetId.length > 256)) || (options.url !== undefined && typeof options.url !== "string")) throw new Error("浏览器参数无效");
+    let address: string | undefined;
+    if (options.url !== undefined) {
+      if (options.url.length > 8192) throw new Error("页面地址过长");
+      const url = new URL(options.url);
+      if ((!['http:', 'https:'].includes(url.protocol) && url.href !== 'about:blank') || url.username || url.password) throw new Error("页面地址需要 HTTP(S)，不能包含登录凭据");
+      address = url.href; this.assertNotControlled();
+    }
+    await this.prepareScene(id);
+    let tabs = await this.browserTabs(id), targetId = options.targetId;
+    if (targetId && !tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
+    if (address || !tabs.length) {
+      this.assertNotControlled();
+      const opened = record(await this.request("browser.request", { method: "POST", path: "/tabs/open", body: { url: address || "about:blank" }, tabScope: { sessionKey: id } }));
+      targetId = text(opened.targetId); tabs = await this.browserTabs(id);
+      // Explicit navigation should also be visible on the native desktop.
+      // Observing an existing tab stays read-only and does not steal focus.
+      if (targetId) await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: { sessionKey: id } });
+    }
+    // CDP enumeration is not chronological; never prefer a blank tab over a
+    // task's actual page merely because it happens to be last in the response.
+    targetId ||= (tabs.find(tab => tab.url && tab.url !== "about:blank") ?? tabs[0])?.targetId;
+    if (!targetId) throw new Error("远端浏览器未返回任务页面，请重新连接");
     const result = record(await this.request("browser.request", { method: "POST", path: "/screencast", body: { targetId, maxWidth: 1600, maxHeight: 1000, quality: 85 }, tabScope: { sessionKey: id } }));
     const base = new URL(await this.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-    return { url: new URL(text(result.wsPath), base).toString(), pageUrl: text(result.url), expiresAt: Number(result.expiresAtMs) };
+    return { url: new URL(text(result.wsPath), base).toString(), pageUrl: text(result.url), expiresAt: Number(result.expiresAtMs), targetId, tabs };
   }
   async terminal(id: string): Promise<RemoteTerminal> {
-    key(id); const result = record(await this.request("terminal.open", { sessionKey: id, cols: 100, rows: 30 }));
+    const workspace = await this.prepareScene(id);
+    const cwd = text(workspace.root), expected = `/home/node/.openclaw/workspace/selfme/${remoteTaskId(id)}`;
+    if (cwd !== expected) throw new Error("远端任务工作区无效，未打开终端");
+    const result = record(await this.request("terminal.open", { sessionKey: id, cols: 100, rows: 30 }));
     const terminalId = text(result.sessionId); this.terminals.set(terminalId, id);
-    const attached = record(await this.request("terminal.attach", { sessionId: terminalId }));
-    if (typeof attached.seq === "number") this.terminalSeq.set(terminalId, attached.seq);
-    return { id: terminalId, cwd: text(result.cwd), confined: result.confined === true, buffer: text(attached.buffer) };
+    this.terminalSeq.set(terminalId, Infinity);
+    try {
+      const attached = record(await this.request("terminal.attach", { sessionId: terminalId }));
+      if (typeof attached.seq === "number") this.terminalSeq.set(terminalId, attached.seq);
+      // Native terminal.open binds custody to the session but starts in the
+      // agent's global workspace. Enter only the verified task root above.
+      await this.request("terminal.input", { sessionId: terminalId, data: `cd -- '${cwd}' && clear\r` });
+      return { id: terminalId, cwd, confined: result.confined === true, buffer: text(attached.buffer) };
+    } catch (error) { await this.terminalClose(id, terminalId).catch(() => {}); throw error; }
   }
   private assertTerminal(id: string, terminalId: string): void { key(id); if (this.terminals.get(terminalId) !== id) throw new Error("终端不属于此任务"); }
   async terminalInput(id: string, terminalId: string, data: string): Promise<void> { this.assertTerminal(id, terminalId); await this.request("terminal.input", { sessionId: terminalId, data }); }

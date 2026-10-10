@@ -15,7 +15,7 @@ export class RemoteDevelopmentService {
 
   async state(): Promise<RemoteServiceState> {
     const state = await this.container.state();
-    return { ...state, ...(this.action ? { phase: this.action === "stop" ? "stopping" as const : "starting" as const, detail: this.action === "stop" ? "正在停止服务" : "正在启动并准备连接" } : {}), setupWarning: this.warning };
+    return { ...state, ...(this.action ? { phase: this.action === "stop" ? "stopping" as const : "starting" as const, detail: this.action === "stop" ? "正在停止服务" : "正在启动并准备连接" } : {}), setupWarning: this.warning ?? state.setupWarning };
   }
   async control(action: Action): Promise<RemoteServiceState> {
     this.assertIdle(); this.action = action; this.warning = undefined;

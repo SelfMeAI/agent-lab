@@ -88,11 +88,15 @@ export class RemoteAgentContainer {
 
   async state(): Promise<RemoteServiceState> {
     let dockerAvailable = false; let imageReady = false; let endpoint: string | null = null; let running = false;
+    let setupWarning: string | undefined;
     try {
       await this.command(["info", "--format", "{{.ServerVersion}}"], undefined, 8000); dockerAvailable = true;
       try { await this.checkImage(); imageReady = true; } catch { /* explicit source build */ }
       const container = await this.inspect();
-      if (container) { endpoint = this.endpoint(container); running = container.State.Running; }
+      if (container) {
+        endpoint = this.endpoint(container); running = container.State.Running;
+        if (running && (container.Config.Image !== this.deployment.image || container.Config.Labels?.[deploymentLabel] !== this.deploymentRevision)) setupWarning = "服务部署有更新，请空闲时重启此服务；任务、模型连接和文件会保留。";
+      }
       if (!this.operation) {
         if (endpoint) { await this.health(endpoint, await this.credentials()); this.phase = "ready"; this.detail = "服务已连接 · 自动验证"; }
         else { this.phase = "stopped"; this.detail = "服务未启动 · 数据保留在服务卷中"; }
@@ -100,7 +104,7 @@ export class RemoteAgentContainer {
     } catch (error) {
       if (!this.operation) { this.phase = "error"; this.detail = redactServiceOutput(error instanceof Error ? error.message : String(error)); }
     }
-    return { phase: this.phase, running, dockerAvailable, imageReady, version: this.deployment.version, endpoint, detail: this.detail };
+    return { phase: this.phase, running, dockerAvailable, imageReady, version: this.deployment.version, endpoint, detail: this.detail, ...(setupWarning ? { setupWarning } : {}) };
   }
 
   control(action: "start" | "stop" | "restart"): Promise<RemoteServiceState> {

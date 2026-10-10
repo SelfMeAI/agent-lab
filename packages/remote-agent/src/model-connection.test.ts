@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteModelClient, validateRemoteModel } from "./model-connection";
+import { knownRemoteVision } from "./model-capabilities";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("remote native model connection", () => {
@@ -10,6 +11,20 @@ describe("remote native model connection", () => {
     }
     expect(() => validateRemoteModel({ protocol: "openai", baseUrl: "https://example.com", model: "" })).toThrow();
     expect(() => validateRemoteModel({ protocol: "openai", baseUrl: "https://example.com", model: "model", apiKey: "a\nb" })).toThrow();
+  });
+  it("distinguishes official vision Flash from text Pro and unknown proxy aliases", () => {
+    expect(knownRemoteVision("https://api.deepseek.com", "deepseek-flash")).toBe(true);
+    expect(knownRemoteVision("https://api.deepseek.com", "deepseek-v4-pro")).toBe(false);
+    expect(knownRemoteVision("https://example.com", "deepseek-flash")).toBeUndefined();
+    expect(knownRemoteVision("https://api.deepseek.com", "unknown")).toBeUndefined();
+  });
+  it("persists explicit vision support in the native SDK instead of assuming text only", async () => {
+    const native = { agent_settings: { llm: { model: "openai/vision-model", base_url: "https://example.com", capability_overrides: { supports_vision: true } } }, llm_api_key_is_set: true };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => native }); vi.stubGlobal("fetch", fetchMock);
+    const client = new RemoteModelClient("openhands", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture" }));
+    expect(await client.save({ protocol: "openai", baseUrl: "https://example.com", model: "vision-model", supportsImages: true })).toMatchObject({ supportsImages: true });
+    const call = fetchMock.mock.calls.find(args => args[1]?.method === "PATCH");
+    expect(JSON.parse(call![1].body).agent_settings_diff.llm.capability_overrides).toEqual({ supports_vision: true });
   });
   it("preserves an existing native key on an omitted/empty API Key", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ agent_settings: { llm: { model: "openai/deepseek-chat", base_url: "https://api.deepseek.com", api_key: "**********" } }, llm_api_key_is_set: true }) });

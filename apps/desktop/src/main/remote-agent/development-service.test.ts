@@ -11,6 +11,12 @@ function fixture(configured = false) {
   return { container, model, initial, service: new RemoteDevelopmentService(container, model, initial) };
 }
 describe("development service coordination", () => {
+  it("retains a deployment-upgrade warning from the container without interrupting work", async () => {
+    const test = fixture(true);
+    test.container.state.mockResolvedValue({ ...state, setupWarning: "请空闲时重启此服务" });
+    expect(await test.service.state()).toMatchObject({ phase: "ready", setupWarning: "请空闲时重启此服务" });
+    expect(test.container.control).not.toHaveBeenCalled();
+  });
   it("seeds only an unconfigured native server, never overwrites a saved connection", async () => {
     const empty = fixture(); await empty.service.control("start"); expect(empty.model.save).toHaveBeenCalledOnce();
     const saved = fixture(true); await saved.service.control("restart"); expect(saved.model.save).not.toHaveBeenCalled(); expect(saved.initial).not.toHaveBeenCalled();

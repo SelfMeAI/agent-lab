@@ -113,7 +113,7 @@ export class RemoteTaskController {
   async desktop(engine: RemoteAgentId, id: string, control: boolean) {
     remoteTaskId(id); if (engine === "openclaw") return this.claw.desktop(id, control);
     if (control) throw new Error("OpenHands 浏览器仅支持观察，不提供桌面接管");
-    const result = await this.hands.http.json<{ wsPath: string; expiresAt: number; control: boolean }>("/api/selfme/observer", "POST");
+    const result = await this.hands.http.json<{ wsPath: string; expiresAt: number; control: boolean }>("/api/selfme/observer", "POST", { task: id });
     const base = new URL(await this.hands.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     return { url: new URL(result.wsPath, base).toString(), expiresAt: result.expiresAt, control: false };
   }

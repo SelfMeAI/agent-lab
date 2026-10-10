@@ -3,10 +3,11 @@ import { remoteAgentIds, type RemoteAgentId, type RemoteModelConnection, type Re
 import brandMark from "../../../../../../assets/brand/selfme-lab-mark.png";
 import { remoteEngines, RemoteMark, ServiceStatus, type ServiceBusy, type ServiceStates } from "./RemoteAgentPage";
 import { remoteError } from "./service-presentation";
+import { knownRemoteVision } from "../../../../../../packages/remote-agent/src/model-capabilities";
 
-type Draft = { protocol: RemoteModelProtocol; baseUrl: string; model: string; apiKey: string; configured: boolean; dirty: boolean };
-function initialDraft(): Draft { return { protocol: "openai", baseUrl: "https://api.deepseek.com", model: "", apiKey: "", configured: false, dirty: false }; }
-function fromConnection(value: RemoteModelConnection): Draft { return { ...value, apiKey: "", dirty: false }; }
+type Draft = { protocol: RemoteModelProtocol; baseUrl: string; model: string; apiKey: string; configured: boolean; supportsImages: boolean; dirty: boolean };
+function initialDraft(): Draft { return { protocol: "openai", baseUrl: "https://api.deepseek.com", model: "", apiKey: "", configured: false, supportsImages: false, dirty: false }; }
+function fromConnection(value: RemoteModelConnection): Draft { return { ...value, supportsImages: value.supportsImages ?? knownRemoteVision(value.baseUrl, value.model) ?? false, apiKey: "", dirty: false }; }
 
 export function RemoteServicePanel({ initialEngine, states, busy, errors, onControl, onClose }: {
   initialEngine: RemoteAgentId; states: ServiceStates; busy: ServiceBusy; errors: Partial<Record<RemoteAgentId, string>>;
@@ -52,14 +53,14 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
     return () => { current = false; };
   }, [engine, ready, busy[engine]]);
 
-  function change<K extends "protocol" | "baseUrl" | "model" | "apiKey">(key: K, value: Draft[K]): void {
-    setDrafts(previous => ({ ...previous, [engine]: { ...previous[engine], [key]: value, dirty: true } })); setNotice("");
+  function change<K extends "protocol" | "baseUrl" | "model" | "apiKey" | "supportsImages">(key: K, value: Draft[K]): void {
+    setDrafts(previous => { const next = { ...previous[engine], [key]: value, dirty: true }; if (key === "model" || key === "baseUrl") next.supportsImages = knownRemoteVision(next.baseUrl, next.model) ?? false; return { ...previous, [engine]: next }; }); setNotice("");
   }
   async function save(event: FormEvent): Promise<void> {
     event.preventDefault(); if (!window.selfmeLab || saving || !ready) return;
     setSaving(true); setError(""); setNotice("");
     try {
-      const value = await window.selfmeLab.saveRemoteModelConnection(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, model: draft.model, apiKey: draft.apiKey || undefined });
+      const value = await window.selfmeLab.saveRemoteModelConnection(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, model: draft.model, apiKey: draft.apiKey || undefined, supportsImages: draft.supportsImages });
       if (alive.current) { setDrafts(previous => ({ ...previous, [engine]: fromConnection(value) })); setNotice("已保存到服务端 · 后续新任务使用此连接"); }
     } catch (cause) { if (alive.current) setError(remoteError(cause)); }
     finally { if (alive.current) setSaving(false); }
@@ -104,8 +105,9 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
               <label><span>Base URL</span><input value={draft.baseUrl} type="url" required autoComplete="off" placeholder="https://api.deepseek.com" onChange={event => change("baseUrl", event.target.value)} /></label>
               <label><span>API Key</span><span className="remote-key-field"><input value={draft.apiKey} type={visibleKey ? "text" : "password"} autoComplete="off" spellCheck={false} required={!draft.configured} placeholder={draft.configured ? "已保存，留空保持不变" : "输入 API Key"} onChange={event => change("apiKey", event.target.value)} /><button type="button" aria-label={visibleKey ? "隐藏 API Key" : "显示 API Key"} onClick={() => setVisibleKey(value => !value)}>{visibleKey ? "隐藏" : "显示"}</button></span></label>
               <label><span>Model ID</span><input value={draft.model} required autoComplete="off" placeholder="输入模型 ID" onChange={event => change("model", event.target.value)} /></label>
+              <label className="remote-model-vision"><span>图像输入</span><span><input type="checkbox" checked={draft.supportsImages} onChange={event => change("supportsImages", event.target.checked)} />此模型支持读取图片</span></label>
             </fieldset>
-            <p className="remote-panel__hint">ⓘ 桌面视觉操作需要使用支持图像的模型。</p>
+            <p className="remote-panel__hint">ⓘ 观察画面不需要视觉模型；智能体识图操作需要模型支持图像输入。</p>
             {loading && <p className="remote-panel__hint"><i className="remote-spinner" />正在读取服务端连接…</p>}
             {error && <p className="remote-error" role="alert">{error}</p>}
             {notice && <p className="remote-panel__notice" role="status">{notice}</p>}
