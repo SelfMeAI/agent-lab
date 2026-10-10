@@ -218,21 +218,21 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "shell.foreground", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-10",
-    evidence: ["packages/remote-agent/src/transcript.ts", "packages/remote-agent/src/transcript.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "智能体命令在远端执行，命令参数、实际结果和工具状态显示于动作流与 Terminal。只展示原生返回的输出；部分引擎未独立返回退出码时不捏造成功码，OpenHands 的 Terminal 不是可手动输入的 PTY。",
+    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-11",
+    evidence: ["packages/remote-agent/src/transcript.ts", "packages/remote-agent/src/transcript.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/execution.mjs", "services/remote-agent/openclaw/desktop/agent-terminal.mjs", "scripts/remote-agent/desktop.test.mjs"],
+    note: "智能体命令在远端执行，参数、原生输出和工具状态显示于动作流与 Terminal。OpenClaw 桌面终端新增只读智能体执行页，直接订阅服务端原生生命周期、审批与命令输出；关闭客户端或观察窗口不重新执行、不终止命令，新一轮更新现有视图，不逐个命令抢焦点。真实模型的 printf / sleep 命令已在打包版与桌面观察页核对。只显示引擎实际返回的信息，不捏造日志或退出码；OpenHands 的 Terminal 不提供手动 PTY。",
   },
   {
     capabilityId: "shell.background", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "integrated", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
     evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "真实模型通过原生 exec 的 background 模式启动任务目录中的网页服务，返回 session ID 与 PID；原生 process.poll 的实际输出和仍在运行状态可在 Terminal 核对。关闭并重开客户端后服务仍在，浏览器能继续访问。不为后台命令伪造桌面终端窗口；尚无独立 Job 管理面板，本次未验收后台进程终止及完整子进程清理。",
+    note: "真实模型通过原生 exec 的 background 模式启动任务目录中的网页服务，返回 session ID 与 PID；原生 process.poll 的输出和仍在运行状态可在 Terminal 核对。桌面智能体执行页也观察这些原生状态与返回内容，不把一次启动调用完成误写为后台进程退出，不承诺引擎未推送的连续后台日志。关闭并重开客户端后服务仍在，浏览器能继续访问。尚无独立 Job 管理面板，本次未验收后台进程终止及完整子进程清理。",
   },
   {
     capabilityId: "shell.pty", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
-    evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/session.mjs", "scripts/remote-agent/desktop.test.mjs", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
-    note: "原生 terminal.open / attach / input / resize / close 经受控 catalog 连接当前任务的共享 tmux shell，任务 UUID、标记及真实目录先校验。桌面终端与 Terminal 页共用同一会话；打包版双向输入输出及 shell 变量已实测，不只是文件目录相同。离开页签只断开原生 PTY 附件，返回恢复 shell；容器集成测试核对反复重连不会累积附件，删除任务结束对应 shell。手动命令不经过智能体审批、不自动加入对话；智能体 exec 输出另列，不伪造为桌面操作。容器重启不保留正在运行的 shell 进程。",
+    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-11",
+    evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "packages/remote-agent/src/terminal-response.ts", "packages/remote-agent/src/terminal-response.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/session.mjs", "services/remote-agent/openclaw/desktop/terminal-attach.mjs", "services/remote-agent/openclaw/plugin/index.ts", "scripts/remote-agent/desktop.test.mjs", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
+    note: "原生 terminal.open / attach / resize / close 经受控 catalog 连接当前任务的共享 tmux shell，UUID、目录标记及真实路径先校验。桌面人工终端和外部交互终端仍为同一个 shell，智能体执行页为另一个只读观察视图。人工输入必须经服务端接管租约、原生 PTY 连接归属与工作区校验，停稳前不能输入，交还或断线重新锁定；不只靠前端禁用按钮。真实容器验收了输入拦截、执行、Ctrl+C、重连不累积附件及数据保留。关闭观察只断开附件；Dock 可重开双页签，不重跑命令。手动命令不经过智能体审批、不自动加入对话；容器重启不保留 shell 进程。",
   },
   {
     capabilityId: "files.attachments", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

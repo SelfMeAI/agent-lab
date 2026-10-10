@@ -93,13 +93,24 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           const terminal = await tasks.claw.terminal(task.id);
           expect(terminal.cwd).toBe(`/home/node/.openclaw/workspace/selfme/${remoteTaskId(task.id)}`);
           await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
+          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 0);
+          await expect(tasks.claw.terminalInput(task.id, terminal.id, "echo BLOCKED\r")).rejects.toThrow("接管");
+          await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: terminal.id, data: "echo BLOCKED\r" })).rejects.toThrow("接管");
+          await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
+          await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: terminal.id, data: "\x1b[>0;276;0cecho BLOCKED\r" })).rejects.toThrow("接管");
+          await tasks.claw.desktop(task.id, true);
+          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
+          await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
           await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd; printenv DISPLAY\r");
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 15_000 }).toMatch(/\r?\nREMOTE_PTY_OK\r?\n/);
+          expect(terminalEvents.map(event => event.data ?? "").join("")).not.toContain("command not found");
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain(scene.display);
           const serverPath = `uploads/scene-server.cjs`;
           await files.upload(task.id, serverPath, new TextEncoder().encode(`const http = require('node:http'); http.createServer((req,res) => { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<!doctype html><title>Remote scene proof</title><h1>REMOTE_SCENE_OK</h1>'); }).listen(8734,'127.0.0.1',()=>console.log('REMOTE_SERVER_READY'));`));
           await tasks.claw.terminalInput(task.id, terminal.id, `node '${terminal.cwd}/${serverPath}'\r`);
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain("REMOTE_SERVER_READY");
+          await tasks.claw.release();
+          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 0);
           const browser = await tasks.claw.browser(task.id);
           expect(browser.pageUrl).toBe("about:blank"); expect(browser.tabs.some(tab => tab.targetId === browser.targetId)).toBe(true);
           expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
@@ -109,6 +120,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(localPage.pageUrl).toBe("http://127.0.0.1:8734/");
           expect(await browserFrameLength(localPage.url)).toBeGreaterThan(100);
           expect((await tasks.claw.browserTabs(task.id)).find(tab => tab.targetId === localPage.targetId)?.title).toBe("Remote scene proof");
+          await tasks.claw.desktop(task.id, true);
           await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
           await tasks.claw.terminalClose(task.id, terminal.id);
           const reopened = await tasks.claw.terminal(task.id);
@@ -116,6 +128,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain("REATTACHED_SHELL_OK");
           await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
           await tasks.claw.terminalClose(task.id, reopened.id);
+          await tasks.claw.release();
           await expect(tasks.claw.browser(task.id, { targetId: "unowned" })).rejects.toThrow("不属于");
           await expect(tasks.claw.focusBrowser(task.id, "unowned")).rejects.toThrow("不属于");
           const lease = await tasks.claw.request<{ id: string }>("selfme.control.acquire", { task: remoteTaskId(task.id) });
@@ -203,10 +216,19 @@ async function sharedTerminalOnDesktop(container: string, display: string, task:
       const task = process.argv[1], socket = '/home/node/.cache/selfme-lab/terminal.sock';
       const clients = execFileSync('tmux', ['-S', socket, 'list-clients', '-t', 'selfme-' + task, '-F', '#{client_tty}'], {encoding:'utf8'}).trim().split('\\n');
       const windows = execFileSync('wmctrl', ['-l'], {encoding:'utf8'});
-      console.log(JSON.stringify({clients:clients.length, window:windows.includes('Terminal · ' + task.slice(0,8))}));
+      const observer = execFileSync('pgrep', ['-f', '^.*node /opt/selfme/desktop/agent-terminal.mjs ' + task + '$'], {encoding:'utf8'});
+      console.log(JSON.stringify({clients:clients.length, window:windows.includes(' · ' + task.slice(0,8)), observer:!!observer.trim()}));
     `, task]);
     return JSON.parse(stdout);
-  }, { timeout: 10_000 }).toMatchObject({ clients: 2, window: true });
+  }, { timeout: 10_000 }).toMatchObject({ clients: 2, window: true, observer: true });
+}
+
+async function sharedTerminalAccess(container: string, task: string, writable: number): Promise<void> {
+  const exec = promisify(execFile);
+  await expect.poll(async () => {
+    const { stdout } = await exec("docker", ["exec", container, "tmux", "-S", "/home/node/.cache/selfme-lab/terminal.sock", "list-clients", "-t", "selfme-" + task, "-F", "#{client_flags}"]);
+    return stdout.trim().split("\n").filter(Boolean).filter(flags => !flags.split(",").includes("read-only")).length;
+  }, { timeout: 5000 }).toBe(writable);
 }
 
 async function browserOnDesktop(container: string, display: string): Promise<void> {

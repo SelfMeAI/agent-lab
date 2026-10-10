@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { discoverConnectedModels, type ProviderModelsInput } from "./provider-models";
-import { disposeTerminal, prepareTerminal, setDesktopTask, showTerminal, terminalArgv } from "../desktop/session.mjs";
+import { isTerminalProtocolReply } from "./terminal-response";
+import { disposeTerminal, inputTerminal, prepareTerminal, setDesktopTask, setTerminalControl, showTerminal, terminalArgv } from "../desktop/session.mjs";
+import { ExecutionObserver, type NativeExecutionEvent } from "../desktop/execution.mjs";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -68,12 +70,14 @@ async function http(req: IncomingMessage, res: ServerResponse): Promise<boolean>
 type DesktopLease = { env: NodeJS.ProcessEnv; isCurrent(): boolean; release(): void };
 type HostDesktopService = { acquireComputer(options: { onStop(): Promise<void> }): Promise<DesktopLease> };
 type PluginApi = {
+  agent: { events: { registerAgentEventSubscription(subscription: { id: string; streams: string[]; handle(event: NativeExecutionEvent): void }): void } };
+  lifecycle: { registerRuntimeLifecycle(registration: { id: string; dispose(): Promise<void> }): void };
   registerSessionCatalog(provider: { id: string; label: string; audience: "gateway-operators"; supportsProcessHomeIsolation: true; list(): Promise<[]>; read(): Promise<never>; openTerminal(request: { hostId: string; threadId: string }): Promise<{ kind: "local"; argv: string[]; cwd: string; title: string }> }): void;
-  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService; getRuntimeConfig(): { models?: { providers?: Record<string, { baseUrl?: string; api?: string; apiKey?: unknown }> } } }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
+  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService; chatAbortControllers: Map<string, unknown>; isTerminalEnabled(): boolean; terminalSessions?: { list(): { sessionId: string; cwd: string }[]; write(owner: string, id: string, data: string): boolean }; getRuntimeConfig(): { models?: { providers?: Record<string, { baseUrl?: string; api?: string; apiKey?: unknown }> } } }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
   registerHttpRoute(route: { path: string; auth: "gateway"; match: "exact"; handler: typeof http }): void;
   on(name: "before_tool_call", handler: () => { block: true; blockReason: string } | undefined, options?: { priority: number }): void;
 };
-let controlLease: { id: string; owner: string; task: string } | undefined;
+let controlLease: { id: string; owner: string; task: string; ready: boolean } | undefined;
 let desktopLease: DesktopLease | undefined;
 let preparingDesktop: Promise<void> | undefined;
 // The container has one native managed desktop. Its allocated display and
@@ -103,6 +107,9 @@ async function prepareDesktop(service: HostDesktopService): Promise<void> {
 export default {
   id: "selfme-lab", name: "SelfMe Lab Remote Files",
   register(api: PluginApi): void {
+    const observer = new ExecutionObserver({ onRound: async task => { if (desktopLease?.isCurrent()) await showTerminal(task, true); }, onError: error => console.error("[selfme] Terminal observer:", error instanceof Error ? error.message : "unavailable") });
+    api.agent.events.registerAgentEventSubscription({ id: "terminal-observer", streams: ["lifecycle", "tool", "command_output", "approval"], handle: event => observer.observe(event) });
+    api.lifecycle.registerRuntimeLifecycle({ id: "terminal-observer", dispose: async () => { controlLease = undefined; await setTerminalControl(); await observer.dispose(); } });
     // Let the native PTY manager retain admission, custody and flow control.
     // Its catalog launch extension attaches the same tmux shell as the desktop.
     api.registerSessionCatalog({
@@ -120,7 +127,7 @@ export default {
         if (operation === "prepare") {
           if (!desktopLease?.isCurrent()) throw new Error("请先连接远端桌面");
           await showTerminal(id);
-        } else await disposeTerminal(id);
+        } else { await observer.forget(id); await disposeTerminal(id); }
         respond(true, { ok: true });
       } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "任务终端连接失败" }); }
     }, { scope: "operator.admin" });
@@ -144,20 +151,57 @@ export default {
     // The hold lives on the authenticated Gateway, not in a renderer flag.
     // RFB grants and this lease are both revoked when their owner disconnects.
     api.on("before_tool_call", () => controlLease ? { block: true, blockReason: "远端桌面正在由用户接管。停止操作，等待用户交还控制后再继续。" } : undefined, { priority: 10000 });
-    for (const operation of ["acquire", "renew", "release"] as const) api.registerGatewayMethod(`selfme.control.${operation}`, async ({ params, client, respond }) => {
+    for (const operation of ["acquire", "ready", "renew", "release"] as const) api.registerGatewayMethod(`selfme.control.${operation}`, async ({ params, context, client, respond }) => {
       try {
         const owner = client?.connId;
         if (!owner || !client?.connectionSignal || client.connectionSignal.aborted) throw new Error("接管需要持续的已认证连接");
         if (operation === "acquire") {
           if (controlLease) throw new Error("桌面已有接管者，请先交还控制");
-          const lease = { id: randomUUID(), owner, task: taskId(params.task) }; controlLease = lease;
-          client.connectionSignal.addEventListener("abort", () => { if (controlLease === lease) controlLease = undefined; }, { once: true });
+          const lease = { id: randomUUID(), owner, task: taskId(params.task), ready: false }; await root(lease.task);
+          if (controlLease) throw new Error("桌面已有接管者，请先交还控制");
+          if (client.connectionSignal.aborted) throw new Error("接管连接已断开"); controlLease = lease;
+          await setTerminalControl();
+          client.connectionSignal.addEventListener("abort", () => { if (controlLease === lease) { controlLease = undefined; void setTerminalControl().catch(() => {}); } }, { once: true });
           respond(true, { id: lease.id }); return;
         }
         if (!controlLease || controlLease.owner !== owner || controlLease.id !== params.id) throw new Error("接管已结束或不属于此连接");
-        if (operation === "release") controlLease = undefined;
+        if (operation === "ready") {
+          if (context.chatAbortControllers.size) throw new Error("智能体仍有操作未停止，终端保持只读");
+          controlLease.ready = true;
+        }
+        if (operation === "release") { controlLease = undefined; await setTerminalControl(); }
+        else await setTerminalControl({ task: controlLease.task, ready: controlLease.ready, expiresAt: Date.now() + 45_000 });
         respond(true, { ok: true });
       } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "接管失败" }); }
+    }, { scope: "operator.admin" });
+    const inputQueues = new Map<string, Promise<void>>();
+    api.registerGatewayMethod("selfme.terminal.input", async ({ params, context, client, respond }) => {
+      try {
+        const task = taskId(params.task), owner = client?.connId, id = params.sessionId, data = params.data;
+        if (!owner || typeof id !== "string" || typeof data !== "string" || Buffer.byteLength(data) > 64 * 1024) throw new Error("终端输入无效");
+        const assertCustody = () => {
+          if (client?.connectionSignal?.aborted || !context.isTerminalEnabled() || context.terminalSessions?.list().find(row => row.sessionId === id)?.cwd !== join(tasks, task) || !context.terminalSessions.write(owner, id, "")) throw new Error("终端已关闭或不属于此任务与连接");
+        };
+        if (isTerminalProtocolReply(data)) {
+          // DA/theme negotiation belongs to this read-only tmux client, not
+          // the task shell. It is allowed during observation, never as input.
+          assertCustody();
+          if (!context.terminalSessions!.write(owner, id, data)) throw new Error("终端观察连接已关闭");
+          respond(true, { ok: true }); return;
+        }
+        const assertInput = () => {
+          if (client?.connectionSignal?.aborted || !controlLease?.ready || controlLease.owner !== owner || controlLease.task !== task) throw new Error("请先停止并接管，再向人工终端输入");
+          assertCustody();
+        };
+        assertInput();
+        // Keep the operator PTY itself read-only, including native terminal.input.
+        // Authorized input reaches the exact shared shell only through this RPC;
+        // native PTY custody and output/resize/close remain in OpenClaw's manager.
+        const pending = (inputQueues.get(task) ?? Promise.resolve()).catch(() => {}).then(async () => { assertInput(); await inputTerminal(task, data, assertInput); });
+        inputQueues.set(task, pending);
+        try { await pending; } finally { if (inputQueues.get(task) === pending) inputQueues.delete(task); }
+        respond(true, { ok: true });
+      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "终端输入失败" }); }
     }, { scope: "operator.admin" });
     api.registerGatewayMethod("selfme.workspace.prepare", async ({ params, respond }) => {
       try {

@@ -4,6 +4,7 @@ import { actionTitle, clawToolCall, contentText, executionFailure, openClawMessa
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
 import type { OpenClawIdentity } from "./gateway";
+import { isTerminalProtocolReply } from "../terminal-response";
 
 type BrowserReference = { target: "host"; profile: "openclaw"; targetId: string };
 type View = { snapshot: RemoteTaskSnapshot; browserReferences: BrowserReference[]; offset: number; total?: number; earlierItems: RemoteItem[]; loadedEarlier: boolean; refreshing?: Promise<void>; timer?: ReturnType<typeof setTimeout> };
@@ -289,6 +290,7 @@ export class OpenClawTasks {
         while ((await this.list()).some(task => task.status === "running" || task.status === "waiting")) {
           if (Date.now() > deadline) throw new Error("智能体仍有操作未停止，未开放桌面控制"); await new Promise(resolve => setTimeout(resolve, 350));
         }
+        await this.request("selfme.control.ready", { id: leaseId });
       } catch (error) { await this.release(); throw error; }
     }
     try {
@@ -369,7 +371,10 @@ export class OpenClawTasks {
     } catch (error) { await this.terminalClose(id, terminalId).catch(() => {}); throw error; }
   }
   private assertTerminal(id: string, terminalId: string): void { key(id); if (this.terminals.get(terminalId) !== id) throw new Error("终端不属于此任务"); }
-  async terminalInput(id: string, terminalId: string, data: string): Promise<void> { this.assertTerminal(id, terminalId); await this.request("terminal.input", { sessionId: terminalId, data }); }
+  async terminalInput(id: string, terminalId: string, data: string): Promise<void> {
+    this.assertTerminal(id, terminalId); if (this.hold?.task !== id && !isTerminalProtocolReply(data)) throw new Error("请先停止并接管，再向人工终端输入");
+    await this.request("selfme.terminal.input", { task: remoteTaskId(id), sessionId: terminalId, data });
+  }
   async terminalResize(id: string, terminalId: string, cols: number, rows: number): Promise<void> { this.assertTerminal(id, terminalId); await this.request("terminal.resize", { sessionId: terminalId, cols, rows }); }
   async terminalClose(id: string, terminalId: string): Promise<void> { this.assertTerminal(id, terminalId); await this.request("terminal.close", { sessionId: terminalId }); this.terminals.delete(terminalId); this.terminalSeq.delete(terminalId); }
   async close(id: string): Promise<void> { this.opening.delete(id); await this.detach(id); }

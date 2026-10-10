@@ -17,6 +17,7 @@ RUN ./configure --prefix=/usr --libdir=/usr/lib/$(dpkg-architecture -qDEB_HOST_M
 
 FROM ${SOURCE_IMAGE}
 USER root
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 # Curated desktop shell; task and provider state stays in its native volume.
 RUN sed -i 's|URIs: http://deb.debian.org/|URIs: https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 update \
@@ -24,6 +25,7 @@ RUN sed -i 's|URIs: http://deb.debian.org/|URIs: https://deb.debian.org/|g' /etc
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY plugin /opt/selfme/plugin
 COPY --from=model-discovery /provider-models.ts /opt/selfme/plugin/provider-models.ts
+COPY --from=model-discovery /terminal-response.ts /opt/selfme/plugin/terminal-response.ts
 COPY bootstrap /opt/selfme/bootstrap
 COPY desktop /opt/selfme/desktop
 COPY --from=panel-build /panel-root/usr/bin/xfce4-panel /usr/bin/xfce4-panel

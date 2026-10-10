@@ -333,11 +333,25 @@ describe("OpenClaw native task projections and custody", () => {
     await client.desktop(id, true);
     const names = request.mock.calls.map(([name]) => name);
     expect(names.indexOf("selfme.control.acquire")).toBeLessThan(names.indexOf("chat.abort"));
-    expect(names.indexOf("chat.abort")).toBeLessThan(names.indexOf("desktop.observe"));
+    expect(names.indexOf("chat.abort")).toBeLessThan(names.indexOf("selfme.control.ready"));
+    expect(names.indexOf("selfme.control.ready")).toBeLessThan(names.indexOf("desktop.observe"));
     await expect(client.focusBrowser(id, "owned")).rejects.toThrow("接管");
     await client.release();
     expect(request).toHaveBeenCalledWith("selfme.control.release", { id: "lease" });
     await client.focusBrowser(id, "owned"); client.shutdown();
+  });
+  it("requires the exact task's admitted takeover for manual input and relocks after return", async () => {
+    const { client, request } = fixture();
+    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "sessions.list" ? { sessions: [] } : method === "selfme.control.acquire" ? { id: "lease" } : method === "desktop.observe" ? { wsPath: "/observe", control: true } : {});
+    await client.terminal(id);
+    await expect(client.terminalInput(id, "term", "pwd\r")).rejects.toThrow("接管");
+    expect(request).not.toHaveBeenCalledWith("selfme.terminal.input", expect.anything());
+    await client.terminalInput(id, "term", "\x1b[>0;276;0c");
+    expect(request).toHaveBeenCalledWith("selfme.terminal.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionId: "term", data: "\x1b[>0;276;0c" });
+    await expect(client.terminalInput(id, "term", "\x1b[>0;276;0cpwd\r")).rejects.toThrow("接管");
+    await client.desktop(id, true); await client.terminalInput(id, "term", "pwd\r");
+    expect(request).toHaveBeenCalledWith("selfme.terminal.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionId: "term", data: "pwd\r" });
+    await client.release(); await expect(client.terminalInput(id, "term", "pwd\r")).rejects.toThrow("接管"); client.shutdown();
   });
   it("releases server custody if a desktop grant fails", async () => {
     const { client, request } = fixture();

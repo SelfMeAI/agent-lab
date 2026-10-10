@@ -6,6 +6,8 @@ import { mkdir, writeFile, readFile, rename } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { recoverManagedBrowserProfile } from '/opt/selfme/bootstrap/browser-profile.mjs';
 import { configureDesktop } from '/opt/selfme/desktop/configure.mjs';
+process.env.LANG = 'C.UTF-8';
+process.env.LC_ALL = 'C.UTF-8';
 await configureDesktop();
 const home = '/home/node/.openclaw';
 await mkdir(home, { recursive: true, mode: 0o700 });
@@ -53,7 +55,7 @@ child.on('exit', (code) => process.exit(code ?? 1));
 
 export const remoteDeployments = {
   openhands: { name: "OpenHands", version: "1.53.0", commit: "54daf056bd863bb46f922a2fe9324dd736b37ff6", image: "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab5", legacyImages: ["selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab1", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab2", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab3", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab4"], port: 8000, mount: "/workspace", command: [] },
-  openclaw: { name: "OpenClaw", version: "2026.9.9", commit: "bcfc88812a35243893585dbeca87ca41b48272ca", image: "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab7", legacyImages: ["selfme-lab/openclaw:2026.9.9-source-bcfc88812a35", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab1", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab2", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab3", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab4", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab5", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab6"], port: 18789, mount: "/home/node/.openclaw", command: ["node", "--input-type=module", "-e", openClawBootstrap] },
+  openclaw: { name: "OpenClaw", version: "2026.9.9", commit: "bcfc88812a35243893585dbeca87ca41b48272ca", image: "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab11", legacyImages: ["selfme-lab/openclaw:2026.9.9-source-bcfc88812a35", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab1", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab2", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab3", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab4", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab5", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab6", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab7", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab8", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab9", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab10"], port: 18789, mount: "/home/node/.openclaw", command: ["node", "--input-type=module", "-e", openClawBootstrap] },
 } satisfies Record<RemoteAgentId, { name: string; version: string; commit: string; image: string; legacyImages: string[]; port: number; mount: string; command: string[] }>;
 
 export function redactServiceOutput(value: string, secrets: string[] = []): string {

@@ -1,9 +1,14 @@
 type Identity = { task: string; name: string; cwd: string };
 export const contextPath: string;
+export const controlPath: string;
 export function terminalIdentity(task: unknown): Identity;
 export function checkedTask(task: string): Promise<Identity>;
 export function setDesktopTask(task: string): Promise<Identity>;
-export function terminalArgv(task: string): string[];
+export function terminalArgv(task: string, desktop?: boolean): string[];
+export function terminalViewPattern(task: string, file: 'agent-terminal.mjs' | 'terminal-attach.mjs'): string;
+export function tmuxArgv(): string[];
+export function setTerminalControl(lease?: { task: string; ready: boolean; expiresAt: number }): Promise<void>;
+export function inputTerminal(task: string, data: string, authorize?: () => void): Promise<void>;
 export function prepareTerminal(task: string): Promise<Identity>;
-export function showTerminal(task: string): Promise<void>;
+export function showTerminal(task: string, automatic?: boolean): Promise<void>;
 export function disposeTerminal(task: string): Promise<void>;
