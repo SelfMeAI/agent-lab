@@ -7,4 +7,5 @@
   <property name="borderless_maximize" type="bool" value="true"/>
   <property name="use_compositing" type="bool" value="false"/>
   <property name="show_app_icon" type="bool" value="false"/>
+  <property name="prevent_focus_stealing" type="bool" value="true"/>
 </property></channel>

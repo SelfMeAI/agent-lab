@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browserFrame, browserReconnectOptions, desktopInputEnabled, followBrowserTab, observerLabel, remoteCommandItems } from "./scene-presentation";
+import { browserFrame, browserObservationPresentation, browserReconnectOptions, desktopInputEnabled, followBrowserTab, observerLabel, remoteCommandItems } from "./scene-presentation";
 import type { RemoteItem } from "../../../../../../packages/contracts/src/remote-agent";
 
 describe("remote scene presentation", () => {
@@ -16,10 +16,16 @@ describe("remote scene presentation", () => {
   });
   it("reconnects only to a still-current target, without replaying closed page IDs", () => {
     const tabs = [{ targetId: "current", url: "about:blank", title: "" }];
-    expect(browserReconnectOptions(tabs, "current", false)).toEqual({ targetId: "current" });
-    expect(browserReconnectOptions(tabs, "closed", false)).toEqual({});
-    expect(browserReconnectOptions([], "closed", false)).toBeUndefined();
-    expect(browserReconnectOptions([], "closed", true)).toEqual({});
+    expect(browserReconnectOptions(tabs, "current")).toEqual({ targetId: "current" });
+    expect(browserReconnectOptions(tabs, "closed")).toEqual({});
+    expect(browserReconnectOptions([], "closed")).toBeUndefined();
+  });
+  it("offers reconnect only after failure, not during takeover, initial connection, automatic recovery or an intentionally empty browser", () => {
+    for (const state of ["connecting", "retrying", "controlled", "empty", "live"] as const) expect(browserObservationPresentation(state).reconnect).toBe(false);
+    expect(browserObservationPresentation("error")).toMatchObject({ tone: "error", reconnect: true, open: false });
+    expect(browserObservationPresentation("empty")).toMatchObject({ tone: "idle", reconnect: false, open: true });
+    expect(browserObservationPresentation("controlled")).toMatchObject({ tone: "idle", loading: false, open: false });
+    expect(browserObservationPresentation("retrying").loading).toBe(true);
   });
   it("enables desktop input only for an explicit live control grant, never an observer", () => {
     expect(desktopInputEnabled(true, true, "connected", false, false)).toBe(true);

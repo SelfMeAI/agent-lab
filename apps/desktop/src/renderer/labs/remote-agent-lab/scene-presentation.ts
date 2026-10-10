@@ -35,7 +35,20 @@ export function desktopInputEnabled(control: boolean, granted: boolean, state: "
 }
 
 /** A reconnect is a fresh lookup, not a replay of a historical page identity. */
-export function browserReconnectOptions(tabs: RemoteBrowserTab[], previousId: string, openIfMissing: boolean): RemoteBrowserOptions | undefined {
-  if (!tabs.length && !openIfMissing) return undefined;
+export function browserReconnectOptions(tabs: RemoteBrowserTab[], previousId: string): RemoteBrowserOptions | undefined {
+  if (!tabs.length) return undefined;
   return tabs.some(tab => tab.targetId === previousId) ? { targetId: previousId } : {};
+}
+
+export type BrowserObservationState = "connecting" | "live" | "empty" | "controlled" | "retrying" | "error";
+/** A paused/empty observation is not a connection failure or a launch request. */
+export function browserObservationPresentation(state: BrowserObservationState) {
+  const labels: Record<BrowserObservationState, string> = {
+    connecting: "正在连接浏览器…", live: "LIVE · 只读观察", empty: "尚无任务页面",
+    controlled: "人工接管中 · 观察已暂停", retrying: "正在恢复浏览器观察…", error: "浏览器观察已断开",
+  };
+  return {
+    label: labels[state], tone: state === "live" ? "connected" : state === "error" ? "error" : state === "connecting" || state === "retrying" ? "loading" : "idle",
+    loading: state === "connecting" || state === "retrying", reconnect: state === "error", open: state === "empty",
+  };
 }

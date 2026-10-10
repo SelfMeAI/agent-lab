@@ -335,9 +335,9 @@ export class OpenClawTasks {
     await this.prepareScene(id);
     let tabs = await this.browserTabs(id), targetId = options.targetId;
     if (targetId && !tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
-    if (address || !tabs.length) {
+    if (address) {
       this.assertNotControlled();
-      const opened = record(await this.request("browser.request", { method: "POST", path: "/tabs/open", body: { url: address || "about:blank" }, tabScope: this.browserScope(id) }));
+      const opened = record(await this.request("browser.request", { method: "POST", path: "/tabs/open", body: { url: address }, tabScope: this.browserScope(id) }));
       targetId = text(opened.targetId); tabs = await this.browserTabs(id);
       // Explicit navigation should also be visible on the native desktop.
       // Observing an existing tab stays read-only and does not steal focus.
@@ -346,7 +346,7 @@ export class OpenClawTasks {
     // CDP enumeration is not chronological; never prefer a blank tab over a
     // task's actual page merely because it happens to be last in the response.
     targetId ||= (tabs.find(tab => tab.url && tab.url !== "about:blank") ?? tabs[0])?.targetId;
-    if (!targetId) throw new Error("远端浏览器未返回任务页面，请重新连接");
+    if (!targetId) throw new Error("当前任务没有打开浏览器页面，请先打开浏览器");
     const result = record(await this.request("browser.request", { method: "POST", path: "/screencast", body: { targetId, maxWidth: 1600, maxHeight: 1000, quality: 85 }, tabScope: this.browserScope(id) }));
     const base = new URL(await this.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     return { url: new URL(text(result.wsPath), base).toString(), pageUrl: text(result.url), expiresAt: Number(result.expiresAtMs), targetId, tabs };
@@ -355,7 +355,8 @@ export class OpenClawTasks {
     const workspace = await this.prepareScene(id);
     const cwd = text(workspace.root), expected = `/home/node/.openclaw/workspace/selfme/${remoteTaskId(id)}`;
     if (cwd !== expected) throw new Error("远端任务工作区无效，未打开终端");
-    await this.request("selfme.terminal.prepare", { task: remoteTaskId(id) });
+    // Attaching an external view prepares the shared shell, not its desktop
+    // window. Only the Dock or a new agent round opens that native window.
     // This is a connection-owned *viewer*, not an agent-owned shell. Native
     // close kills this tmux attachment; the task's shared shell stays alive.
     const result = record(await this.request("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "selfme-lab-terminal", hostId: "gateway", threadId: remoteTaskId(id) } }));

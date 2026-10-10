@@ -53,9 +53,10 @@ test("deployment layers are explicit, source-derived and ownership-labelled", as
 test("OpenClaw adds the curated Xfce desktop and shared terminal in the deployment layer", async () => {
   const definition = JSON.parse(await readFile(new URL("../../services/remote-agent/openclaw/service.json", import.meta.url), "utf8"));
   const dockerfile = await readFile(new URL("../../services/remote-agent/openclaw/deployment.Dockerfile", import.meta.url), "utf8");
-  assert.ok(definition.deployment.image.endsWith("-lab11"));
+  assert.ok(definition.deployment.image.endsWith("-lab14"));
+  assert.match(dockerfile, /COPY --from=terminal-build \/terminal-root\/usr\/bin\/xfce4-terminal/);
   assert.match(dockerfile, /COPY --from=panel-build \/panel-root\/usr\/bin\/xfce4-panel/);
-  assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl/);
+  assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl xdotool/);
   assert.match(dockerfile, /COPY desktop \/opt\/selfme\/desktop/);
   assert.match(dockerfile, /COPY bootstrap \/opt\/selfme\/bootstrap/);
   assert.match(dockerfile, /COPY --from=model-discovery \/terminal-response\.ts \/opt\/selfme\/plugin\/terminal-response\.ts/);

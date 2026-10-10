@@ -5,6 +5,7 @@ export function terminalIdentity(task: unknown): Identity;
 export function checkedTask(task: string): Promise<Identity>;
 export function setDesktopTask(task: string): Promise<Identity>;
 export function terminalArgv(task: string, desktop?: boolean): string[];
+export function terminalWindowArgv(task: string, automatic?: boolean): string[];
 export function terminalViewPattern(task: string, file: 'agent-terminal.mjs' | 'terminal-attach.mjs'): string;
 export function tmuxArgv(): string[];
 export function setTerminalControl(lease?: { task: string; ready: boolean; expiresAt: number }): Promise<void>;

@@ -219,8 +219,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "shell.foreground", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-11",
-    evidence: ["packages/remote-agent/src/transcript.ts", "packages/remote-agent/src/transcript.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/execution.mjs", "services/remote-agent/openclaw/desktop/agent-terminal.mjs", "scripts/remote-agent/desktop.test.mjs"],
-    note: "智能体命令在远端执行，参数、原生输出和工具状态显示于动作流与 Terminal。OpenClaw 桌面终端新增只读智能体执行页，直接订阅服务端原生生命周期、审批与命令输出；关闭客户端或观察窗口不重新执行、不终止命令，新一轮更新现有视图，不逐个命令抢焦点。真实模型的 printf / sleep 命令已在打包版与桌面观察页核对。只显示引擎实际返回的信息，不捏造日志或退出码；OpenHands 的 Terminal 不提供手动 PTY。",
+    evidence: ["packages/remote-agent/src/transcript.ts", "packages/remote-agent/src/transcript.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/execution.mjs", "services/remote-agent/openclaw/desktop/agent-terminal.mjs", "services/remote-agent/openclaw/desktop/session.mjs", "services/remote-agent/openclaw/desktop/terminal-focus.mjs", "scripts/remote-agent/desktop.test.mjs", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
+    note: "智能体命令在远端执行，参数、原生输出和工具状态显示于动作流与 Terminal。OpenClaw 桌面终端的只读智能体执行页直接订阅服务端原生生命周期、审批与命令输出；关闭客户端或观察窗口不重新执行、不终止命令。新一轮恢复缺失的可见窗口但不激活、不抢焦点；已有视图继续更新，同一轮不逐个命令重开。真实容器已核对窗口可见且原有浏览器焦点保持；真实模型的 printf / sleep 已在打包版核对。只显示引擎实际返回的信息，不捏造日志或退出码；OpenHands 的 Terminal 不提供手动 PTY。",
   },
   {
     capabilityId: "shell.background", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
@@ -232,7 +232,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "shell.pty", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-11",
     evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "packages/remote-agent/src/terminal-response.ts", "packages/remote-agent/src/terminal-response.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openclaw/desktop/session.mjs", "services/remote-agent/openclaw/desktop/terminal-attach.mjs", "services/remote-agent/openclaw/plugin/index.ts", "scripts/remote-agent/desktop.test.mjs", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
-    note: "原生 terminal.open / attach / resize / close 经受控 catalog 连接当前任务的共享 tmux shell，UUID、目录标记及真实路径先校验。桌面人工终端和外部交互终端仍为同一个 shell，智能体执行页为另一个只读观察视图。人工输入必须经服务端接管租约、原生 PTY 连接归属与工作区校验，停稳前不能输入，交还或断线重新锁定；不只靠前端禁用按钮。真实容器验收了输入拦截、执行、Ctrl+C、重连不累积附件及数据保留。关闭观察只断开附件；Dock 可重开双页签，不重跑命令。手动命令不经过智能体审批、不自动加入对话；容器重启不保留 shell 进程。",
+    note: "原生 terminal.open / attach / resize / close 经受控 catalog 连接当前任务的共享 tmux shell，UUID、目录标记及真实路径先校验。桌面人工终端和外部交互终端为同一个 shell，智能体执行页为另一个只读观察视图。进入外部交互终端仅连接共享 shell，不打开桌面窗口；正常连接不要求手动断开，连接失败或意外退出才显示重连。人工输入必须经服务端接管租约、原生 PTY 连接归属与工作区校验，停稳前不能输入，交还或断线重新锁定；不只靠前端禁用按钮。真实容器验收了不隐式启动窗口、输入拦截、执行、Ctrl+C、重连不累积附件及数据保留。关闭观察只断开附件；Dock 可重开双页签，不重跑命令。手动命令不经过智能体审批、不自动加入对话；容器重启不保留 shell 进程。",
   },
   {
     capabilityId: "files.attachments", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -242,9 +242,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "web-action.browser-session", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
+    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-11",
     evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/main/remote-agent/deployment.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/scene-presentation.test.ts", "services/remote-agent/openhands/extension/app.py"],
-    note: "真实 DeepSeek 任务已访问公开网页及当前容器 127.0.0.1 上的任务网页。OpenClaw 使用 native desktop lease 启动可见 Chromium，页面列表限定原生 tabScope 与当前任务成功工具回执的 referencedTabs，导航已有页也能恢复观察；不从用户文字或页面内容猜标签页。支持多页选择及工作中跟随新页面，观察不抢焦点，明确点击「在桌面查看」才定位窗口。重连先重新读取当前任务页面，不重用已关闭的页面 ID；打包版实测关闭后自动重试不会启动浏览器，手动重新连接可打开新页面并恢复 LIVE。仅允许容器 localhost / 127.0.0.1，不开放任意私网。OpenHands 保持原生共享浏览器只读画面；两者均不是任务独占桌面或登录态。",
+    note: "真实 DeepSeek 任务已访问公开网页及当前容器 127.0.0.1 上的任务网页。OpenClaw 使用 native desktop lease 启动可见 Chromium，页面列表限定原生 tabScope 与当前任务成功工具回执的 referencedTabs，导航已有页也能恢复观察；不从用户文字或页面内容猜标签页。支持多页选择及工作中跟随新页面，观察不抢焦点，明确点击「在桌面查看」才定位窗口。进入浏览器页签只观察现有页面；没有页面时显示空态与明确「打开浏览器」入口，不隐式启动 Chrome。重连重新读取任务页面，不重用已关闭的页面 ID，也不创建新页面。仅允许容器 localhost / 127.0.0.1，不开放任意私网。OpenHands 保持原生共享浏览器只读画面；两者均不是任务独占桌面或登录态。",
   },
   {
     capabilityId: "web-action.browser-dom", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -254,9 +254,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "computer.screen-observation", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-10",
+    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-11",
     evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/scene-presentation.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/workspace.css", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "services/remote-agent/openhands/extension/app.py"],
-    note: "打包版已目视核对 OpenHands 1280×800 浏览器和 OpenClaw 1920×1080 完整桌面，画面按容器可用区域缩放、可展开，不依赖画布自身撑高页面。两者只读 RFB 画面使用普通箭头、不接受远端点击，外侧页签仍正常响应；已实际点击核对。OpenClaw screencast 收到真实 JPEG 才显示 LIVE，并有连接超时和有界重试；RFB 连接状态与接管状态分开。凭据短时、OpenHands grant 一次性消费；尚无隐私遮罩或任务级桌面隔离。",
+    note: "打包版已目视核对 OpenHands 1280×800 浏览器和 OpenClaw 1920×1080 完整桌面，画面按容器可用区域缩放、可展开，不依赖画布自身撑高页面。两者只读 RFB 画面使用普通箭头、不接受远端点击，外侧页签仍正常响应；已实际点击核对。OpenClaw screencast 收到真实 JPEG 才显示 LIVE；人工接管时显示观察暂停，交还后自动恢复。连接超时有界重试期间显示恢复提示，失败后才提供重连，不将接管或空页面标为故障；RFB 连接状态与接管状态分开。凭据短时、OpenHands grant 一次性消费；尚无隐私遮罩或任务级桌面隔离。",
   },
   {
     capabilityId: "computer.mouse-keyboard", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",

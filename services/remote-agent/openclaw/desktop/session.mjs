@@ -3,6 +3,7 @@ import { mkdir, readFile, realpath, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as wait } from 'node:timers/promises';
 const run = promisify(execFile);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const state = '/home/node/.cache/selfme-lab';
@@ -38,6 +39,13 @@ export function terminalViewPattern(task, file) {
   if (!['agent-terminal.mjs', 'terminal-attach.mjs'].includes(file)) throw new Error('终端视图无效');
   return '^' + process.execPath.replaceAll('.', '\\.') + ' /opt/selfme/desktop/' + file.replaceAll('.', '\\.') + ' ' + task + (file === 'terminal-attach.mjs' ? ' desktop' : '') + '$';
 }
+export function terminalWindowArgv(task, automatic = false) {
+  const identity = terminalIdentity(task), suffix = ' · ' + task.slice(0, 8);
+  // The narrowly scoped native terminal patch recognizes this marker and
+  // disables focus_on_map before the first map, even without prior user input.
+  // Later Dock clicks can still activate this normal, non-minimized window.
+  return ['--disable-server', '--title', '智能体执行' + suffix, '--working-directory', identity.cwd, '--hide-menubar', '--hide-toolbar', '--geometry', '110x30', ...(automatic ? ['--startup-id=selfme-observer_TIME1'] : []), '--command', process.execPath + ' /opt/selfme/desktop/agent-terminal.mjs ' + task, '--active-tab', '--tab', '--title', '人工终端' + suffix, '--command', terminalArgv(task, true).join(' ')];
+}
 export async function setTerminalControl(lease) {
   await mkdir(state, { recursive: true, mode: 0o700 });
   const temporary = controlPath + '.' + randomUUID() + '.next';
@@ -69,21 +77,28 @@ export async function prepareTerminal(task) {
   return identity;
 }
 const showing = new Map();
+async function terminalWindow(task) {
+  const { stdout } = await run('wmctrl', ['-l']).catch(error => {
+    // A newly prepared desktop may not have an EWMH client list yet.
+    if (String(error.stderr).includes('Cannot get client list properties')) return { stdout: '' };
+    throw error;
+  });
+  return stdout.split('\n').find(line => /(?:智能体执行|人工终端)/.test(line) && line.endsWith(' · ' + task.slice(0, 8)))?.split(/\s+/)[0];
+}
 export async function showTerminal(task, automatic = false) {
-  if (showing.has(task)) return showing.get(task);
+  if (showing.has(task)) {
+    await showing.get(task);
+    // A deliberate Dock click during automatic restoration still expresses
+    // activation intent. Do not create a duplicate window or lose that click.
+    if (!automatic) { const window = await terminalWindow(task); if (window) await run('wmctrl', ['-ia', window]); }
+    return;
+  }
   const pending = openTerminalWindow(task, automatic).finally(() => { if (showing.get(task) === pending) showing.delete(task); });
   showing.set(task, pending); return pending;
 }
 async function openTerminalWindow(task, automatic) {
-  const identity = await prepareTerminal(task);
-  const suffix = ' · ' + task.slice(0, 8);
-  const { stdout } = await run('wmctrl', ['-l']).catch(error => {
-    // Fresh Xfce sessions can have no EWMH client-list property until the first
-    // window maps. That is an empty desktop, not a failed terminal connection.
-    if (String(error.stderr).includes('Cannot get client list properties')) return { stdout: '' };
-    throw error;
-  });
-  const window = stdout.split('\n').find(line => /(?:智能体执行|人工终端)/.test(line) && line.endsWith(suffix))?.split(/\s+/)[0];
+  await prepareTerminal(task);
+  const window = await terminalWindow(task);
   if (window) {
     const alive = async file => { try { await run('pgrep', ['-f', terminalViewPattern(task, file)]); return true; } catch { return false; } };
     if (await alive('agent-terminal.mjs') && await alive('terminal-attach.mjs')) { if (!automatic) await run('wmctrl', ['-ia', window]); return; }
@@ -93,9 +108,20 @@ async function openTerminalWindow(task, automatic) {
   }
   await new Promise((resolve, reject) => {
     // Fixed trusted paths + a validated UUID, no interpolated user commands.
-    const child = spawn('xfce4-terminal', ['--disable-server', '--title', '智能体执行' + suffix, '--working-directory', identity.cwd, '--hide-menubar', '--hide-toolbar', '--geometry', '110x30', ...(automatic ? ['--minimize'] : []), '--command', process.execPath + ' /opt/selfme/desktop/agent-terminal.mjs ' + task, '--active-tab', '--tab', '--title', '人工终端' + suffix, '--command', terminalArgv(task, true).join(' ')], { detached: true, stdio: 'ignore' });
+    const child = spawn('xfce4-terminal', terminalWindowArgv(task, automatic), { detached: true, stdio: 'ignore' });
     child.once('error', reject); child.once('spawn', () => { child.unref(); resolve(); });
   });
+  if (automatic) {
+    // Raise this new observation window once so a maximized browser does not
+    // hide it. XRaiseWindow changes stacking only, not keyboard focus; unlike
+    // an "above" state it does not keep the terminal permanently on top.
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const mapped = await terminalWindow(task);
+      if (mapped) { await run('xdotool', ['windowraise', mapped]); return; }
+      await wait(50);
+    }
+    throw new Error('智能体终端窗口未能显示');
+  }
 }
 export async function disposeTerminal(task) {
   const identity = terminalIdentity(task);

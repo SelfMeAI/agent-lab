@@ -221,7 +221,7 @@ describe("OpenClaw native task projections and custody", () => {
     const { client, request, event, terminalEvents } = fixture();
     request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00", confined: false } : method === "terminal.attach" ? { buffer: "initial", seq: 7 } : {});
     expect(await client.terminal(id)).toMatchObject({ id: "term", buffer: "initial" });
-    expect(request).toHaveBeenCalledWith("selfme.terminal.prepare", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" });
+    expect(request).not.toHaveBeenCalledWith("selfme.terminal.prepare", expect.anything());
     expect(request).toHaveBeenCalledWith("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "selfme-lab-terminal", hostId: "gateway", threadId: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" } });
     expect(request).not.toHaveBeenCalledWith("terminal.input", expect.anything());
     event({ event: "terminal.data", payload: { sessionId: "term", seq: 7, data: "initial" } });
@@ -229,7 +229,14 @@ describe("OpenClaw native task projections and custody", () => {
     expect(terminalEvents).toHaveLength(1); expect(terminalEvents[0].data).toBe("next");
     await expect(client.terminalInput(id.replace("c0ec", "a0ec"), "term", "pwd")).rejects.toThrow("不属于"); client.shutdown();
   });
-  it("opens a real task-owned page when no browser tab exists, on the prepared desktop", async () => {
+  it("never launches a browser implicitly when observing an empty task", async () => {
+    const { client, request } = fixture();
+    request.mockImplementation(async (_method, params: unknown) => (params as { path?: string })?.path === "/tabs" ? { tabs: [] } : {});
+    await expect(client.browser(id)).rejects.toThrow("没有打开浏览器页面");
+    expect(request.mock.calls.some(([, params]) => ["/tabs/open", "/tabs/focus", "/screencast"].includes((params as { path?: string })?.path ?? ""))).toBe(false);
+    client.shutdown();
+  });
+  it("opens a real task-owned page only on explicit navigation, on the prepared desktop", async () => {
     const { client, request } = fixture(); let opened = false;
     request.mockImplementation(async (method, params: unknown) => {
       if (method === "selfme.scene.prepare") return { display: ":101" };
@@ -239,7 +246,7 @@ describe("OpenClaw native task projections and custody", () => {
       if (request.path === "/screencast") return { wsPath: "/browser/observe?token=one-use", url: "about:blank", expiresAtMs: 100 };
       return {};
     });
-    expect(await client.browser(id)).toMatchObject({ targetId: "owned", pageUrl: "about:blank", tabs: [{ targetId: "owned" }] });
+    expect(await client.browser(id, { url: "about:blank" })).toMatchObject({ targetId: "owned", pageUrl: "about:blank", tabs: [{ targetId: "owned" }] });
     expect(request.mock.calls[0]?.[0]).toBe("selfme.scene.prepare");
     expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/open", body: { url: "about:blank" }, tabScope: { sessionKey: id } })); client.shutdown();
     expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/focus", body: { targetId: "owned" }, tabScope: { sessionKey: id } }));

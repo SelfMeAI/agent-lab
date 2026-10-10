@@ -3,10 +3,19 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { configureDesktop } from '../../services/remote-agent/openclaw/desktop/configure.mjs';
-import { terminalIdentity, terminalArgv, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
+import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
 import { ExecutionObserver, projectExecution, displayText, readExecution } from '../../services/remote-agent/openclaw/desktop/execution.mjs';
 import { simplifyPanelSource } from '../../services/remote-agent/openclaw/desktop/panel-menu.mjs';
+import { observerTerminalSource } from '../../services/remote-agent/openclaw/desktop/terminal-focus.mjs';
 const task = 'c0ec83da-66be-4f17-a2c2-01dc02c89f00';
+test('native terminal suppresses initial focus only for our automatic marker and refuses source drift', () => {
+  const source = 'before\n      if (attr->startup_id != NULL)\n        gtk_window_set_startup_id (GTK_WINDOW (window), attr->startup_id);\nafter';
+  const patched = observerTerminalSource(source);
+  assert.match(patched, /if \(g_strcmp0 \(attr->startup_id, "selfme-observer_TIME1"\) == 0\)\n\s+gtk_window_set_focus_on_map \(GTK_WINDOW \(window\), FALSE\);\n\s+else if \(attr->startup_id != NULL\)/);
+  assert.throws(() => observerTerminalSource('unexpected source'));
+  assert.throws(() => observerTerminalSource(source + source));
+  assert.throws(() => observerTerminalSource(patched));
+});
 test('native panel popup patch is narrow and refuses source drift', () => {
   const plugin = 'if (event->button == 3\n || (event->button == 1 && modifiers == GDK_CONTROL_MASK))\n {\n open_settings();\n }';
   const window = '\nstatic void\npanel_window_menu_popup (PanelWindow *window, GdkEventButton *event, gboolean game)\n{\n open_settings();\n}';
@@ -37,6 +46,14 @@ test('terminal view liveness matches the actual node process, not its launcher a
   }
   assert.throws(() => terminalViewPattern(task, 'other.mjs'));
 });
+test('new rounds restore a visible observation window without asking the window manager for focus', () => {
+  const automatic = terminalWindowArgv(task, true), manual = terminalWindowArgv(task);
+  assert.ok(automatic.includes('--startup-id=selfme-observer_TIME1'));
+  assert.ok(!automatic.includes('--minimize'));
+  assert.ok(!manual.some(value => value.startsWith('--startup-id')));
+  assert.equal(automatic.filter(value => value === '--command').length, 2);
+  assert.throws(() => terminalWindowArgv(task + '; command', true));
+});
 test('curated desktop is reproducible and does not modify task/provider state', async () => {
   await mkdir('.work/remote-agent', { recursive: true });
   const fixture = await mkdtemp('.work/remote-agent/desktop-test-');
@@ -55,6 +72,8 @@ test('curated desktop is reproducible and does not modify task/provider state', 
     assert.match(desktop, /galaxy\.png/);
     assert.match(desktop, /name="desktop-menu"[^<]*<property name="show" type="bool" value="false"/);
     assert.match(desktop, /name="windowlist-menu"[^<]*<property name="show" type="bool" value="false"/);
+    const manager = await readFile(join(fixture, '.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml'), 'utf8');
+    assert.match(manager, /name="prevent_focus_stealing" type="bool" value="true"/);
     await configureDesktop(fixture);
     assert.equal(await readFile(join(fixture, '.openclaw/openclaw.json'), 'utf8'), 'retained-provider-state');
   } finally { await rm(fixture, { recursive: true, force: true }); }
