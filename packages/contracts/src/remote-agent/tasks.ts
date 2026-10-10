@@ -39,6 +39,12 @@ export interface RemoteDesktopGrant { url: string; password?: string; control: b
 export interface RemoteBrowserTab { targetId: string; title: string; url: string }
 export interface RemoteBrowserOptions { targetId?: string; url?: string }
 export interface RemoteBrowserGrant { url: string; pageUrl: string; expiresAt: number; targetId: string; tabs: RemoteBrowserTab[] }
+/** Closed human input surface; no script, selector or arbitrary CDP command. */
+export type RemoteBrowserInput =
+  | { kind: "mouse"; type: "move" | "down" | "up" | "wheel"; x: number; y: number; button?: "left" | "middle" | "right"; buttons?: number; clickCount?: number; deltaX?: number; deltaY?: number; modifiers?: number }
+  | { kind: "key"; type: "down" | "up"; key: string; code: string; keyCode: number; modifiers: number; text?: string }
+  | { kind: "text"; text: string }
+  | { kind: "release" };
 export interface RemoteTerminal { id: string; cwd: string; confined: boolean; buffer?: string }
 export interface RemoteTerminalEvent { engine: RemoteAgentId; taskId: string; terminalId: string; data?: string; exited?: boolean; detail?: string }
 export interface RemoteTaskBridge {
@@ -60,6 +66,7 @@ export interface RemoteTaskBridge {
   observeRemoteBrowser(engine: RemoteAgentId, id: string, options?: RemoteBrowserOptions): Promise<RemoteBrowserGrant>;
   listRemoteBrowserTabs(engine: RemoteAgentId, id: string): Promise<RemoteBrowserTab[]>;
   focusRemoteBrowser(engine: RemoteAgentId, id: string, targetId: string): Promise<void>;
+  inputRemoteBrowser(engine: RemoteAgentId, id: string, targetId: string, events: RemoteBrowserInput[]): Promise<void>;
   returnRemoteDesktop(engine: RemoteAgentId, id: string, followUp?: string): Promise<RemoteDesktopGrant>;
   openRemoteTerminal(engine: RemoteAgentId, id: string): Promise<RemoteTerminal>;
   inputRemoteTerminal(engine: RemoteAgentId, id: string, terminalId: string, data: string): Promise<void>;

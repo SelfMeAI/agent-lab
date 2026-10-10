@@ -21,10 +21,11 @@ describe("remote scene presentation", () => {
     expect(browserReconnectOptions([], "closed")).toBeUndefined();
   });
   it("offers reconnect only after failure, not during takeover, initial connection, automatic recovery or an intentionally empty browser", () => {
-    for (const state of ["connecting", "retrying", "controlled", "empty", "live"] as const) expect(browserObservationPresentation(state).reconnect).toBe(false);
+    for (const state of ["connecting", "retrying", "empty", "live"] as const) expect(browserObservationPresentation(state).reconnect).toBe(false);
     expect(browserObservationPresentation("error")).toMatchObject({ tone: "error", reconnect: true, open: false });
-    expect(browserObservationPresentation("empty")).toMatchObject({ tone: "idle", reconnect: false, open: true });
-    expect(browserObservationPresentation("controlled")).toMatchObject({ tone: "idle", loading: false, open: false });
+    expect(browserObservationPresentation("empty")).toMatchObject({ tone: "idle", reconnect: false, open: false });
+    expect(browserObservationPresentation("empty", true).open).toBe(true);
+    expect(browserObservationPresentation("live", true)).toMatchObject({ label: "CONTROL · 人工接管中", tone: "connected", loading: false, reconnect: false });
     expect(browserObservationPresentation("retrying").loading).toBe(true);
   });
   it("enables desktop input only for an explicit live control grant, never an observer", () => {
@@ -46,5 +47,10 @@ describe("remote scene presentation", () => {
     expect(browserFrame(packet.buffer)).toEqual({ url: "https://example.com", jpeg });
     for (const invalid of [new ArrayBuffer(0), new ArrayBuffer(5), packet.slice(0, 7).buffer]) expect(() => browserFrame(invalid)).toThrow();
     packet[4 + meta.length] = 0; expect(() => browserFrame(packet.buffer)).toThrow("格式异常");
+  });
+  it("retains CSS viewport dimensions for input even when JPEGs are downscaled", () => {
+    const meta = new TextEncoder().encode(JSON.stringify({ cssWidth: 1920, cssHeight: 1080 })), jpeg = new Uint8Array([255, 216, 12, 255, 217]);
+    const packet = new Uint8Array(4 + meta.length + jpeg.length); new DataView(packet.buffer).setUint32(0, meta.length); packet.set(meta, 4); packet.set(jpeg, 4 + meta.length);
+    expect(browserFrame(packet.buffer).viewport).toEqual({ width: 1920, height: 1080 });
   });
 });

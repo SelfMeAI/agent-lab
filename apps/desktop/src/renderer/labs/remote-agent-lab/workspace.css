@@ -160,6 +160,8 @@
 .remote-attachments > span { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #8dabbb; max-width: 100%; padding: 6px 7px; border: 1px solid #395765; border-radius: 4px; overflow-wrap: anywhere; }
 .remote-attachments button { font-size: 14px; border: 0; color: #9bb0bd; background: none; }
 .remote-scene__heading { gap: 12px; }
+.remote-scene { position: relative; }
+.remote-scene-control-error { margin: 0; padding: 8px 12px; flex-shrink: 0; }
 .remote-scene__heading .remote-icon-button { margin-left: auto; }
 .remote-scene__control-label + .remote-control-return + .remote-icon-button { margin-left: 0; }
 .remote-scene.is-expanded { position: fixed; inset: calc(var(--topbar-height) + 14px) 16px 16px; z-index: 90; background: #060c13; box-shadow: 0 20px 100px #0009; }
@@ -194,6 +196,8 @@
 .remote-rfb-overlay .remote-spinner { width: 20px; height: 20px; }
 .remote-scene-note { color: #648697; font-size: 10px; line-height: 1.7; padding: 0 12px 9px; flex-shrink: 0; display: block; }
 .remote-inline-confirm { position: absolute; z-index: 3; inset: 58px 20px auto; padding: 18px; background: #101b22f9; border: 1px solid #8e7a65; border-radius: 6px; box-shadow: 0 10px 50px #000a; }
+.remote-control-dialog-backdrop { position: absolute; z-index: 4; inset: 46px 0 0; background: #050c1270; overflow-y: auto; }
+.remote-control-dialog-backdrop .remote-inline-confirm { inset: 32px 16px auto; }
 .remote-inline-confirm h3 { font-size: 16px; color: #d5e0e6; font-weight: 500; margin: 0; }
 .remote-inline-confirm p { font-size: 12px; color: #92adbc; line-height: 1.9; margin: 12px 0 16px; }
 .remote-inline-confirm > div { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -201,6 +205,12 @@
 .remote-browser-url { padding: 8px 13px; font: 10px Menlo, monospace; color: #718fa1; border-bottom: 1px solid #203845; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .remote-browser-screen { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; background: #050a10; margin: 10px; border: 1px solid #233947; border-radius: 4px; overflow: hidden; }
 .remote-browser-screen img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.remote-browser-input { position: absolute; inset: 0; touch-action: none; cursor: default; }
+.remote-browser-input img { user-select: none; }
+.remote-browser-input.is-controlled { box-shadow: inset 0 0 0 1px #f28b7b40; }
+.remote-browser-keyboard { position: absolute; left: 1px; top: 1px; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; resize: none; overflow: hidden; }
+.remote-browser-input.is-view-only .remote-browser-keyboard { display: none; }
+.remote-browser-address input:disabled { color: #79919f; border-color: #243b47; background: #081017; cursor: default; }
 .remote-browser-address { display: flex; flex: 0 0 auto; gap: 7px; padding: 8px 10px; border-bottom: 1px solid #203845; }
 .remote-browser-address input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #355361; border-radius: 4px; background: #070f16; color: #bacfdb; font: 11px/1.5 Menlo, monospace; }
 .remote-browser-address input::placeholder { color: #618394; }

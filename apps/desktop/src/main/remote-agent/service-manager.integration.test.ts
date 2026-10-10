@@ -115,11 +115,14 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(terminalEvents.map(event => event.data ?? "").join("")).not.toContain("command not found");
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain(scene.display);
           const serverPath = `uploads/scene-server.cjs`;
-          await files.upload(task.id, serverPath, new TextEncoder().encode(`const http = require('node:http'); http.createServer((req,res) => { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<!doctype html><title>Remote scene proof</title><h1>REMOTE_SCENE_OK</h1>'); }).listen(8734,'127.0.0.1',()=>console.log('REMOTE_SERVER_READY'));`));
+          await files.upload(task.id, serverPath, new TextEncoder().encode(`const http = require('node:http'); http.createServer((req,res) => { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<!doctype html><title>Remote scene proof</title><body style="min-height:2800px"><h1>REMOTE_SCENE_OK</h1><button id="count" style="position:absolute;left:20px;top:80px;width:200px;height:50px" onclick="this.textContent=String(Number(this.textContent)+1)">0</button><textarea id="input" aria-label="Input proof" style="position:absolute;left:20px;top:150px;width:300px;height:60px"></textarea>'); }).listen(8734,'127.0.0.1',()=>console.log('REMOTE_SERVER_READY'));`));
           await tasks.claw.terminalInput(task.id, terminal.id, `node '${terminal.cwd}/${serverPath}'\r`);
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain("REMOTE_SERVER_READY");
           await tasks.claw.release();
           await sharedTerminalAccess(container.name, remoteTaskId(task.id), 0);
+          await expect(tasks.claw.browser(task.id, { url: "about:blank" })).rejects.toThrow("接管");
+          await expect(tasks.claw.request("selfme.browser.open", { task: remoteTaskId(task.id), url: "about:blank", tabScope: { sessionKey: task.id } })).rejects.toThrow("接管");
+          await tasks.claw.desktop(task.id, true);
           const browser = await tasks.claw.browser(task.id, { url: "about:blank" });
           expect(browser.pageUrl).toBe("about:blank"); expect(browser.tabs.some(tab => tab.targetId === browser.targetId)).toBe(true);
           expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
@@ -129,6 +132,18 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(localPage.pageUrl).toBe("http://127.0.0.1:8734/");
           expect(await browserFrameLength(localPage.url)).toBeGreaterThan(100);
           expect((await tasks.claw.browserTabs(task.id)).find(tab => tab.targetId === localPage.targetId)?.title).toBe("Remote scene proof");
+          const click = (x: number, y: number) => tasks.claw.browserInput(task.id, localPage.targetId, [{ kind: "mouse", type: "down", button: "left", buttons: 1, x, y }, { kind: "mouse", type: "up", button: "left", buttons: 0, x, y }]);
+          await click(40, 100); await click(40, 170);
+          await tasks.claw.browserInput(task.id, localPage.targetId, [{ kind: "text", text: "中文输入验收" }, { kind: "key", type: "down", key: "Enter", code: "Enter", keyCode: 13, modifiers: 0 }, { kind: "key", type: "up", key: "Enter", code: "Enter", keyCode: 13, modifiers: 0 }]);
+          const pageState = () => tasks.claw.request<{ result?: { count?: string; text?: string; scroll?: number } }>("browser.request", { method: "POST", path: "/act", body: { kind: "evaluate", targetId: localPage.targetId, fn: "() => ({count:document.getElementById('count').textContent,text:document.getElementById('input').value,scroll:window.scrollY})" }, tabScope: { sessionKey: task.id } });
+          await expect.poll(pageState, { timeout: 5000 }).toMatchObject({ result: { count: "1", text: "中文输入验收\n" } });
+          await tasks.claw.browserInput(task.id, localPage.targetId, [{ kind: "mouse", type: "wheel", x: 700, y: 400, deltaY: 300 }]);
+          await expect.poll(async () => (await pageState()).result?.scroll, { timeout: 5000 }).toBeGreaterThan(0);
+          await expect(tasks.claw.browserInput(task.id, "unowned", [{ kind: "text", text: "BLOCKED" }])).rejects.toThrow("不属于");
+          await tasks.claw.release();
+          await expect(tasks.claw.request("selfme.browser.input", { task: remoteTaskId(task.id), targetId: localPage.targetId, events: [{ kind: "text", text: "BLOCKED" }], tabScope: { sessionKey: task.id } })).rejects.toThrow("接管");
+          // Handback restores observation, without closing Chrome or reopening a page.
+          expect(await browserFrameLength((await tasks.claw.browser(task.id)).url)).toBeGreaterThan(100);
           await tasks.claw.focusBrowser(task.id, localPage.targetId);
           const backgroundTask = await tasks.claw.create();
           await tasks.claw.request("selfme.scene.prepare", { task: remoteTaskId(backgroundTask.id) });
@@ -187,8 +202,10 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           const grant = await tasks.desktop(engine, task.id, false);
           expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
+          await tasks.claw.desktop(task.id, true);
           const browser = await tasks.claw.browser(task.id, { url: "about:blank" });
           expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
+          await tasks.claw.release();
         }
         await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
         if (engine === "openhands") {

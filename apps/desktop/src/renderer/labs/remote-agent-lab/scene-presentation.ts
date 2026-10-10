@@ -14,7 +14,7 @@ export function remoteCommandItems(items: RemoteItem[]): RemoteItem[] {
   return items.filter(item => item.tool && /(?:^|[.:/_-])(?:terminal|exec(?:_command)?|bash|shell|run_command|run_cmd|process|ls|grep|find)(?:$|[.:/_-])/i.test(item.tool.name));
 }
 
-export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: string } {
+export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: string; viewport?: { width: number; height: number } } {
   const bytes = new Uint8Array(data);
   if (bytes.length < 4) throw new Error("浏览器画面不完整");
   const length = new DataView(data).getUint32(0);
@@ -22,7 +22,8 @@ export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: strin
   const metadata = JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + length)));
   const jpeg = bytes.subarray(4 + length);
   if (jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error("浏览器画面格式异常");
-  return { jpeg, url: typeof metadata.url === "string" ? metadata.url : undefined };
+  const viewport = typeof metadata.cssWidth === "number" && typeof metadata.cssHeight === "number" && [metadata.cssWidth, metadata.cssHeight].every(value => Number.isFinite(value) && value > 0 && value <= 16_384) ? { width: metadata.cssWidth, height: metadata.cssHeight } : undefined;
+  return { jpeg, url: typeof metadata.url === "string" ? metadata.url : undefined, ...(viewport ? { viewport } : {}) };
 }
 
 export function observerLabel(state: "loading" | "connected" | "error", busy: boolean, control: boolean): string {
@@ -40,15 +41,15 @@ export function browserReconnectOptions(tabs: RemoteBrowserTab[], previousId: st
   return tabs.some(tab => tab.targetId === previousId) ? { targetId: previousId } : {};
 }
 
-export type BrowserObservationState = "connecting" | "live" | "empty" | "controlled" | "retrying" | "error";
-/** A paused/empty observation is not a connection failure or a launch request. */
-export function browserObservationPresentation(state: BrowserObservationState) {
+export type BrowserObservationState = "connecting" | "live" | "empty" | "retrying" | "error";
+/** Human control changes input permission, not the observation's connection. */
+export function browserObservationPresentation(state: BrowserObservationState, controlled = false) {
   const labels: Record<BrowserObservationState, string> = {
-    connecting: "正在连接浏览器…", live: "LIVE · 只读观察", empty: "尚无任务页面",
-    controlled: "人工接管中 · 观察已暂停", retrying: "正在恢复浏览器观察…", error: "浏览器观察已断开",
+    connecting: "正在连接浏览器…", live: controlled ? "CONTROL · 人工接管中" : "LIVE · 只读观察", empty: "尚无任务页面",
+    retrying: "正在恢复浏览器观察…", error: "浏览器观察已断开",
   };
   return {
     label: labels[state], tone: state === "live" ? "connected" : state === "error" ? "error" : state === "connecting" || state === "retrying" ? "loading" : "idle",
-    loading: state === "connecting" || state === "retrying", reconnect: state === "error", open: state === "empty",
+    loading: state === "connecting" || state === "retrying", reconnect: state === "error", open: state === "empty" && controlled,
   };
 }

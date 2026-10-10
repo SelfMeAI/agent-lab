@@ -7,6 +7,7 @@ import { discoverConnectedModels, type ProviderModelsInput } from "./provider-mo
 import { isTerminalProtocolReply } from "./terminal-response";
 import { disposeTerminal, inputTerminal, prepareTerminal, setDesktopTask, setTerminalControl, showTerminal, terminalArgv } from "../desktop/session.mjs";
 import { ExecutionObserver, type NativeExecutionEvent } from "../desktop/execution.mjs";
+import { BrowserInputChannel, browserInputCommands, browserInputEndpoint } from "./browser-input";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -78,6 +79,8 @@ type PluginApi = {
   on(name: "before_tool_call", handler: () => { block: true; blockReason: string } | undefined, options?: { priority: number }): void;
 };
 let controlLease: { id: string; owner: string; task: string; ready: boolean } | undefined;
+const browserChannels = new Map<string, BrowserInputChannel>();
+function closeBrowserInput(): void { for (const channel of browserChannels.values()) channel.close(); browserChannels.clear(); }
 let desktopLease: DesktopLease | undefined;
 let preparingDesktop: Promise<void> | undefined;
 // The container has one native managed desktop. Its allocated display and
@@ -109,7 +112,7 @@ export default {
   register(api: PluginApi): void {
     const observer = new ExecutionObserver({ onRound: async task => { if (desktopLease?.isCurrent()) await showTerminal(task, true); }, onError: error => console.error("[selfme] Terminal observer:", error instanceof Error ? error.message : "unavailable") });
     api.agent.events.registerAgentEventSubscription({ id: "terminal-observer", streams: ["lifecycle", "tool", "command_output", "approval"], handle: event => observer.observe(event) });
-    api.lifecycle.registerRuntimeLifecycle({ id: "terminal-observer", dispose: async () => { controlLease = undefined; await setTerminalControl(); await observer.dispose(); } });
+    api.lifecycle.registerRuntimeLifecycle({ id: "terminal-observer", dispose: async () => { controlLease = undefined; closeBrowserInput(); await setTerminalControl(); await observer.dispose(); } });
     // Let the native PTY manager retain admission, custody and flow control.
     // Its catalog launch extension attaches the same tmux shell as the desktop.
     api.registerSessionCatalog({
@@ -161,7 +164,7 @@ export default {
           if (controlLease) throw new Error("桌面已有接管者，请先交还控制");
           if (client.connectionSignal.aborted) throw new Error("接管连接已断开"); controlLease = lease;
           await setTerminalControl();
-          client.connectionSignal.addEventListener("abort", () => { if (controlLease === lease) { controlLease = undefined; void setTerminalControl().catch(() => {}); } }, { once: true });
+          client.connectionSignal.addEventListener("abort", () => { if (controlLease === lease) { controlLease = undefined; closeBrowserInput(); void setTerminalControl().catch(() => {}); } }, { once: true });
           respond(true, { id: lease.id }); return;
         }
         if (!controlLease || controlLease.owner !== owner || controlLease.id !== params.id) throw new Error("接管已结束或不属于此连接");
@@ -169,10 +172,63 @@ export default {
           if (context.chatAbortControllers.size) throw new Error("智能体仍有操作未停止，终端保持只读");
           controlLease.ready = true;
         }
-        if (operation === "release") { controlLease = undefined; await setTerminalControl(); }
+        if (operation === "release") { controlLease = undefined; closeBrowserInput(); await setTerminalControl(); }
         else await setTerminalControl({ task: controlLease.task, ready: controlLease.ready, expiresAt: Date.now() + 45_000 });
         respond(true, { ok: true });
       } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "接管失败" }); }
+    }, { scope: "operator.admin" });
+    const browserQueues = new Map<string, Promise<void>>();
+    for (const operation of ["input", "open"] as const) api.registerGatewayMethod(`selfme.browser.${operation}`, async ({ params, client, respond }) => {
+      try {
+        const task = taskId(params.task), lease = controlLease;
+        const authorize = () => { if (client?.connectionSignal?.aborted || !client?.connId || !lease?.ready || controlLease !== lease || lease.owner !== client.connId || lease.task !== task) throw new Error("请先手动接管，再操作浏览器"); };
+        authorize();
+        const scope = params.tabScope as { sessionKey?: string } | undefined;
+        if (scope?.sessionKey !== `agent:main:selfme:${task}`) throw new Error("浏览器页面不属于当前任务");
+        // Public SDK dispatch keeps native authentication, target ownership and
+        // navigation policy. No direct import or fork of harness internals.
+        const { dispatchGatewayMethod } = await import("openclaw/plugin-sdk/gateway-method-runtime");
+        const request = async (args: Record<string, unknown>) => {
+          authorize(); const result = await dispatchGatewayMethod("browser.request", { ...args, tabScope: scope }); authorize();
+          if (!result.ok) throw new Error(result.error?.message || "远端浏览器请求失败");
+          return result.payload as Record<string, unknown>;
+        };
+        if (operation === "open") {
+          if (typeof params.url !== "string" || params.url.length > 8192) throw new Error("浏览器地址无效");
+          const url = new URL(params.url);
+          if ((!['http:', 'https:'].includes(url.protocol) && url.href !== 'about:blank') || url.username || url.password) throw new Error("页面地址需要 HTTP(S)，不能包含登录凭据");
+          const opened = await request({ method: "POST", path: "/tabs/open", body: { url: url.href } });
+          await request({ method: "POST", path: "/tabs/focus", body: { targetId: opened.targetId } });
+          respond(true, opened); return;
+        }
+        const targetId = params.targetId;
+        if (typeof targetId !== "string" || !targetId || targetId.length > 256) throw new Error("浏览器页面标识无效");
+        const commands = browserInputCommands(params.events);
+        const pending = (browserQueues.get(task) ?? Promise.resolve()).catch(() => {}).then(async () => {
+          authorize();
+          const listing = await request({ method: "GET", path: "/tabs" });
+          if (!Array.isArray(listing.tabs) || !listing.tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
+          let channel = browserChannels.get(targetId);
+          if (!channel || channel.closed) {
+            const status = await request({ method: "GET", path: "/" });
+            const base = new URL(String(status.cdpUrl));
+            if (base.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(base.hostname) || base.username || base.password) throw new Error("输入仅限当前容器的浏览器");
+            const response = await fetch(new URL("/json/list", base), { redirect: "error", signal: AbortSignal.any([client!.connectionSignal!, AbortSignal.timeout(5000)]) });
+            if (!response.ok) throw new Error("远端浏览器输入连接失败");
+            const targets = await response.json(); authorize();
+            if (!Array.isArray(targets)) throw new Error("远端浏览器页面列表无效");
+            const target = targets.find(tab => tab.id === targetId);
+            if (!target) throw new Error("此浏览器页面已经关闭");
+            const endpoint = browserInputEndpoint(base.href, targetId, target);
+            if (browserChannels.size >= 8) { const first = browserChannels.keys().next().value!; browserChannels.get(first)?.close(); browserChannels.delete(first); }
+            channel = new BrowserInputChannel(endpoint); browserChannels.set(targetId, channel);
+          }
+          await channel.input(commands, authorize);
+        });
+        browserQueues.set(task, pending);
+        try { await pending; } finally { if (browserQueues.get(task) === pending) browserQueues.delete(task); }
+        respond(true, { ok: true });
+      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "浏览器输入失败" }); }
     }, { scope: "operator.admin" });
     const inputQueues = new Map<string, Promise<void>>();
     api.registerGatewayMethod("selfme.terminal.input", async ({ params, context, client, respond }) => {

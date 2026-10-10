@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { RemoteBrowserGrant, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import type { RemoteBrowserGrant, RemoteBrowserInput, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { actionTitle, clawToolCall, contentText, executionFailure, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
@@ -280,6 +280,7 @@ export class OpenClawTasks {
   async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); if (action === "stop") await this.request("chat.abort", { sessionKey: id }); else await this.send(id, "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。"); this.schedule(id); }
   async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("selfme.terminal.dispose", { task: remoteTaskId(id) }); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
   async desktop(id: string, control: boolean): Promise<RemoteDesktopGrant> {
+    if (control && this.hold && this.hold.task !== id) throw new Error("正在接管其他任务的远端现场");
     await this.prepareScene(id); if (control && !this.hold) {
       const lease = record(await this.request("selfme.control.acquire", { task: remoteTaskId(id) }));
       const leaseId = text(lease.id);
@@ -315,33 +316,41 @@ export class OpenClawTasks {
     return (Array.isArray(listing.tabs) ? listing.tabs.map(record) : []).map(tab => ({ targetId: text(tab.targetId), title: text(tab.title), url: text(tab.url) })).filter(tab => Boolean(tab.targetId));
   }
   async focusBrowser(id: string, targetId: string): Promise<void> {
-    key(id); this.assertNotControlled();
+    key(id); this.assertBrowserTask(id);
     if (typeof targetId !== "string" || !targetId || targetId.length > 256) throw new Error("浏览器页面标识无效");
     await this.prepareScene(id);
     if (!(await this.browserTabs(id)).some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
-    this.assertNotControlled();
+    this.assertBrowserTask(id);
     await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: this.browserScope(id) });
   }
-  async browser(id: string, options: RemoteBrowserOptions = {}): Promise<RemoteBrowserGrant> {
+  private assertBrowserTask(id: string): void { if (this.hold && this.hold.task !== id) throw new Error("正在接管其他任务的远端现场"); }
+  async browserInput(id: string, targetId: string, events: RemoteBrowserInput[]): Promise<void> {
     key(id);
+    if (this.hold?.task !== id) throw new Error("请先手动接管，再操作浏览器");
+    if (typeof targetId !== "string" || !targetId || targetId.length > 256 || !Array.isArray(events) || !events.length || events.length > 64 || JSON.stringify(events).length > 64 * 1024) throw new Error("浏览器输入无效");
+    await this.request("selfme.browser.input", { task: remoteTaskId(id), targetId, events, tabScope: this.browserScope(id) });
+  }
+  async browser(id: string, options: RemoteBrowserOptions = {}): Promise<RemoteBrowserGrant> {
+    key(id); this.assertBrowserTask(id);
     if (!options || typeof options !== "object" || (options.targetId !== undefined && (typeof options.targetId !== "string" || options.targetId.length > 256)) || (options.url !== undefined && typeof options.url !== "string")) throw new Error("浏览器参数无效");
     let address: string | undefined;
     if (options.url !== undefined) {
       if (options.url.length > 8192) throw new Error("页面地址过长");
       const url = new URL(options.url);
       if ((!['http:', 'https:'].includes(url.protocol) && url.href !== 'about:blank') || url.username || url.password) throw new Error("页面地址需要 HTTP(S)，不能包含登录凭据");
-      address = url.href; this.assertNotControlled();
+      if (this.hold?.task !== id) throw new Error("请先手动接管，再打开浏览器页面");
+      address = url.href;
     }
     await this.prepareScene(id);
     let tabs = await this.browserTabs(id), targetId = options.targetId;
     if (targetId && !tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
     if (address) {
-      this.assertNotControlled();
-      const opened = record(await this.request("browser.request", { method: "POST", path: "/tabs/open", body: { url: address }, tabScope: this.browserScope(id) }));
+      this.assertBrowserTask(id);
+      if (this.hold?.task !== id) throw new Error("请先手动接管，再打开浏览器页面");
+      const opened = record(await this.request("selfme.browser.open", { task: remoteTaskId(id), url: address, tabScope: this.browserScope(id) }));
       targetId = text(opened.targetId); tabs = await this.browserTabs(id);
-      // Explicit navigation should also be visible on the native desktop.
-      // Observing an existing tab stays read-only and does not steal focus.
-      if (targetId) await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: this.browserScope(id) });
+      // The server's admitted human navigation also focuses its native window.
+      // Observing an existing page still neither launches nor focuses Chrome.
     }
     // CDP enumeration is not chronological; never prefer a blank tab over a
     // task's actual page merely because it happens to be last in the response.

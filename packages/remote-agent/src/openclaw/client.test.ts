@@ -240,16 +240,19 @@ describe("OpenClaw native task projections and custody", () => {
     const { client, request } = fixture(); let opened = false;
     request.mockImplementation(async (method, params: unknown) => {
       if (method === "selfme.scene.prepare") return { display: ":101" };
+      if (method === "selfme.control.acquire") return { id: "lease" };
+      if (method === "desktop.observe") return { wsPath: "/desktop/observe", control: true };
+      if (method === "selfme.browser.open") { opened = true; return { targetId: "owned" }; }
       const request = params as { path?: string; body?: { url?: string } };
       if (request.path === "/tabs/open") { opened = true; return { targetId: "owned" }; }
       if (request.path === "/tabs") return { tabs: opened ? [{ targetId: "owned", title: "test", url: "about:blank" }] : [] };
       if (request.path === "/screencast") return { wsPath: "/browser/observe?token=one-use", url: "about:blank", expiresAtMs: 100 };
       return {};
     });
+    await client.desktop(id, true); request.mockClear();
     expect(await client.browser(id, { url: "about:blank" })).toMatchObject({ targetId: "owned", pageUrl: "about:blank", tabs: [{ targetId: "owned" }] });
     expect(request.mock.calls[0]?.[0]).toBe("selfme.scene.prepare");
-    expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/open", body: { url: "about:blank" }, tabScope: { sessionKey: id } })); client.shutdown();
-    expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/focus", body: { targetId: "owned" }, tabScope: { sessionKey: id } }));
+    expect(request).toHaveBeenCalledWith("selfme.browser.open", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", url: "about:blank", tabScope: { sessionKey: id } }); client.shutdown();
   });
   it("rejects local/credential URLs and another task's browser target before observing", async () => {
     const { client, request } = fixture();
@@ -327,7 +330,7 @@ describe("OpenClaw native task projections and custody", () => {
     expect(request.mock.calls.some(([, params]) => (params as { path?: string })?.path === "/tabs/focus")).toBe(false);
     client.shutdown();
   });
-  it("holds tools and stops native work before desktop takeover, disallowing browser focus until return", async () => {
+  it("holds tools and stops native work before takeover, keeping window location available in the same controlled task", async () => {
     const { client, request } = fixture(); let running = true;
     request.mockImplementation(async (method: string, params: unknown) => {
       if (method === "sessions.list") return { sessions: [{ key: id, status: running ? "running" : "idle" }] };
@@ -342,10 +345,35 @@ describe("OpenClaw native task projections and custody", () => {
     expect(names.indexOf("selfme.control.acquire")).toBeLessThan(names.indexOf("chat.abort"));
     expect(names.indexOf("chat.abort")).toBeLessThan(names.indexOf("selfme.control.ready"));
     expect(names.indexOf("selfme.control.ready")).toBeLessThan(names.indexOf("desktop.observe"));
-    await expect(client.focusBrowser(id, "owned")).rejects.toThrow("接管");
+    await client.focusBrowser(id, "owned");
+    expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/focus", body: { targetId: "owned" } }));
+    await expect(client.focusBrowser(id.replace("c0ec", "a0ec"), "owned")).rejects.toThrow("其他任务");
     await client.release();
     expect(request).toHaveBeenCalledWith("selfme.control.release", { id: "lease" });
     await client.focusBrowser(id, "owned"); client.shutdown();
+  });
+  it("keeps browser input and navigation read-only before takeover and after handback", async () => {
+    const { client, request } = fixture();
+    request.mockImplementation(async (method, params: unknown) => {
+      if (method === "selfme.control.acquire") return { id: "lease" };
+      if (method === "desktop.observe") return { wsPath: "/desktop/observe", control: true };
+      if (method === "sessions.list") return { sessions: [] };
+      if ((params as { path?: string })?.path === "/tabs") return { tabs: [{ targetId: "owned" }] };
+      if ((params as { path?: string })?.path === "/screencast") return { wsPath: "/browser/observe", url: "about:blank" };
+      return {};
+    });
+    const events = [{ kind: "text", text: "你好" }] as const;
+    await expect(client.browserInput(id, "owned", [...events])).rejects.toThrow("接管");
+    await expect(client.browser(id, { url: "about:blank" })).rejects.toThrow("接管");
+    await client.desktop(id, true);
+    await client.browserInput(id, "owned", [...events]);
+    expect(request).toHaveBeenCalledWith("selfme.browser.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", targetId: "owned", events, tabScope: { sessionKey: id } });
+    expect((await client.browser(id)).targetId).toBe("owned");
+    await expect(client.browserInput(id.replace("c0ec", "a0ec"), "owned", [...events])).rejects.toThrow("接管");
+    await client.release();
+    await expect(client.browserInput(id, "owned", [...events])).rejects.toThrow("接管");
+    await expect(client.browser(id, { url: "about:blank" })).rejects.toThrow("接管");
+    client.shutdown();
   });
   it("requires the exact task's admitted takeover for manual input and relocks after return", async () => {
     const { client, request } = fixture();

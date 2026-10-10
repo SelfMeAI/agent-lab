@@ -20,6 +20,7 @@ const bridge: DesktopBridge = {
   observeRemoteBrowser: (engine, id, options) => ipcRenderer.invoke("selfme:remote-task-browser", engine, id, options),
   listRemoteBrowserTabs: (engine, id) => ipcRenderer.invoke("selfme:remote-task-browser-tabs", engine, id),
   focusRemoteBrowser: (engine, id, targetId) => ipcRenderer.invoke("selfme:remote-task-browser-focus", engine, id, targetId),
+  inputRemoteBrowser: (engine, id, targetId, events) => ipcRenderer.invoke("selfme:remote-task-browser-input", engine, id, targetId, events),
   returnRemoteDesktop: (engine, id, prompt) => ipcRenderer.invoke("selfme:remote-task-return", engine, id, prompt),
   openRemoteTerminal: (engine, id) => ipcRenderer.invoke("selfme:remote-terminal-open", engine, id),
   inputRemoteTerminal: (engine, id, terminalId, data) => ipcRenderer.invoke("selfme:remote-terminal-input", engine, id, terminalId, data),

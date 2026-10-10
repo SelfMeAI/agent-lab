@@ -7,10 +7,10 @@ describe("remote desktop control feedback", () => {
   it("explains the temporary restrictions and keeps handback directly accessible", () => {
     const html = renderToStaticMarkup(createElement(RemoteControlNotice, { onHandback() {} }));
     expect(html).toContain('role="status"');
-    expect(html).toContain("你正在接管远端桌面");
+    expect(html).toContain("你正在接管远端现场");
     expect(html).toContain("智能体操作已暂停");
     expect(html).toContain("交还后可切换任务和发送消息");
-    expect(html).toContain("交还智能体");
+    expect(html).toContain("交还控制");
     expect(html).toContain('type="button"');
     expect(html).not.toContain("disabled=");
     expect(html).not.toContain('role="alert"');

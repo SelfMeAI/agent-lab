@@ -3,5 +3,6 @@
   "name": "SelfMe Lab Remote Files",
   "description": "Authenticated transfer for private SelfMe Lab task workspaces.",
   "activation": { "onStartup": true },
+  "contracts": { "gatewayMethodDispatch": ["authenticated-request"] },
   "configSchema": { "type": "object", "additionalProperties": false, "properties": {} }
 }
