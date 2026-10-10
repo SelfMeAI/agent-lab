@@ -160,9 +160,7 @@
 .remote-browser-address input:focus { outline: 1px solid var(--remote-accent); }
 .remote-browser-address .remote-button { font-size: 11px; min-height: 29px; padding: 4px 10px; }
 .remote-browser-tab-select { flex: 0 0 auto; margin: 5px 10px 0; max-width: calc(100% - 20px); color: #a6c0cf; border: 1px solid #294754; border-radius: 4px; background: #08121a; font-size: 11px; padding: 6px; }
-.remote-browser-blank { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #5c6e7b; background: #f8fafc; font-size: 12px; pointer-events: none; }
-.remote-browser-blank strong { font-weight: 500; color: #344956; }
-.remote-browser-blank p { margin: 0; }
+.remote-browser > .remote-error { margin: 0; padding: 7px 12px; flex-shrink: 0; }
 .remote-preview > header, .remote-files > header { padding: 7px 10px; border-bottom: 1px solid #28444f; flex: 0 0 45px; display: flex; align-items: center; gap: 9px; font-size: 11px; color: #89a6b6; min-width: 0; }
 .remote-preview header strong, .remote-files header > span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 400; }
 .remote-preview header .remote-button { min-height: 28px; padding: 4px 10px; font-size: 11px; }

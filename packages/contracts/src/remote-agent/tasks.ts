@@ -57,6 +57,7 @@ export interface RemoteTaskBridge {
   observeRemoteDesktop(engine: RemoteAgentId, id: string, control: boolean): Promise<RemoteDesktopGrant>;
   observeRemoteBrowser(engine: RemoteAgentId, id: string, options?: RemoteBrowserOptions): Promise<RemoteBrowserGrant>;
   listRemoteBrowserTabs(engine: RemoteAgentId, id: string): Promise<RemoteBrowserTab[]>;
+  focusRemoteBrowser(engine: RemoteAgentId, id: string, targetId: string): Promise<void>;
   returnRemoteDesktop(engine: RemoteAgentId, id: string, followUp?: string): Promise<RemoteDesktopGrant>;
   openRemoteTerminal(engine: RemoteAgentId, id: string): Promise<RemoteTerminal>;
   inputRemoteTerminal(engine: RemoteAgentId, id: string, terminalId: string, data: string): Promise<void>;

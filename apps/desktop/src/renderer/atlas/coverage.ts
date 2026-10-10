@@ -73,7 +73,7 @@ export const atlasModules: readonly AtlasModule[] = [
       "delivery-experience",
       "visual-system",
     ],
-    note: "已接通固定源码 OpenHands / OpenClaw 的原生远端任务、历史、增量输出、工具、审批、文件交换和执行现场。本次在打包版逐项目视验收实际网页、命令输出、完整画面缩放及接管输入。OpenHands 提供引擎共享浏览器只读画面；OpenClaw 另有任务浏览器、容器桌面接管和当前任务交互终端。模型、历史与文件保存在服务卷；本机 Docker 是远端业务的研发部署，不使用本机工作目录。尚非公网多租户服务，也不把观察与手动接管算作已验收自主视觉操作。",
+    note: "已接通固定源码 OpenHands / OpenClaw 的原生远端任务、历史、增量输出、工具、审批、文件交换和执行现场。打包版实际验收了 OpenClaw 创建网页、原生审批启动后台服务、浏览器验证、桌面人工操作和交还后再次核对的完整链路；终端、文件及预览可查看同一任务的真实内容。OpenHands 保持共享浏览器只读观察，不硬塞桌面接管。模型、历史与文件保存在服务卷；本机 Docker 是远端业务的研发部署，不使用本机工作目录。尚非公网多租户服务，也不把观察与手动接管算作已验收自主视觉操作。",
   },
   {
     id: "local-model-lab",
@@ -177,8 +177,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "sandbox.process-isolation", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "integrated", upstream: "tested", passedChecks: [0],
-    evidence: ["apps/desktop/src/main/remote-agent/service-manager.ts", "apps/desktop/src/main/remote-agent/service-manager.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "services/remote-agent/openhands/service.json", "services/remote-agent/openclaw/service.json"], checkedAt: "2026-10-10",
-    note: "研发阶段逻辑上的远端服务运行在本机 Docker：两套私有命名卷、固定源码镜像标识、随机回环端口、原生鉴权，没有宿主工作目录或 Docker socket 挂载。启停仅作用于当前应用标记的容器，镜像迁移保留服务卷；日志隐藏已知认证凭据。OpenClaw 接管期间阻止新工具操作，但不等于任务级系统沙盒。未证明容器无法逃逸，尚未实现公网多租户、配额或任务间的桌面隔离。",
+    evidence: ["apps/desktop/src/main/remote-agent/service-manager.ts", "apps/desktop/src/main/remote-agent/service-manager.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "services/remote-agent/openclaw/bootstrap/browser-profile.mjs", "scripts/remote-agent/browser-profile.test.mjs", "services/remote-agent/openhands/service.json", "services/remote-agent/openclaw/service.json"], checkedAt: "2026-10-10",
+    note: "研发阶段逻辑上的远端服务运行在本机 Docker：两套私有命名卷、固定源码镜像标识、随机回环端口、原生鉴权，没有宿主工作目录或 Docker socket 挂载。镜像迁移保留服务卷；OpenClaw 使用稳定容器主机名，启动前确认卷归属及独占，仅清理失效 Chromium 进程锁，保留浏览器资料、历史、文件和凭据。接管期间阻止新工具操作，但不等于任务级系统沙盒。未证明容器无法逃逸，尚未实现公网多租户、配额或任务间的桌面隔离。",
   },
   {
     capabilityId: "reasoning.streaming", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -223,10 +223,16 @@ export const coverageRecords: readonly CoverageRecord[] = [
     note: "智能体命令在远端执行，命令参数、实际结果和工具状态显示于动作流与 Terminal。只展示原生返回的输出；部分引擎未独立返回退出码时不捏造成功码，OpenHands 的 Terminal 不是可手动输入的 PTY。",
   },
   {
+    capabilityId: "shell.background", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
+    state: "integrated", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
+    evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
+    note: "真实模型通过原生 exec 的 background 模式启动任务目录中的网页服务，返回 session ID 与 PID；原生 process.poll 的实际输出和仍在运行状态可在 Terminal 核对。关闭并重开客户端后服务仍在，浏览器能继续访问。不为后台命令伪造桌面终端窗口；尚无独立 Job 管理面板，本次未验收后台进程终止及完整子进程清理。",
+  },
+  {
     capabilityId: "shell.pty", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
     evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "选择交互终端后自动连接原生 terminal.open / attach / input / resize / close，并切换到服务端验证的当前任务目录。已在打包版输入 printf / pwd 并目视核对实际回显；缓冲首次连接前的事件、原生序号去重，离开终端释放连接，断开后可重新打开。交互命令不经过智能体审批，也不自动加入对话；不宣称所有后台子进程会随终端关闭。",
+    note: "选择交互终端后自动连接原生 terminal.open / attach / input / resize / close，并切换到服务端验证的当前任务目录。打包版实际输入 printf / pwd / printenv DISPLAY / ls，核对其与桌面使用同一显示环境，能读取智能体创建的文件。智能体输出与独立手动 PTY 明确区分；缓冲连接前事件、原生序号去重，离开终端释放连接。手动命令不经过智能体审批，也不自动加入对话；不宣称所有后台子进程会随终端关闭。",
   },
   {
     capabilityId: "files.attachments", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -237,8 +243,8 @@ export const coverageRecords: readonly CoverageRecord[] = [
   {
     capabilityId: "web-action.browser-session", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
-    evidence: ["packages/remote-agent/src/openclaw/client.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openhands/extension/app.py"],
-    note: "已在打包版通过真实 DeepSeek 任务打开并读取 example.com，目视核对实际网页而非仅连接状态。OpenClaw 使用 native desktop lease 的环境启动可见 Chromium，原生 tabScope 绑定任务；空任务可输入地址打开页面，支持多页选择及工作中跟随新页面，观察已有页面不抢焦点。OpenHands 通过原生只读工具初始化当前会话浏览器，再观察共享 Xvfb 画面。不能声称每个任务独占桌面或登录态。",
+    evidence: ["packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/main/remote-agent/deployment.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/openhands/extension/app.py"],
+    note: "真实 DeepSeek 任务已访问公开网页及当前容器 127.0.0.1 上的任务网页。OpenClaw 使用 native desktop lease 启动可见 Chromium，页面列表限定原生 tabScope 与当前任务成功工具回执的 referencedTabs，导航已有页也能恢复观察；不从用户文字或页面内容猜标签页。支持多页选择及工作中跟随新页面，观察不抢焦点，明确点击「在桌面查看」才定位窗口。仅允许容器 localhost / 127.0.0.1，不开放任意私网。OpenHands 保持原生共享浏览器只读画面；两者均不是任务独占桌面或登录态。",
   },
   {
     capabilityId: "web-action.browser-dom", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -262,7 +268,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "approvals.allow-once", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
     evidence: ["packages/remote-agent/src/openhands/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.tsx"],
-    note: "转发原生审批，不自造 risk engine。OpenHands 真实文件和浏览器任务已逐项确认；OpenClaw 严格匹配当前任务待决审批与 exec / plugin kind，不接受旧请求或其他任务的审批。并非所有工具都会触发原生审批。",
+    note: "转发原生审批，不自造 risk engine。OpenHands 真实文件和浏览器任务已逐项确认；OpenClaw 在真实任务收到读取目录和启动已落盘 Node 脚本的审批，允许一次后继续执行。严格匹配当前任务待决审批与 exec / plugin kind，不接受旧请求或其他任务的审批。原生拒绝不稳定的串联/内联解释器命令时不绕过，也并非所有工具都会触发审批。",
   },
   {
     capabilityId: "approvals.allow-scope", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -310,7 +316,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "consent-experience.takeover", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1, 2], checkedAt: "2026-10-10",
     evidence: ["services/remote-agent/openclaw/plugin/index.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/main/remote-agent/task-controller.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "连接拥有接管租约并续期；先阻止新工具、停止引擎任务，确认停稳后开放输入。交还可选择等待或明确继续，提示先重新观察。继续指令失败仍切回只读画面并提示未获确认，不谎称仍在接管。任务切换与客户端断开释放所属控制权；共享桌面并非任务级隔离。",
+    note: "连接拥有接管租约并续期；先阻止新工具、停止引擎任务，确认停稳后开放输入。打包版已从任务浏览器定位同一桌面窗口，接管点击网页计数从 1 到 2，交还并继续后智能体用原生 snapshot 确认 2，未刷新或重做。交还也可等待新指令；继续失败仍切回只读并明确提示。任务切换与客户端断开释放所属控制权；共享桌面并非任务级隔离，也不代表自主视觉操作已验收。",
   },
   {
     capabilityId: "delivery-experience.artifact-list", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

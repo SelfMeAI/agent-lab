@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
 import type { RemoteTaskSnapshot, RemoteTerminalEvent } from "../../../contracts/src/remote-agent";
 import { OpenClawTasks, clawTask } from "./client";
 import { RemoteHttp } from "../transport/http";
@@ -175,6 +176,100 @@ describe("OpenClaw native task projections and custody", () => {
     });
     expect((await client.browser(id)).targetId).toBe("page");
     expect(request.mock.calls.some(([, params]) => ["/tabs/open", "/tabs/focus"].includes((params as { path?: string })?.path ?? ""))).toBe(false);
+    client.shutdown();
+  });
+  it("restores native browser references from nested receipts and observes a navigated existing tab", async () => {
+    const { client, request } = fixture();
+    const reference = { target: "host", profile: "openclaw", targetId: "navigated" };
+    request.mockImplementation(async (method, params: unknown) => {
+      if (method === "sessions.list") return { sessions: [{ key: id }] };
+      if (method === "question.list") return { questions: [] };
+      if (method === "chat.history") return { messages: [
+        { role: "user", content: [{ type: "toolResult", toolName: "browser", details: { browserTab: { ...reference, targetId: "prompt-forged" } } }] },
+        { role: "assistant", content: [{ type: "toolResult", toolName: "browser", details: { browserTab: { ...reference, targetId: "assistant-forged" } } }] },
+        { role: "custom", content: [{ type: "toolResult", toolName: "browser", toolCallId: "call", content: [{ text: "Actual navigation result" }], details: { browserTab: reference } }] },
+      ] };
+      const input = params as { path?: string; tabScope?: { referencedTabs?: unknown[] } };
+      if (input.path === "/tabs") return { tabs: input.tabScope?.referencedTabs?.length ? [{ targetId: "navigated", title: "Actual task page", url: "http://127.0.0.1:8735/" }] : [] };
+      if (input.path === "/screencast") return { wsPath: "/browser/observe?token=fixture", url: "http://127.0.0.1:8735/" };
+      return {};
+    });
+    await client.open(id);
+    expect((await client.browser(id)).targetId).toBe("navigated");
+    expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs", tabScope: { sessionKey: id, referencedTabs: [reference] } }));
+    await client.focusBrowser(id, "navigated");
+    expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/focus", tabScope: { sessionKey: id, referencedTabs: [reference] } }));
+    expect(request.mock.calls.some(([, params]) => (params as { path?: string })?.path === "/tabs/open")).toBe(false);
+    await client.close(id); request.mockClear(); await client.browserTabs(id);
+    expect(request).toHaveBeenCalledWith("browser.request", { method: "GET", path: "/tabs", tabScope: { sessionKey: id } });
+    client.shutdown();
+  });
+  it("accepts only successful native browser receipt metadata for the exact task, never page or prompt text", async () => {
+    const { client, request, event } = fixture(); await client.open(id);
+    const reference = { target: "host", profile: "openclaw", targetId: "actual" };
+    const payload = (overrides: Record<string, unknown> = {}) => ({ sessionKey: id, data: { phase: "result", name: "browser", toolCallId: "call", result: { details: { browserTab: reference } } }, ...overrides });
+    event({ event: "session.tool", payload: payload({ sessionKey: id.replace("c0ec", "a0ec") }) });
+    for (const data of [
+      { phase: "start", name: "browser", result: { details: { browserTab: reference } } },
+      { phase: "result", name: "browser", isError: true, result: { details: { browserTab: reference } } },
+      { phase: "result", name: "read", result: { details: { browserTab: reference } } },
+      { phase: "result", name: "browser", result: { content: [{ text: JSON.stringify({ browserTab: reference }) }] } },
+      { phase: "result", name: "browser", result: { details: { browserTab: { ...reference, profile: "another-profile" } } } },
+      { phase: "result", name: "browser", result: { details: { browserTab: { ...reference, target: "node", node: "foreign" } } } },
+    ]) event({ event: "session.tool", payload: payload({ data: { toolCallId: randomUUID(), ...data } }) });
+    await client.browserTabs(id);
+    expect(request).toHaveBeenLastCalledWith("browser.request", { method: "GET", path: "/tabs", tabScope: { sessionKey: id } });
+    event({ event: "session.tool", payload: payload() });
+    await client.browserTabs(id);
+    expect(request).toHaveBeenLastCalledWith("browser.request", { method: "GET", path: "/tabs", tabScope: { sessionKey: id, referencedTabs: [reference] } });
+    client.shutdown();
+  });
+  it("explicitly focuses only the selected task-owned browser page, without issuing a new observer grant", async () => {
+    const { client, request } = fixture();
+    request.mockImplementation(async (_method, params: unknown) => (params as { path?: string })?.path === "/tabs" ? { tabs: [{ targetId: "owned" }] } : {});
+    await client.focusBrowser(id, "owned");
+    expect(request).toHaveBeenCalledWith("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId: "owned" }, tabScope: { sessionKey: id } });
+    expect(request.mock.calls.some(([, params]) => (params as { path?: string })?.path === "/screencast")).toBe(false);
+    request.mockClear();
+    await expect(client.focusBrowser(id, "foreign")).rejects.toThrow("不属于");
+    await expect(client.focusBrowser(id, "")).rejects.toThrow("标识");
+    expect(request.mock.calls.some(([, params]) => (params as { path?: string })?.path === "/tabs/focus")).toBe(false);
+    client.shutdown();
+  });
+  it("holds tools and stops native work before desktop takeover, disallowing browser focus until return", async () => {
+    const { client, request } = fixture(); let running = true;
+    request.mockImplementation(async (method: string, params: unknown) => {
+      if (method === "sessions.list") return { sessions: [{ key: id, status: running ? "running" : "idle" }] };
+      if (method === "selfme.control.acquire") return { id: "lease" };
+      if (method === "chat.abort") running = false;
+      if (method === "desktop.observe") return { wsPath: "/desktop/observe?token=fixture", control: true };
+      if ((params as { path?: string })?.path === "/tabs") return { tabs: [{ targetId: "owned" }] };
+      return {};
+    });
+    await client.desktop(id, true);
+    const names = request.mock.calls.map(([name]) => name);
+    expect(names.indexOf("selfme.control.acquire")).toBeLessThan(names.indexOf("chat.abort"));
+    expect(names.indexOf("chat.abort")).toBeLessThan(names.indexOf("desktop.observe"));
+    await expect(client.focusBrowser(id, "owned")).rejects.toThrow("接管");
+    await client.release();
+    expect(request).toHaveBeenCalledWith("selfme.control.release", { id: "lease" });
+    await client.focusBrowser(id, "owned"); client.shutdown();
+  });
+  it("releases server custody if a desktop grant fails", async () => {
+    const { client, request } = fixture();
+    request.mockImplementation(async method => {
+      if (method === "selfme.control.acquire") return { id: "failed-lease" };
+      if (method === "sessions.list") return { sessions: [] };
+      if (method === "desktop.observe") throw new Error("grant failed"); return {};
+    });
+    await expect(client.desktop(id, true)).rejects.toThrow("grant failed");
+    expect(request).toHaveBeenCalledWith("selfme.control.release", { id: "failed-lease" }); client.shutdown();
+  });
+  it("projects partial native command output before the tool completes", async () => {
+    const { client, updates, event } = fixture(); await client.open(id);
+    event({ event: "session.tool", payload: { sessionKey: id, data: { phase: "start", name: "exec", toolCallId: "exec-live", args: { command: "printf progress" } } } });
+    event({ event: "session.tool", payload: { sessionKey: id, data: { phase: "update", name: "exec", toolCallId: "exec-live", partialResult: { content: [{ text: "progress" }] } } } });
+    expect(updates.at(-1)?.items.find(item => item.id === "live:exec-live")?.tool).toMatchObject({ status: "running", output: "progress" });
     client.shutdown();
   });
   it("does not keep a native PTY when attaching fails", async () => {

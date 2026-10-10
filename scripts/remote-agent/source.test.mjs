@@ -53,7 +53,8 @@ test("deployment layers are explicit, source-derived and ownership-labelled", as
 test("OpenClaw adds the default Xfce desktop in the deployment layer", async () => {
   const definition = JSON.parse(await readFile(new URL("../../services/remote-agent/openclaw/service.json", import.meta.url), "utf8"));
   const dockerfile = await readFile(new URL("../../services/remote-agent/openclaw/deployment.Dockerfile", import.meta.url), "utf8");
-  assert.ok(definition.deployment.image.endsWith("-lab3"));
+  assert.ok(definition.deployment.image.endsWith("-lab4"));
   assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common/);
   assert.doesNotMatch(dockerfile, /xfconf-query|COPY.*(?:wallpaper|background|backdrop)/);
+  assert.match(dockerfile, /COPY bootstrap \/opt\/selfme\/bootstrap/);
 });

@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { RemoteServiceCredentials } from "./credentials";
 import { RemoteAgentContainer } from "./service-manager";
+import { remoteDeployments } from "./deployment";
 import { RemoteModelClient } from "../../../../../packages/remote-agent/src/model-connection";
 import { RemoteTaskController } from "./task-controller";
 import { remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
@@ -57,26 +58,62 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           const grant = await tasks.desktop(engine, task.id, false);
           expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
+          const scene = await tasks.claw.request<{ display: string }>("selfme.scene.prepare", { task: remoteTaskId(task.id) });
+          expect(scene.display).toMatch(/^:\d+$/);
           const terminal = await tasks.claw.terminal(task.id);
           expect(terminal.cwd).toBe(`/home/node/.openclaw/workspace/selfme/${remoteTaskId(task.id)}`);
-          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd\r");
+          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd; printenv DISPLAY\r");
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 15_000 }).toMatch(/\r?\nREMOTE_PTY_OK\r?\n/);
-          await tasks.claw.terminalClose(task.id, terminal.id);
+          await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain(scene.display);
+          const serverPath = `uploads/scene-server.cjs`;
+          await files.upload(task.id, serverPath, new TextEncoder().encode(`const http = require('node:http'); http.createServer((req,res) => { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<!doctype html><title>Remote scene proof</title><h1>REMOTE_SCENE_OK</h1>'); }).listen(8734,'127.0.0.1',()=>console.log('REMOTE_SERVER_READY'));`));
+          await tasks.claw.terminalInput(task.id, terminal.id, `node '${terminal.cwd}/${serverPath}'\r`);
+          await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain("REMOTE_SERVER_READY");
           const browser = await tasks.claw.browser(task.id);
           expect(browser.pageUrl).toBe("about:blank"); expect(browser.tabs.some(tab => tab.targetId === browser.targetId)).toBe(true);
           expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
+          await tasks.claw.focusBrowser(task.id, browser.targetId);
+          await browserOnDesktop(container.name, scene.display);
+          const localPage = await tasks.claw.browser(task.id, { url: "http://127.0.0.1:8734/" });
+          expect(localPage.pageUrl).toBe("http://127.0.0.1:8734/");
+          expect(await browserFrameLength(localPage.url)).toBeGreaterThan(100);
+          expect((await tasks.claw.browserTabs(task.id)).find(tab => tab.targetId === localPage.targetId)?.title).toBe("Remote scene proof");
+          await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
+          await tasks.claw.terminalClose(task.id, terminal.id);
           await expect(tasks.claw.browser(task.id, { targetId: "unowned" })).rejects.toThrow("不属于");
+          await expect(tasks.claw.focusBrowser(task.id, "unowned")).rejects.toThrow("不属于");
           const lease = await tasks.claw.request<{ id: string }>("selfme.control.acquire", { task: remoteTaskId(task.id) });
           await expect(tasks.claw.request("selfme.control.acquire", { task: remoteTaskId(task.id) })).rejects.toThrow("已有接管者");
           await tasks.claw.request("selfme.control.release", { id: lease.id });
         }
-        tasks.reset(); await container.restart();
+        tasks.reset();
+        if (engine === "openclaw") {
+          // Simulate an image-upgrade recreation with a retained Chromium
+          // profile whose process lock still names the retired container.
+          await container.stop();
+          const exec = promisify(execFile);
+          await exec("docker", ["rm", container.name]);
+          await exec("docker", ["run", "--rm", "--network", "none", "--mount", `type=volume,src=${container.volume},dst=/home/node/.openclaw`, "--entrypoint", "node", remoteDeployments.openclaw.image, "--input-type=module", "-e", `
+            import fs from 'node:fs/promises';
+            const profile = '/home/node/.openclaw/browser/openclaw/user-data';
+            for (const [name, target] of [['SingletonLock','retired-container-1234'],['SingletonSocket','/tmp/retired-browser/SingletonSocket'],['SingletonCookie','123456']]) {
+              const path = profile + '/' + name;
+              try { const info = await fs.lstat(path); if (!info.isSymbolicLink()) throw new Error('unexpected fixture marker'); await fs.unlink(path); }
+              catch (error) { if (error.code !== 'ENOENT') throw error; }
+              await fs.symlink(target, path);
+            }
+          `]);
+          await container.start();
+          expect((await exec("docker", ["inspect", "--format", "{{.Config.Hostname}}", container.name])).stdout.trim()).toBe(container.name);
+        } else await container.restart();
         expect((await client.list()).some(row => row.id === task.id)).toBe(true);
         expect(await (await files.download(task.id, "uploads/proof.txt")).text()).toBe("NATIVE_REMOTE_FILES_OK\n");
         if (engine === "openclaw") {
           const grant = await tasks.desktop(engine, task.id, false);
           expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
+          const browser = await tasks.claw.browser(task.id);
+          expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
         }
         await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
         if (engine === "openhands") {
@@ -120,6 +157,28 @@ async function defaultDesktopReady(container: string): Promise<void> {
       return true;
     } catch { return false; }
   }, { timeout: 15_000 }).toBe(true);
+}
+
+async function browserOnDesktop(container: string, display: string): Promise<void> {
+  const exec = promisify(execFile);
+  const { stdout } = await exec("docker", ["exec", container, "node", "--input-type=module", "-e", `
+    import fs from 'node:fs'; import {execFileSync} from 'node:child_process';
+    const display = process.argv[1];
+    const browsers = fs.readdirSync('/proc').filter(pid => /^\\d+$/.test(pid)).flatMap(pid => {
+      try {
+        const command = fs.readFileSync('/proc/'+pid+'/cmdline','utf8').replaceAll(String.fromCharCode(0),' ');
+        if (!command.startsWith('/usr/lib/chromium/chromium ') || command.includes(' --type=')) return [];
+        return [{ headless:command.includes(' --headless') }];
+      } catch { return []; }
+    });
+    const windows = execFileSync('xwininfo',['-root','-tree'],{env:{...process.env,DISPLAY:display},encoding:'utf8'});
+    console.log(JSON.stringify({browsers,windowVisible:/Chromium/.test(windows)}));
+  `, display]);
+  const result = JSON.parse(stdout);
+  // Chromium rewrites cmdline as a single process title. Verify both its launch
+  // mode and a real window on the same display used by the task's native PTY.
+  expect(result.browsers).toContainEqual({ headless: false });
+  expect(result.windowVisible).toBe(true);
 }
 
 async function framebufferHeader(url: string): Promise<string> {

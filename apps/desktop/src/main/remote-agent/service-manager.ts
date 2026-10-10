@@ -10,7 +10,12 @@ export const OPENHANDS_VERSION = remoteDeployments.openhands.version;
 export const OPENHANDS_IMAGE = remoteDeployments.openhands.image;
 const ownerLabel = "ai.selfme.lab.owner";
 const deploymentLabel = "ai.selfme.lab.deployment";
-type Container = { Config: { Image: string; Labels: Record<string, string> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null> } };
+type Container = { Config: { Image: string; Hostname?: string; Labels: Record<string, string> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null> } };
+
+export function assertExclusiveServiceVolume(labels: Record<string, string> | null, owner: string, containers: string[], name: string): void {
+  if (labels?.[ownerLabel] !== owner) throw new Error("同名服务卷不属于当前应用，未作修改");
+  if (containers.some(container => container !== name)) throw new Error("浏览器服务卷被其他容器引用，未启动或清理锁");
+}
 
 export function containerEndpoint(container: Container, owner: string, volume: string, engine: RemoteAgentId = "openhands"): string | null {
   const deployment = remoteDeployments[engine];
@@ -41,7 +46,7 @@ export class RemoteAgentContainer {
     this.owner = createHash("sha256").update(root).digest("hex").slice(0, 16);
     this.name = `selfme-lab-${engine}-${this.owner}`;
     this.volume = `${this.name}-data`;
-    this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command })).digest("hex").slice(0, 16);
+    this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command, ...(engine === "openclaw" ? { hostname: this.name } : {}) })).digest("hex").slice(0, 16);
   }
 
   private async binary(): Promise<string> {
@@ -68,6 +73,11 @@ export class RemoteAgentContainer {
     catch (error) { if (/No such (?:object|container)/i.test(String(error))) return null; throw error; }
   }
   private endpoint(container: Container): string | null { return containerEndpoint(container, this.owner, this.volume, this.engine); }
+  private async verifyBrowserVolume(): Promise<void> {
+    const volume = JSON.parse(await this.command(["volume", "inspect", this.volume])) as Array<{ Labels: Record<string, string> }>;
+    const containers = (await this.command(["ps", "--all", "--filter", `volume=${this.volume}`, "--format", "{{.Names}}"])).trim().split(/\r?\n/).filter(Boolean);
+    assertExclusiveServiceVolume(volume[0]?.Labels, this.owner, containers, this.name);
+  }
   private async checkImage(): Promise<void> {
     const labels = JSON.parse(await this.command(["image", "inspect", "--format", "{{json .Config.Labels}}", this.deployment.image], undefined, 8000)) as Record<string, string> | null;
     if (labels?.["ai.selfme.lab.source.commit"] !== this.deployment.commit || labels?.["ai.selfme.lab.engine"] !== this.engine || labels?.["ai.selfme.lab.integration"] !== "1") throw new Error("服务镜像的源码或部署层标识不匹配，请重新构建固定源码镜像");
@@ -130,6 +140,10 @@ export class RemoteAgentContainer {
     try { await this.checkImage(); }
     catch { throw new Error(`尚未构建固定源码服务镜像，请运行 npm run remote:build -- ${this.engine}`); }
     let previous = await this.inspect();
+    if (previous) {
+      this.endpoint(previous);
+      if (this.engine === "openclaw") await this.verifyBrowserVolume();
+    }
     if (previous && (previous.Config.Image !== this.deployment.image || previous.Config.Labels[deploymentLabel] !== this.deploymentRevision)) {
       this.endpoint(previous);
       if (previous.State.Running) await this.command(["stop", "--time", "20", this.name]);
@@ -148,6 +162,7 @@ export class RemoteAgentContainer {
         if (!/no such volume/i.test(String(error))) throw error;
         await this.command(["volume", "create", "--label", `${ownerLabel}=${this.owner}`, this.volume]);
       }
+      if (this.engine === "openclaw") await this.verifyBrowserVolume();
       const env: NodeJS.ProcessEnv = this.engine === "openhands"
         ? { OH_SESSION_API_KEYS_0: keys.sessionApiKey, OH_SECRET_KEY: keys.persistenceKey }
         : { OPENCLAW_GATEWAY_TOKEN: keys.sessionApiKey };
@@ -157,9 +172,11 @@ export class RemoteAgentContainer {
       ] : [
         "OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_NO_RESPAWN=1", "OPENCLAW_SKIP_CHANNELS=1", "OPENCLAW_SKIP_CRON=1",
         "OPENCLAW_SKIP_GMAIL_WATCHER=1", "OPENCLAW_CODEX_DISCOVERY_LIVE=0",
+        "SELFME_OPENCLAW_PRIVATE_VOLUME=1",
       ];
       await this.command([
         "run", "--detach", "--name", this.name, "--label", `${ownerLabel}=${this.owner}`, "--label", `${deploymentLabel}=${this.deploymentRevision}`,
+        ...(this.engine === "openclaw" ? ["--hostname", this.name] : []),
         "--publish", `127.0.0.1::${this.deployment.port}`, "--mount", `type=volume,src=${this.volume},dst=${this.deployment.mount}`,
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "1024", "--shm-size", "256m",
         ...envArgs.flatMap(value => ["--env", value]), this.deployment.image, ...this.deployment.command,

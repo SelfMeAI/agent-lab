@@ -5,10 +5,21 @@ import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
 import type { OpenClawIdentity } from "./gateway";
 
-type View = { snapshot: RemoteTaskSnapshot; offset: number; total?: number; earlierItems: RemoteItem[]; loadedEarlier: boolean; refreshing?: Promise<void>; timer?: ReturnType<typeof setTimeout> };
+type BrowserReference = { target: "host"; profile: "openclaw"; targetId: string };
+type View = { snapshot: RemoteTaskSnapshot; browserReferences: BrowserReference[]; offset: number; total?: number; earlierItems: RemoteItem[]; loadedEarlier: boolean; refreshing?: Promise<void>; timer?: ReturnType<typeof setTimeout> };
 const prefix = "agent:main:selfme:";
 function upsert(items: RemoteItem[], item: RemoteItem): RemoteItem[] { return items.some(row => row.id === item.id) ? items.map(row => row.id === item.id ? item : row) : [...items, item]; }
 function key(id: string): string { if (!id.startsWith(prefix) || prefix + remoteTaskId(id) !== id) throw new Error("OpenClaw 任务标识无效"); return id; }
+function rememberBrowserReference(view: View, name: string, result: unknown): void {
+  const receipt = record(result), details = record(receipt.details), tab = record(details.browserTab);
+  // Native browser receipts also identify a tab navigated in place, which is
+  // not necessarily in the session's opened-tab registry. Mirror upstream UI's
+  // referencedTabs contract; never derive identities from prompts/page text.
+  if (clawToolCall(name, {}).name !== "browser" || receipt.isError === true || details.isError === true || details.ok === false || details.status === "error" || tab.target !== "host" || tab.profile !== "openclaw" || tab.node !== undefined) return;
+  if (typeof tab.targetId !== "string" || !tab.targetId || tab.targetId.length > 128 || tab.targetId.trim() !== tab.targetId) return;
+  const reference: BrowserReference = { target: "host", profile: "openclaw", targetId: tab.targetId };
+  view.browserReferences = [...view.browserReferences.filter(ref => ref.targetId !== tab.targetId), reference].slice(-64);
+}
 export function clawTask(value: unknown): RemoteTask {
   const row = record(value), now = new Date().toISOString();
   return { id: text(row.key), title: text(row.label) || text(row.autoLabel) || text(row.displayName) || text(row.derivedTitle) || "新任务", status: taskStatus(row.status), createdAt: timestamp(row.createdAt) ?? timestamp(row.updatedAt) ?? now, updatedAt: timestamp(row.updatedAt) ?? now };
@@ -68,7 +79,7 @@ export class OpenClawTasks {
     key(id); const ticket = Symbol(id); this.opening.set(id, ticket); await this.detach(id);
     const task = (await this.list()).find(task => task.id === id); if (!task) throw new Error("任务不存在或已删除");
     if (this.opening.get(id) !== ticket) throw new Error("任务视图已关闭");
-    const view: View = { snapshot: { task, items: [], connection: "connected" }, offset: 0, earlierItems: [], loadedEarlier: false }; this.views.set(id, view);
+    const view: View = { snapshot: { task, items: [], connection: "connected" }, browserReferences: [], offset: 0, earlierItems: [], loadedEarlier: false }; this.views.set(id, view);
     // Subscribe before the bounded durable tail to avoid a lost event window.
     await this.request("sessions.messages.subscribe", { key: id, includeApprovals: true });
     await this.refresh(id); await this.questions(id);
@@ -83,6 +94,13 @@ export class OpenClawTasks {
       const page = record(await this.request("chat.history", { sessionKey: id, limit: 100, maxBytes: 4_000_000, offset: earlier ? view.offset : 0 }));
       if (this.views.get(id) !== view) return;
       const messages = Array.isArray(page.messages) ? page.messages : [];
+      for (const value of messages) {
+        const wrapper = record(value), message = record(wrapper.message ?? value);
+        if (message.role === "toolResult") rememberBrowserReference(view, text(message.toolName), message);
+        for (const part of ["custom", "toolResult"].includes(text(message.role)) && Array.isArray(message.content) ? message.content.map(record) : []) {
+          if (part.type === "toolResult") rememberBrowserReference(view, text(part.toolName), part);
+        }
+      }
       const items = messages.flatMap((message, i) => this.messageItems(message, `history-${text(record(page).sessionId)}-${earlier ? view.offset : 0}-${i}`)).map(item => {
         const prior = view.snapshot.items.find(row => row.id === item.id);
         // A history tool-call row alone is not a new start. Retain its native
@@ -173,6 +191,7 @@ export class OpenClawTasks {
     } else if (event.event === "session.tool" || (event.event === "agent" && p.stream === "tool")) {
       const data = record(p.data), toolId = text(data.toolCallId); if (!toolId) return;
       const existing = view.snapshot.items.find(item => item.id === `live:${toolId}`), { name, args } = clawToolCall(text(data.name), record(data.args));
+      if (["result", "end"].includes(text(data.phase)) && !data.isError) rememberBrowserReference(view, name, { ...record(data.result), details: record(data.result).details ?? data.details });
       if (existing?.tool && existing.tool.status !== "running" && ["start", "update", "input_delta"].includes(text(data.phase))) return;
       const item: RemoteItem = { id: `live:${toolId}`, role: "tool", text: "", at: existing?.at ?? timestamp(p.ts), tool: { name, title: actionTitle(name, args), input: Object.keys(args).length ? toolInput(args) : existing?.tool?.input ?? "", output: contentText(record(data.result).content ?? data.result) || contentText(record(data.partialResult).content ?? data.partialResult) || existing?.tool?.output,
         status: data.phase === "result" || data.phase === "end" ? data.isError ? "failed" : "completed" : "running", diff: toolDiff(args) ?? (text(record(data.details).diff) || existing?.tool?.diff), path: text(args.path) || existing?.tool?.path, startedAt: existing?.tool?.startedAt ?? timestamp(p.ts), endedAt: data.phase === "result" || data.phase === "end" ? timestamp(p.ts) : undefined, parentCallId: text(data.parentToolCallId) || existing?.tool?.parentCallId } };
@@ -256,10 +275,22 @@ export class OpenClawTasks {
     try { await this.request("selfme.control.release", { id: hold.id }); }
     finally { const view = this.views.get(hold.task); if (view) this.publish(view); }
   }
+  private browserScope(id: string): { sessionKey: string; referencedTabs?: BrowserReference[] } {
+    const references = this.views.get(id)?.browserReferences;
+    return { sessionKey: id, ...(references?.length ? { referencedTabs: references } : {}) };
+  }
   async browserTabs(id: string): Promise<RemoteBrowserTab[]> {
     key(id);
-    const listing = record(await this.request("browser.request", { method: "GET", path: "/tabs", tabScope: { sessionKey: id } }));
+    const listing = record(await this.request("browser.request", { method: "GET", path: "/tabs", tabScope: this.browserScope(id) }));
     return (Array.isArray(listing.tabs) ? listing.tabs.map(record) : []).map(tab => ({ targetId: text(tab.targetId), title: text(tab.title), url: text(tab.url) })).filter(tab => Boolean(tab.targetId));
+  }
+  async focusBrowser(id: string, targetId: string): Promise<void> {
+    key(id); this.assertNotControlled();
+    if (typeof targetId !== "string" || !targetId || targetId.length > 256) throw new Error("浏览器页面标识无效");
+    await this.prepareScene(id);
+    if (!(await this.browserTabs(id)).some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
+    this.assertNotControlled();
+    await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: this.browserScope(id) });
   }
   async browser(id: string, options: RemoteBrowserOptions = {}): Promise<RemoteBrowserGrant> {
     key(id);
@@ -276,17 +307,17 @@ export class OpenClawTasks {
     if (targetId && !tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
     if (address || !tabs.length) {
       this.assertNotControlled();
-      const opened = record(await this.request("browser.request", { method: "POST", path: "/tabs/open", body: { url: address || "about:blank" }, tabScope: { sessionKey: id } }));
+      const opened = record(await this.request("browser.request", { method: "POST", path: "/tabs/open", body: { url: address || "about:blank" }, tabScope: this.browserScope(id) }));
       targetId = text(opened.targetId); tabs = await this.browserTabs(id);
       // Explicit navigation should also be visible on the native desktop.
       // Observing an existing tab stays read-only and does not steal focus.
-      if (targetId) await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: { sessionKey: id } });
+      if (targetId) await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: this.browserScope(id) });
     }
     // CDP enumeration is not chronological; never prefer a blank tab over a
     // task's actual page merely because it happens to be last in the response.
     targetId ||= (tabs.find(tab => tab.url && tab.url !== "about:blank") ?? tabs[0])?.targetId;
     if (!targetId) throw new Error("远端浏览器未返回任务页面，请重新连接");
-    const result = record(await this.request("browser.request", { method: "POST", path: "/screencast", body: { targetId, maxWidth: 1600, maxHeight: 1000, quality: 85 }, tabScope: { sessionKey: id } }));
+    const result = record(await this.request("browser.request", { method: "POST", path: "/screencast", body: { targetId, maxWidth: 1600, maxHeight: 1000, quality: 85 }, tabScope: this.browserScope(id) }));
     const base = new URL(await this.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     return { url: new URL(text(result.wsPath), base).toString(), pageUrl: text(result.url), expiresAt: Number(result.expiresAtMs), targetId, tabs };
   }

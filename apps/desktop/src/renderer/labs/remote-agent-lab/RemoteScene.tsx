@@ -25,7 +25,7 @@ export function RemoteScene({ engine, taskId, snapshot, available }: { engine: R
       {disabled ? <div className="remote-scene-empty"><span>◈</span><p>{taskId ? "连接远端服务后查看执行现场" : "选择或新建任务，观察远端执行现场"}</p></div> : <>
         {/* Preserve a controlled framebuffer while viewing files/terminal. */}
         {(tab === "desktop" || snapshot?.humanControl) && engine === "openclaw" && <div className={`remote-scene-view${tab !== "desktop" ? " is-hidden" : ""}`}><RemoteDesktop engine={engine} taskId={taskId} humanControl={snapshot?.humanControl ?? false} onBrowser={() => setTab("browser")} /></div>}
-        {tab === "browser" && (engine === "openhands" ? <RemoteDesktop engine={engine} taskId={taskId} humanControl={false} /> : <RemoteBrowser taskId={taskId} running={snapshot?.task.status === "running"} controlled={snapshot?.humanControl ?? false} />)}
+        {tab === "browser" && (engine === "openhands" ? <RemoteDesktop engine={engine} taskId={taskId} humanControl={false} /> : <RemoteBrowser taskId={taskId} running={snapshot?.task.status === "running"} controlled={snapshot?.humanControl ?? false} onDesktop={() => setTab("desktop")} />)}
         {tab === "terminal" && <RemoteTerminalPanel engine={engine} taskId={taskId} snapshot={snapshot} />}
         {tab === "files" && <RemoteFiles engine={engine} taskId={taskId} running={snapshot?.task.status === "running"} onPreview={path => void openPreview(path)} />}
         {tab === "preview" && <div className="remote-preview">
@@ -72,17 +72,27 @@ function RemoteDesktop({ engine, taskId, humanControl, onBrowser }: { engine: Re
     {returning && <div className="remote-inline-confirm" role="dialog" aria-label="交还远端桌面"><h3>交还智能体</h3><p>重新同步现场后，可以等待新指令，或明确让智能体继续。</p><textarea rows={3} aria-label="交还后的补充要求" placeholder="刚才做了什么，接下来希望怎么继续（可选）" value={followUp} onChange={event => setFollowUp(event.target.value)} /><div><button type="button" className="remote-button" disabled={busy} onClick={() => setReturning(false)}>取消</button><button type="button" className="remote-button" disabled={busy} onClick={() => void handBack(false)}>交还，等待指令</button><button type="button" className="remote-button remote-button--primary" disabled={busy} onClick={() => void handBack(true)}>交还并继续</button></div></div>}
   </div>;
 }
-function RemoteBrowser({ taskId, running, controlled }: { taskId: string; running?: boolean; controlled: boolean }): JSX.Element {
+function RemoteBrowser({ taskId, running, controlled, onDesktop }: { taskId: string; running?: boolean; controlled: boolean; onDesktop(): void }): JSX.Element {
   const bridge = window.selfmeLab!, socket = useRef<WebSocket | undefined>(undefined);
   const alive = useRef(true), latest = useRef(""), connecting = useRef(false), generation = useRef(0), attempts = useRef(0);
   const frameTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined); const target = useRef(""); const seenTabs = useRef(new Set<string>());
   const [image, setImage] = useState(""); const [url, setUrl] = useState(""); const [address, setAddress] = useState("");
   const [status, setStatus] = useState("正在准备远端浏览器…"); const [connected, setConnected] = useState(false); const [busy, setBusy] = useState(true);
   const [tabs, setTabs] = useState<RemoteBrowserTab[]>([]); const [size, setSize] = useState("");
+  const [focusing, setFocusing] = useState(false); const [focusError, setFocusError] = useState("");
+  async function showDesktop(): Promise<void> {
+    if (busy || focusing || controlled || !target.current) return;
+    const version = generation.current; setFocusing(true); setFocusError("");
+    try {
+      await bridge.focusRemoteBrowser("openclaw", taskId, target.current);
+      if (alive.current && version === generation.current) onDesktop();
+    } catch (error) { if (alive.current && version === generation.current) setFocusError(remoteError(error)); }
+    finally { if (alive.current && version === generation.current) setFocusing(false); }
+  }
   async function connect(options: RemoteBrowserOptions = {}): Promise<void> {
     if (connecting.current) return;
     connecting.current = true; const version = ++generation.current;
-    setBusy(true); setConnected(false); setStatus("正在连接任务页面…");
+    setBusy(true); setConnected(false); setStatus("正在连接任务页面…"); setFocusError("");
     clearTimeout(frameTimeout.current); const old = socket.current; socket.current = undefined; old?.close();
     if (latest.current) URL.revokeObjectURL(latest.current); latest.current = ""; setImage(""); setSize("");
     try {
@@ -124,6 +134,7 @@ function RemoteBrowser({ taskId, running, controlled }: { taskId: string; runnin
     return () => clearTimeout(retry);
   }, [taskId, connected, busy, status]);
   useEffect(() => {
+    if (focusing) return;
     let current = true, querying = false;
     const query = () => {
       if (querying || connecting.current) return; querying = true;
@@ -137,13 +148,14 @@ function RemoteBrowser({ taskId, running, controlled }: { taskId: string; runnin
     // finish before the next interval tick.
     query(); const timer = running ? setInterval(query, 3000) : undefined;
     return () => { current = false; clearInterval(timer); };
-  }, [taskId, running, controlled]);
+  }, [taskId, running, controlled, focusing]);
   return <div className="remote-browser">
-    <div className="remote-observer-bar"><span className={`remote-observer-status is-${connected ? "connected" : busy ? "loading" : "error"}`}>{busy ? <i className="remote-spinner" /> : <i />}{connected ? "LIVE · 只读观察" : busy ? "正在连接浏览器…" : "浏览器观察未连接"}</span><button type="button" className="remote-icon-button" aria-label="刷新浏览器观察" title="重新连接此任务页面" disabled={busy} onClick={() => { attempts.current = 0; void connect(); }}>↻</button></div>
-    <form className="remote-browser-address" onSubmit={event => { event.preventDefault(); if (address.trim()) { attempts.current = 0; void connect({ url: address.trim() }); } }}><input aria-label="远端浏览器地址" type="url" placeholder="https://… 在远端浏览器打开" value={address} disabled={busy || controlled} onChange={event => setAddress(event.target.value)} /><button type="submit" className="remote-button" disabled={busy || controlled || !address.trim()}>打开</button></form>
-    {tabs.length > 1 && <select className="remote-browser-tab-select" aria-label="选择任务浏览器页面" value={target.current} disabled={busy} onChange={event => void connect({ targetId: event.target.value })}>{tabs.map(tab => <option key={tab.targetId} value={tab.targetId}>{tab.title || tab.url || "新页面"}</option>)}</select>}
-    {url && url !== "about:blank" && <div className="remote-browser-url" title={url}>{url}</div>}
-    <div className="remote-browser-screen">{image && <img src={image} alt="远端浏览器实时画面" onLoad={event => { const image = event.currentTarget; setSize(`${image.naturalWidth} × ${image.naturalHeight} · 适应窗口`); }} />}{!connected ? <div className="remote-rfb-overlay">{busy && <span className="remote-spinner" />}<p>{status}</p>{!busy && <button type="button" className="remote-button" onClick={() => { attempts.current = 0; void connect(); }}>重新连接</button>}</div> : url === "about:blank" && <div className="remote-browser-blank"><strong>远端浏览器已就绪</strong><p>输入地址，或让智能体打开网页</p></div>}</div>
+    <div className="remote-observer-bar"><span className={`remote-observer-status is-${connected ? "connected" : busy ? "loading" : "error"}`}>{busy ? <i className="remote-spinner" /> : <i />}{connected ? "LIVE · 只读观察" : busy ? "正在连接浏览器…" : "浏览器观察未连接"}</span><button type="button" className="remote-button" disabled={!connected || busy || focusing || controlled} onClick={() => void showDesktop()}>{focusing ? "正在定位…" : "在桌面查看"}</button><button type="button" className="remote-icon-button" aria-label="刷新浏览器观察" title="重新连接此任务页面" disabled={busy || focusing} onClick={() => { attempts.current = 0; void connect(); }}>↻</button></div>
+    {focusError && <p className="remote-error">{focusError}</p>}
+    <form className="remote-browser-address" onSubmit={event => { event.preventDefault(); if (address.trim() && !busy && !focusing && !controlled) { attempts.current = 0; void connect({ url: address.trim() }); } }}><input aria-label="远端浏览器地址" type="url" placeholder="https://… 在远端浏览器打开" value={address} disabled={busy || focusing || controlled} onChange={event => setAddress(event.target.value)} /><button type="submit" className="remote-button" disabled={busy || focusing || controlled || !address.trim()}>打开</button></form>
+    {tabs.length > 1 && <select className="remote-browser-tab-select" aria-label="选择任务浏览器页面" value={target.current} disabled={busy || focusing} onChange={event => void connect({ targetId: event.target.value })}>{tabs.map(tab => <option key={tab.targetId} value={tab.targetId}>{tab.title || tab.url || "新页面"}</option>)}</select>}
+    {url && <div className="remote-browser-url" title={url}>{url}</div>}
+    <div className="remote-browser-screen">{image && <img src={image} alt="远端浏览器实时画面" onLoad={event => { const image = event.currentTarget; setSize(`${image.naturalWidth} × ${image.naturalHeight} · 适应窗口`); }} />}{!connected && <div className="remote-rfb-overlay">{busy && <span className="remote-spinner" />}<p>{status}</p>{!busy && <button type="button" className="remote-button" onClick={() => { attempts.current = 0; void connect(); }}>重新连接</button>}</div>}</div>
     {size && <small className="remote-frame-size">{size} · 可展开查看</small>}<small className="remote-scene-note">只展示当前任务的网页 · 与远端桌面使用同一浏览器 · 不操作你的电脑</small>
   </div>;
 }
@@ -193,5 +205,5 @@ function AdminTerminal({ taskId }: { taskId: string }): JSX.Element {
     finally { if (alive.current && version === generation.current) { opening.current = false; setBusy(false); } }
   }
   async function close(): Promise<void> { if (!current.current || busy) return; setBusy(true); try { await bridge.closeRemoteTerminal("openclaw", taskId, current.current.id); current.current = undefined; setEnded(true); } catch (error) { setError(remoteError(error)); } finally { setBusy(false); } }
-  return <div className="remote-admin-terminal"><div className="remote-terminal-bar"><span title={info?.cwd}>{info && !ended ? info.cwd : "当前任务的远端终端"}</span><button type="button" className="remote-button" disabled={busy} onClick={() => void (info && !ended ? close() : open())}>{busy ? "连接中…" : info && !ended ? "关闭终端" : "重新打开"}</button></div><small className="remote-scene-note">直接操作远端容器，不经过智能体审批；工作目录已切换到当前任务，不操作你的电脑。</small>{error && <p className="remote-error">{error}</p>}<div ref={host} className="remote-xterm" />{!info && !error && <div className="remote-terminal-intro"><p>正在连接当前任务的终端…</p></div>}</div>;
+  return <div className="remote-admin-terminal"><div className="remote-terminal-bar"><span title={info?.cwd}>{info && !ended ? info.cwd : "当前任务的远端终端"}</span><button type="button" className="remote-button" disabled={busy} onClick={() => void (info && !ended ? close() : open())}>{busy ? "连接中…" : info && !ended ? "关闭终端" : "重新打开"}</button></div><small className="remote-scene-note">独立终端，与智能体共用远端任务文件；直接执行你的命令，不经过智能体审批。智能体命令另见「智能体输出」。</small>{error && <p className="remote-error">{error}</p>}<div ref={host} className="remote-xterm" />{!info && !error && <div className="remote-terminal-intro"><p>正在连接当前任务的终端…</p></div>}</div>;
 }
