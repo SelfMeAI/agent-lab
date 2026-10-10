@@ -56,6 +56,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         } else {
           const grant = await tasks.desktop(engine, task.id, false);
           expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
+          await defaultDesktopReady(container.name);
           const terminal = await tasks.claw.terminal(task.id);
           expect(terminal.cwd).toBe(`/home/node/.openclaw/workspace/selfme/${remoteTaskId(task.id)}`);
           await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd\r");
@@ -72,6 +73,11 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         tasks.reset(); await container.restart();
         expect((await client.list()).some(row => row.id === task.id)).toBe(true);
         expect(await (await files.download(task.id, "uploads/proof.txt")).text()).toBe("NATIVE_REMOTE_FILES_OK\n");
+        if (engine === "openclaw") {
+          const grant = await tasks.desktop(engine, task.id, false);
+          expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
+          await defaultDesktopReady(container.name);
+        }
         await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
         if (engine === "openhands") {
           const denied = await fetch(`${await container.requireEndpoint()}/api/settings`);
@@ -105,6 +111,16 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
     }, 180_000);
   }
 });
+
+async function defaultDesktopReady(container: string): Promise<void> {
+  const exec = promisify(execFile);
+  await expect.poll(async () => {
+    try {
+      await exec("docker", ["exec", container, "sh", "-lc", "test -x /usr/bin/xfdesktop && test -x /usr/bin/thunar && test -e /usr/share/images/desktop-base/default && pgrep -x xfdesktop >/dev/null"]);
+      return true;
+    } catch { return false; }
+  }, { timeout: 15_000 }).toBe(true);
+}
 
 async function framebufferHeader(url: string): Promise<string> {
   const socket = new WebSocket(url, "binary"); socket.binaryType = "arraybuffer";

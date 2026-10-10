@@ -14,4 +14,8 @@ describe("private remote development deployment", () => {
     expect(redactServiceOutput("credential-one sk-example-provider123 token=secret api_key: 'hidden' normal log", ["credential-one"]))
       .toBe("[已隐藏] [已隐藏] token=[已隐藏] api_key: [已隐藏] normal log");
   });
+  it("keeps the previous desktop deployment eligible for a volume-preserving upgrade", () => {
+    expect(remoteDeployments.openclaw.image).toBe("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab3");
+    expect(remoteDeployments.openclaw.legacyImages).toContain("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab2");
+  });
 });

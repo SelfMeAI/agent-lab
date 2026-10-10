@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { readLock, validateLock } from "./source.mjs";
 import { buildArguments, deploymentArguments } from "./build.mjs";
 import { useBuiltLauncher } from "../../services/remote-agent/openclaw/tests/bootstrap-native-proof.mjs";
@@ -47,4 +48,12 @@ test("deployment layers are explicit, source-derived and ownership-labelled", as
   assert.equal(args.at(-1), "/workspace/service");
   assert.equal(deploymentArguments({ build: definition.build }, source, "/workspace/service"), undefined);
   assert.throws(() => deploymentArguments({ ...definition, deployment: { ...definition.deployment, dockerfile: "../Dockerfile" } }, source, "/workspace/service"));
+});
+
+test("OpenClaw adds the default Xfce desktop in the deployment layer", async () => {
+  const definition = JSON.parse(await readFile(new URL("../../services/remote-agent/openclaw/service.json", import.meta.url), "utf8"));
+  const dockerfile = await readFile(new URL("../../services/remote-agent/openclaw/deployment.Dockerfile", import.meta.url), "utf8");
+  assert.ok(definition.deployment.image.endsWith("-lab3"));
+  assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common/);
+  assert.doesNotMatch(dockerfile, /xfconf-query|COPY.*(?:wallpaper|background|backdrop)/);
 });
