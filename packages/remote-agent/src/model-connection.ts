@@ -1,7 +1,8 @@
-import type { RemoteAgentId, RemoteModelConnection, RemoteModelInput } from "../../contracts/src/remote-agent";
+import type { RemoteAgentId, RemoteModelConnection, RemoteModelInput, RemoteModelListInput } from "../../contracts/src/remote-agent";
 import { openClawRpc, type OpenClawIdentity } from "./openclaw/gateway";
 import { remoteEndpoint } from "./transport/endpoint";
 import { knownRemoteVision, remoteCanonicalModel } from "./model-capabilities";
+import { modelListUrl } from "./provider-models";
 
 export function validateRemoteModel(value: RemoteModelInput): RemoteModelInput {
   if (!value || !["openai", "anthropic"].includes(value.protocol)) throw new Error("请选择模型协议");
@@ -27,7 +28,13 @@ export class RemoteModelClient {
     const keys = await this.credentials();
     const response = await fetch(`${endpoint}${path}`, { method, headers: { "X-Session-API-Key": keys.sessionApiKey, ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) throw new Error(`OpenHands 设置${method === "GET" ? "读取" : "保存"}失败（${response.status}）`);
+    if (!response.ok) {
+      if (path === "/api/selfme/models") {
+        const value = await response.json().catch(() => ({})) as { detail?: unknown };
+        throw new Error(typeof value.detail === "string" ? value.detail : `获取模型列表失败（${response.status}）`);
+      }
+      throw new Error(`OpenHands 设置${method === "GET" ? "读取" : "保存"}失败（${response.status}）`);
+    }
     return response.json() as Promise<T>;
   }
   private async claw<T>(method: string, params: unknown = {}): Promise<T> {
@@ -38,6 +45,17 @@ export class RemoteModelClient {
   async get(): Promise<RemoteModelConnection> {
     if (this.engine === "openhands") return this.handsConnection(await this.hands<Settings>("/api/settings"));
     return this.clawConnection(await this.claw<ClawConfig>("config.get"));
+  }
+  async listModels(input: RemoteModelListInput): Promise<string[]> {
+    if (!input || !["openai", "anthropic"].includes(input.protocol) || typeof input.baseUrl !== "string" || (input.apiKey !== undefined && typeof input.apiKey !== "string")) throw new Error("无效的模型列表请求");
+    modelListUrl(input.baseUrl, input.protocol);
+    if (input.apiKey && (input.apiKey.length > 4096 || /[\r\n\0]/u.test(input.apiKey))) throw new Error("API Key 格式无效");
+    const value = { protocol: input.protocol, baseUrl: input.baseUrl, ...(input.apiKey?.trim() ? { apiKey: input.apiKey.trim() } : {}) };
+    const result = this.engine === "openhands"
+      ? await this.hands<{ models: string[] }>("/api/selfme/models", "POST", value)
+      : await this.claw<{ models: string[] }>("selfme.models.list", value);
+    if (!Array.isArray(result?.models)) throw new Error("接口未返回标准模型列表，请手动填写模型 ID");
+    return [...new Set(result.models.filter(id => typeof id === "string" && id.length > 0 && id.length <= 200 && !/[\s\x00-\x1f]/u.test(id)))].sort((a, b) => a.localeCompare(b));
   }
   private handsConnection(settings: Settings): RemoteModelConnection {
     const llm = settings.agent_settings?.llm;

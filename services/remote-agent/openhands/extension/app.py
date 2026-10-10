@@ -15,11 +15,32 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse
 from openhands.agent_server.api import create_app
 from openhands.agent_server.dependencies import check_session_api_key, get_conversation_service
+from openhands.agent_server._secrets_exposure import get_config
+from openhands.agent_server.persistence import get_settings_store
+from model_discovery import discover_models
 
 app = create_app()
 router = APIRouter(prefix="/api/selfme", dependencies=[Depends(check_session_api_key)])
 tasks = Path("/workspace/selfme/tasks")
 tickets: dict[str, float] = {}
+
+
+@router.post("/models")
+async def provider_models(request: Request):
+    # Same authenticated native settings store; no copied/fallback desktop keys.
+    if len(body := await request.body()) > 16384:
+        raise HTTPException(413, "模型列表请求过大")
+    try:
+        value = await request.json()
+        settings = get_settings_store(get_config(request)).load()
+        llm = getattr(settings.agent_settings, "llm", None) if settings else None
+        model = llm.model if llm else ""
+        key = llm.api_key.get_secret_value() if llm and llm.api_key else None
+        saved = {"protocol": "anthropic" if model.startswith("anthropic/") else "openai", "baseUrl": llm.base_url if llm else "", "apiKey": key}
+        return {"models": await discover_models(value, saved)}
+    except ValueError as error:
+        # Our errors contain statuses only, never provider bodies or credentials.
+        raise HTTPException(400, str(error)) from None
 
 
 def identity(value: str) -> str:

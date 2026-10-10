@@ -27,7 +27,7 @@ import { LocalModelStore } from "./local-model-store";
 import { LocalModelService } from "./local-model-service";
 import { electronModelMetadataFetch } from "./electron-model-network";
 import type { LocalModelPreferences, LocalModelRunRequest } from "../../../../packages/contracts/src/local-model";
-import { isRemoteAgentId, type RemoteAgentId, type RemoteModelInput } from "../../../../packages/contracts/src/remote-agent";
+import { isRemoteAgentId, type RemoteAgentId, type RemoteModelInput, type RemoteModelListInput } from "../../../../packages/contracts/src/remote-agent";
 import { RemoteModelClient } from "../../../../packages/remote-agent/src/model-connection";
 import { RemoteServiceCredentials } from "./remote-agent/credentials";
 import { RemoteAgentContainer } from "./remote-agent/service-manager";
@@ -188,6 +188,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:remote-service-logs", (event, engine) => remote(event, engine).logs());
   ipcMain.handle("selfme:remote-model-get", (event, engine) => remote(event, engine).getModel());
   ipcMain.handle("selfme:remote-model-save", (event, engine, input: RemoteModelInput) => remote(event, engine).saveModel(input));
+  ipcMain.handle("selfme:remote-model-list", (event, engine, input: RemoteModelListInput) => remote(event, engine).listModels(input));
   const taskClient = (event: IpcMainInvokeEvent, engine: unknown, id?: unknown) => {
     remote(event, engine);
     if (id !== undefined && (typeof id !== "string" || (engine === "openhands" ? remoteTaskId(id) !== id : "agent:main:selfme:" + remoteTaskId(id) !== id))) throw new Error("任务标识无效");

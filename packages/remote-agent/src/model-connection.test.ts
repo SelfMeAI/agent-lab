@@ -44,4 +44,20 @@ describe("remote native model connection", () => {
     await expect(client.get()).rejects.toThrow("422");
     await expect(client.get()).rejects.not.toThrow("private-key");
   });
+  it("delegates lookup to the authenticated server without saving or receiving secrets", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ models: ["model-b", "model-a", "model-a", "bad model"] }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new RemoteModelClient("openhands", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture-session" }));
+    expect(await client.listModels({ protocol: "openai", baseUrl: "https://api.deepseek.com" })).toEqual(["model-a", "model-b"]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:1234/api/selfme/models"); expect(options.method).toBe("POST");
+    expect(options.headers["X-Session-API-Key"]).toBe("fixture-session");
+    expect(JSON.parse(options.body)).toEqual({ protocol: "openai", baseUrl: "https://api.deepseek.com" });
+  });
+  it("reports sanitized lookup errors while allowing manual model entry", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ detail: "连接地址或协议已更改，请填写对应的 API Key" }) }));
+    const client = new RemoteModelClient("openhands", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture" }));
+    await expect(client.listModels({ protocol: "anthropic", baseUrl: "https://other.example" })).rejects.toThrow("已更改");
+  });
 });

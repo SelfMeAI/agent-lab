@@ -1,9 +1,9 @@
-import type { RemoteModelConnection, RemoteModelInput, RemoteServiceState } from "../../../../../packages/contracts/src/remote-agent";
+import type { RemoteModelConnection, RemoteModelInput, RemoteModelListInput, RemoteServiceState } from "../../../../../packages/contracts/src/remote-agent";
 import { redactServiceOutput } from "./deployment";
 
 type Action = "start" | "stop" | "restart";
 interface ContainerPort { state(): Promise<RemoteServiceState>; control(action: Action): Promise<RemoteServiceState>; logs(): Promise<string> }
-interface ModelPort { get(): Promise<RemoteModelConnection>; save(input: RemoteModelInput): Promise<RemoteModelConnection> }
+interface ModelPort { get(): Promise<RemoteModelConnection>; save(input: RemoteModelInput): Promise<RemoteModelConnection>; listModels(input: RemoteModelListInput): Promise<string[]> }
 
 /** Coordinates dev lifecycle and first configuration across route/client remounts. */
 export class RemoteDevelopmentService {
@@ -34,6 +34,11 @@ export class RemoteDevelopmentService {
   }
   private assertIdle(): void { if (this.action || this.saving) throw new Error("服务正在处理中，请等待操作完成"); }
   getModel(): Promise<RemoteModelConnection> { this.assertIdle(); return this.model.get(); }
+  async listModels(input: RemoteModelListInput): Promise<string[]> {
+    this.assertIdle();
+    try { return await this.model.listModels(input); }
+    catch (error) { throw new Error(redactServiceOutput(error instanceof Error ? error.message : String(error), [input?.apiKey ?? ""])); }
+  }
   async saveModel(input: RemoteModelInput): Promise<RemoteModelConnection> {
     this.assertIdle(); this.saving = true;
     try { const result = await this.model.save(input); this.warning = undefined; return result; }

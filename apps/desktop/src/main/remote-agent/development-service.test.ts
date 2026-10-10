@@ -6,7 +6,7 @@ const state: RemoteServiceState = { phase: "ready", running: true, dockerAvailab
 const connection: RemoteModelConnection = { protocol: "openai", model: "fixture-model", baseUrl: "https://api.deepseek.com", configured: true };
 function fixture(configured = false) {
   const container = { state: vi.fn(async () => state), control: vi.fn(async () => state), logs: vi.fn(async () => "logs") };
-  const model = { get: vi.fn(async () => ({ ...connection, configured })), save: vi.fn(async () => connection) };
+  const model = { get: vi.fn(async () => ({ ...connection, configured })), save: vi.fn(async () => connection), listModels: vi.fn(async () => ["fixture-model"]) };
   const initial = vi.fn(async () => ({ protocol: "openai" as const, baseUrl: connection.baseUrl, model: connection.model, apiKey: "fixture-key" }));
   return { container, model, initial, service: new RemoteDevelopmentService(container, model, initial) };
 }
@@ -45,5 +45,13 @@ describe("development service coordination", () => {
     const test = fixture(true); test.model.save.mockRejectedValue(new Error("rejected private-fixture-value"));
     await expect(test.service.saveModel({ protocol: "openai", baseUrl: connection.baseUrl, model: connection.model, apiKey: "private-fixture-value" })).rejects.toThrow("rejected [已隐藏]");
     expect((await test.service.state()).phase).toBe("ready");
+  });
+  it("lists models without saving a connection or changing service lifecycle", async () => {
+    const test = fixture(true), input = { protocol: "openai" as const, baseUrl: connection.baseUrl };
+    expect(await test.service.listModels(input)).toEqual(["fixture-model"]);
+    expect(test.model.listModels).toHaveBeenCalledWith(input);
+    expect(test.model.save).not.toHaveBeenCalled(); expect(test.container.control).not.toHaveBeenCalled();
+    test.model.listModels.mockRejectedValue(new Error("private-fixture-key"));
+    await expect(test.service.listModels({ ...input, apiKey: "private-fixture-key" })).rejects.toThrow("[已隐藏]");
   });
 });

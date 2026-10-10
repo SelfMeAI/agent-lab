@@ -84,6 +84,18 @@
 .remote-key-field input { padding-right: 54px; }
 .remote-key-field button { position: absolute; right: 4px; top: 3px; height: 28px; border: 0; background: transparent; color: #91aab9; font-size: 11px; padding: 0 8px; }
 .remote-key-field button:disabled { cursor: default; }
+.remote-model-field { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 12px; align-items: start; }
+.remote-model-fields .remote-model-field > label { display: block; padding-top: 9px; }
+.remote-model-choice { min-width: 0; }
+.remote-model-choice__input { display: flex; align-items: center; gap: 8px; }
+.remote-model-choice__input .remote-button { flex: 0 0 auto; padding: 6px 11px; font-size: 12px; }
+.remote-model-choice__hint { margin: 7px 0 0; color: #92a6b2; font: 11px/1.6 -apple-system, BlinkMacSystemFont, sans-serif; overflow-wrap: anywhere; }
+.remote-model-choice__toggle { margin-top: 7px; padding: 2px 0; background: none; border: 0; color: #bed5df; font: 11px -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-model-picker { margin-top: 8px; padding: 8px; border: 1px solid #344854; border-radius: 5px; background: #081117; }
+.remote-model-picker__results { max-height: 168px; margin-top: 7px; overflow-y: auto; overscroll-behavior: contain; }
+.remote-model-picker__results button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; border: 0; border-radius: 3px; padding: 8px 9px; color: #bccbd5; background: transparent; font: 12px/1.45 Menlo, monospace; overflow-wrap: anywhere; }
+.remote-model-picker__results button:hover, .remote-model-picker__results button.is-selected { color: #ecf5fa; background: #23343e; }
+.remote-model-picker__results p { margin: 8px 6px; color: #91a6b4; font: 11px/1.6 -apple-system, sans-serif; }
 .remote-error { color: #f2a49a !important; font: 12px/1.7 -apple-system, sans-serif; overflow-wrap: anywhere; }
 .remote-panel__notice { color: #aacfc0; font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
 .remote-logs { border: 1px solid #354550; border-radius: 4px; margin-top: 17px; overflow: hidden; }

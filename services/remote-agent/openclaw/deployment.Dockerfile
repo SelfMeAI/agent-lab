@@ -8,6 +8,7 @@ RUN sed -i 's|URIs: http://deb.debian.org/|URIs: https://deb.debian.org/|g' /etc
     && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY plugin /opt/selfme/plugin
+COPY --from=model-discovery /provider-models.ts /opt/selfme/plugin/provider-models.ts
 COPY bootstrap /opt/selfme/bootstrap
 RUN chown -R node:node /opt/selfme
 USER node

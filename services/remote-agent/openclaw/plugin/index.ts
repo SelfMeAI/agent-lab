@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { discoverConnectedModels, type ProviderModelsInput } from "./provider-models";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -66,7 +67,7 @@ async function http(req: IncomingMessage, res: ServerResponse): Promise<boolean>
 type DesktopLease = { env: NodeJS.ProcessEnv; isCurrent(): boolean; release(): void };
 type HostDesktopService = { acquireComputer(options: { onStop(): Promise<void> }): Promise<DesktopLease> };
 type PluginApi = {
-  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
+  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService; getRuntimeConfig(): { models?: { providers?: Record<string, { baseUrl?: string; api?: string; apiKey?: unknown }> } } }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
   registerHttpRoute(route: { path: string; auth: "gateway"; match: "exact"; handler: typeof http }): void;
   on(name: "before_tool_call", handler: () => { block: true; blockReason: string } | undefined, options?: { priority: number }): void;
 };
@@ -100,6 +101,14 @@ async function prepareDesktop(service: HostDesktopService): Promise<void> {
 export default {
   id: "selfme-lab", name: "SelfMe Lab Remote Files",
   register(api: PluginApi): void {
+    api.registerGatewayMethod("selfme.models.list", async ({ params, context, respond }) => {
+      try {
+        const provider = context.getRuntimeConfig().models?.providers?.selfme;
+        const saved: ProviderModelsInput = { protocol: provider?.api === "anthropic-messages" ? "anthropic" : "openai", baseUrl: provider?.baseUrl ?? "", apiKey: typeof provider?.apiKey === "string" ? provider.apiKey : undefined };
+        const models = await discoverConnectedModels(params as unknown as ProviderModelsInput, saved);
+        respond(true, { models });
+      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "获取模型列表失败" }); }
+    }, { scope: "operator.admin" });
     api.registerGatewayMethod("selfme.scene.prepare", async ({ params, context, respond }) => {
       try {
         const workspace = await root(taskId(params.task));

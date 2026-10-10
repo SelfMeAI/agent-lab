@@ -32,10 +32,17 @@ export interface RemoteModelInput {
   apiKey?: string;
   supportsImages?: boolean;
 }
+export interface RemoteModelListInput {
+  protocol: RemoteModelProtocol;
+  baseUrl: string;
+  /** Omitted reuses only this server's saved key for the same address/protocol. */
+  apiKey?: string;
+}
 export interface RemoteServiceBridge {
   getRemoteServiceState(engine: RemoteAgentId): Promise<RemoteServiceState>;
   controlRemoteService(engine: RemoteAgentId, action: "start" | "stop" | "restart"): Promise<RemoteServiceState>;
   getRemoteServiceLogs(engine: RemoteAgentId): Promise<string>;
   getRemoteModelConnection(engine: RemoteAgentId): Promise<RemoteModelConnection>;
   saveRemoteModelConnection(engine: RemoteAgentId, value: RemoteModelInput): Promise<RemoteModelConnection>;
+  listRemoteProviderModels(engine: RemoteAgentId, value: RemoteModelListInput): Promise<string[]>;
 }

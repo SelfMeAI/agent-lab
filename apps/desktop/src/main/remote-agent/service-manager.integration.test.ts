@@ -39,6 +39,22 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         await ready();
         await container.restart();
         expect(await models.get()).toMatchObject({ model: "deepseek-reasoner", configured: true });
+        // A container-local fixture exercises the real authenticated lookup,
+        // including both provider protocols, without hitting a paid model API.
+        const execModels = promisify(execFile);
+        await execModels("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", `
+          import http from 'node:http';
+          http.createServer((req,res) => {
+            if (req.headers.authorization !== 'Bearer inventory-fixture' || !['/models','/v1/models'].includes(req.url)) { res.writeHead(401); res.end('private provider body'); return; }
+            res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify({data:[{id:'fixture-b'},{id:'fixture-a'},{id:'fixture-a'}]}));
+          }).listen(8943,'127.0.0.1');
+        `]);
+        const priorConnection = await models.get();
+        await expect.poll(() => models.listModels({ protocol: "openai", baseUrl: "http://127.0.0.1:8943", apiKey: "inventory-fixture" }), { timeout: 5000 }).toEqual(["fixture-a", "fixture-b"]);
+        expect(await models.listModels({ protocol: "anthropic", baseUrl: "http://127.0.0.1:8943", apiKey: "inventory-fixture" })).toEqual(["fixture-a", "fixture-b"]);
+        await expect(models.listModels({ protocol: "openai", baseUrl: "http://127.0.0.1:8943" })).rejects.toThrow("已更改");
+        expect(await models.get()).toEqual(priorConnection);
+        if (engine === "openhands") expect([401, 403]).toContain((await fetch(`${await container.requireEndpoint()}/api/selfme/models`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ protocol: "openai", baseUrl: "http://127.0.0.1:8943", apiKey: "inventory-fixture" }) })).status);
         const client = tasks.client(engine), task = await client.create();
         expect((await client.list()).some(row => row.id === task.id)).toBe(true);
         const files = client.http, body = new TextEncoder().encode("NATIVE_REMOTE_FILES_OK\n");

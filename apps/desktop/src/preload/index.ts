@@ -38,6 +38,7 @@ const bridge: DesktopBridge = {
   getRemoteServiceLogs: (engine) => ipcRenderer.invoke("selfme:remote-service-logs", engine),
   getRemoteModelConnection: (engine) => ipcRenderer.invoke("selfme:remote-model-get", engine),
   saveRemoteModelConnection: (engine, input) => ipcRenderer.invoke("selfme:remote-model-save", engine, input),
+  listRemoteProviderModels: (engine, input) => ipcRenderer.invoke("selfme:remote-model-list", engine, input),
   getAppInfo: () => ipcRenderer.invoke("selfme:app-info"),
   openExternal: (url) => ipcRenderer.invoke("selfme:open-external", url),
   chooseWorkspace: () => ipcRenderer.invoke("selfme:choose-workspace"),

@@ -21,7 +21,7 @@ export function buildArguments(definition, source, directory) {
 export function deploymentArguments(definition, source, directory) {
   if (!definition.deployment) return undefined;
   if (definition.deployment.dockerfile !== "deployment.Dockerfile" || !/^selfme-lab\/[a-z0-9-]+:[a-zA-Z0-9_.-]+$/.test(definition.deployment.image)) throw new Error("部署层构建定义无效");
-  return ["build", "--progress=plain", "--file", join(directory, "deployment.Dockerfile"),
+  return ["build", "--progress=plain", ...(definition.id === "openclaw" ? ["--build-context", `model-discovery=${join(projectRoot, "packages/remote-agent/src")}`] : []), "--file", join(directory, "deployment.Dockerfile"),
     "--tag", definition.deployment.image, "--build-arg", `SOURCE_IMAGE=${definition.build.image}`,
     "--label", `ai.selfme.lab.engine=${definition.id}`, "--label", `ai.selfme.lab.source.commit=${source.commit}`,
     "--label", "ai.selfme.lab.integration=1", directory];
