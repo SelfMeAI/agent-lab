@@ -10,7 +10,8 @@ import { observerTerminalSource } from '../../services/remote-agent/openclaw/des
 const task = 'c0ec83da-66be-4f17-a2c2-01dc02c89f00';
 test('terminal input status distinguishes idle direct use from explicit takeover', async () => {
   const config = await readFile('services/remote-agent/openclaw/desktop/config/tmux.conf', 'utf8');
-  assert.match(config, /@selfme_human_control,人工接管中 · 可输入,空闲 · 可输入/);
+  assert.match(config, /@selfme_human_control,已接管 · 可操作,可输入命令/);
+  assert.doesNotMatch(config, /人工接管中|空闲/);
   assert.match(config, /只读观察 · 暂不可输入/);
 });
 test('native terminal suppresses initial focus only for our automatic marker and refuses source drift', () => {
