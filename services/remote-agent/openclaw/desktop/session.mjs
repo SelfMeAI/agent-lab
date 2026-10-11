@@ -62,27 +62,6 @@ export async function setTerminalControl(lease) {
     await Promise.all(stdout.trim().split('\n').filter(Boolean).map(tty => run('tmux', [...tmuxArgv(), 'refresh-client', '-t', tty, '-f', 'read-only'])));
   }
 }
-export function foregroundCommand(rows, shellPid) {
-  const processes = rows.trim().split('\n').map(line => line.trim().split(/\s+/));
-  const shell = processes.find(row => Number(row[0]) === shellPid);
-  if (!shell || !/^\d+$/.test(shell[1]) || !/^\d+$/.test(shell[2])) return undefined;
-  const group = Number(shell[2]);
-  if (group <= 0 || group === Number(shell[1])) return undefined;
-  const command = processes.find(row => Number(row[1]) === group);
-  return command?.slice(3).join(' ') || '前台命令';
-}
-export async function terminalForeground() {
-  let panes;
-  try { ({ stdout: panes } = await run('tmux', [...tmuxArgv(), 'list-panes', '-a', '-F', '#{session_name} #{pane_pid} #{pane_tty}'])); }
-  catch (error) { if (/no server running|error connecting|No such file/i.test(String(error.stderr))) return undefined; throw error; }
-  for (const line of panes.trim().split('\n')) {
-    const [name, pid, tty] = line.split(' ');
-    if (!/^selfme-[0-9a-f-]{36}$/.test(name ?? '') || !/^\/dev\/pts\/\d+$/.test(tty ?? '')) continue;
-    const { stdout } = await run('ps', ['-t', tty.slice('/dev/'.length), '-o', 'pid=,pgid=,tpgid=,comm=']);
-    const command = foregroundCommand(stdout, Number(pid));
-    if (command) return { task: name.slice('selfme-'.length), command };
-  }
-}
 export async function inputTerminal(task, data, authorize = () => {}) {
   const identity = await checkedTask(task);
   // Native Gateway custody is checked before this operation. Hex keys preserve

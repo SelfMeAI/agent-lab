@@ -99,11 +99,10 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await tasks.claw.request("selfme.terminal.prepare", { task: remoteTaskId(task.id) });
           await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
           await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
-          expect(await tasks.claw.sceneAccess(task.id)).toEqual({ agentBusy: false, humanControl: false, inputAllowed: true });
+          expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ agentBusy: false, humanControl: false, inputAllowed: true, browserInputAllowed: true, terminalInputAllowed: true, takeover: "none" });
           await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nIDLE_INPUT_OK\\n'\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/IDLE_INPUT_OK\r?\n/);
           await tasks.claw.terminalInput(task.id, terminal.id, "sleep 2\r");
-          await expect(tasks.claw.send(task.id, "must not reach provider while manual foreground work runs")).rejects.toThrow("人工终端仍在执行");
           expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ agentBusy: false, humanControl: false, inputAllowed: true });
           await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
           await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");

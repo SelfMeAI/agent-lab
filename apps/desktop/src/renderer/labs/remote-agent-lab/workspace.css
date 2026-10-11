@@ -161,6 +161,12 @@
 .remote-attachments button { font-size: 14px; border: 0; color: #9bb0bd; background: none; }
 .remote-scene__heading { gap: 12px; }
 .remote-scene { position: relative; }
+.remote-takeover-wait { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; padding: 11px 12px; min-width: 0; border-bottom: 1px solid #80674870; background: #9f7b3c0d; }
+.remote-takeover-wait > .remote-spinner { flex-shrink: 0; color: #d4b98f; }
+.remote-takeover-wait > div { flex: 1; min-width: 0; }
+.remote-takeover-wait strong { font-size: 11px; line-height: 1.6; color: #dbcbb6; font-weight: 500; }
+.remote-takeover-wait p { margin: 3px 0 0; color: #a49e95; font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
+.remote-control-error { flex: 0 0 auto; margin: 8px 12px; }
 .remote-scene-control-error { margin: 0; padding: 8px 12px; flex-shrink: 0; }
 .remote-scene__heading .remote-icon-button { margin-left: auto; }
 .remote-scene__control-label + .remote-control-return + .remote-icon-button { margin-left: 0; }

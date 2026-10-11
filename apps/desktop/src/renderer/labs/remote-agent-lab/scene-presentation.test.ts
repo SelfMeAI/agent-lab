@@ -11,7 +11,7 @@ describe("remote scene presentation", () => {
   });
   it("never labels an in-progress connection as disconnected", () => {
     expect(observerLabel("loading", false, false)).toContain("正在连接");
-    expect(observerLabel("connected", false, true)).toContain("人工接管");
+    expect(observerLabel("connected", false, true)).toBe("CONTROL · 已接管 · 可操作");
     expect(observerLabel("error", false, false)).toContain("已断开");
   });
   it("reconnects only to a still-current target, without replaying closed page IDs", () => {
@@ -25,7 +25,7 @@ describe("remote scene presentation", () => {
     expect(browserObservationPresentation("error")).toMatchObject({ tone: "error", reconnect: true, open: false });
     expect(browserObservationPresentation("empty")).toMatchObject({ tone: "idle", reconnect: false, open: false });
     expect(browserObservationPresentation("empty", true).open).toBe(true);
-    expect(browserObservationPresentation("live", true)).toMatchObject({ label: "CONTROL · 人工接管中", tone: "connected", loading: false, reconnect: false });
+    expect(browserObservationPresentation("live", true)).toMatchObject({ label: "CONTROL · 已接管 · 可操作", tone: "connected", loading: false, reconnect: false });
     expect(browserObservationPresentation("retrying").loading).toBe(true);
   });
   it("enables desktop input only for an explicit live control grant, never an observer", () => {

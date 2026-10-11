@@ -28,7 +28,7 @@ export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: strin
 
 export function observerLabel(state: "loading" | "connected" | "error", busy: boolean, control: boolean, editable = false): string {
   if (busy || state === "loading") return "正在连接远端画面…";
-  return state === "connected" ? control ? "CONTROL · 人工接管中" : editable ? "LIVE · 可操作" : "LIVE · 只读观察" : "观察连接已断开";
+  return state === "connected" ? control ? "CONTROL · 已接管 · 可操作" : editable ? "LIVE · 可操作" : "LIVE · 只读观察" : "观察连接已断开";
 }
 
 export function desktopInputEnabled(control: boolean, granted: boolean, state: "loading" | "connected" | "error", busy: boolean, dialog: boolean): boolean {
@@ -45,7 +45,7 @@ export type BrowserObservationState = "connecting" | "live" | "empty" | "retryin
 /** Human control changes input permission, not the observation's connection. */
 export function browserObservationPresentation(state: BrowserObservationState, controlled = false, editable = controlled) {
   const labels: Record<BrowserObservationState, string> = {
-    connecting: "正在连接浏览器…", live: controlled ? "CONTROL · 人工接管中" : editable ? "LIVE · 可操作" : "LIVE · 只读观察", empty: "尚无任务页面",
+    connecting: "正在连接浏览器…", live: controlled ? "CONTROL · 已接管 · 可操作" : editable ? "LIVE · 可操作" : "LIVE · 只读观察", empty: "尚无任务页面",
     retrying: "正在恢复浏览器观察…", error: "浏览器观察已断开",
   };
   return {

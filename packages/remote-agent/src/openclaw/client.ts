@@ -279,20 +279,21 @@ export class OpenClawTasks {
   }
   async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); if (action === "stop") await this.request("chat.abort", { sessionKey: id }); else await this.send(id, "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。"); this.schedule(id); }
   async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("selfme.terminal.dispose", { task: remoteTaskId(id) }); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
-  async desktop(id: string, control: boolean): Promise<RemoteDesktopGrant> {
+  async desktop(id: string, control: boolean, force = false): Promise<RemoteDesktopGrant> {
     if (control && this.hold && this.hold.task !== id) throw new Error("正在接管其他任务的远端现场");
+    let acquired = false;
     await this.prepareScene(id); if (control && !this.hold) {
       const lease = record(await this.request("selfme.control.acquire", { task: remoteTaskId(id) }));
       const leaseId = text(lease.id);
+      if (!leaseId) throw new Error("服务未确认接管，请重新连接");
       this.hold = { task: id, id: leaseId, heartbeat: setInterval(() => void this.request("selfme.control.renew", { id: leaseId }).catch(() => this.disconnected()), 15_000) };
-      try {
-        for (const task of await this.list()) if (task.status === "running" || task.status === "waiting") await this.control(task.id, "stop");
-        const deadline = Date.now() + 25_000;
-        while ((await this.list()).some(task => task.status === "running" || task.status === "waiting")) {
-          if (Date.now() > deadline) throw new Error("智能体仍有操作未停止，未开放桌面控制"); await new Promise(resolve => setTimeout(resolve, 350));
-        }
-        await this.request("selfme.control.ready", { id: leaseId });
-      } catch (error) { await this.release(); throw error; }
+      acquired = true;
+      const view = this.views.get(id); if (view) this.publish(view);
+    }
+    if (force) {
+      if (!control || this.hold?.task !== id) throw new Error("请先申请接管当前任务");
+      await this.request("selfme.control.force", { id: this.hold.id });
+      for (const task of await this.list()) if (task.status === "running" || task.status === "waiting") await this.control(task.id, "stop");
     }
     try {
       const result = record(await this.request("selfme.scene.observe", { task: remoteTaskId(id) }));
@@ -301,12 +302,18 @@ export class OpenClawTasks {
       const scene = this.sceneState(result.scene);
       if (view) { view.snapshot.scene = scene; this.publish(view); }
       return { url: new URL(text(result.wsPath), base).toString(), password: text(result.vncPassword) || undefined, control: result.control === true, expiresAt: Number(result.expiresAtMs), scene };
-    } catch (error) { if (control) await this.release(); throw error; }
+    } catch (error) {
+      // A failed preview refresh must not silently hand back an established
+      // lease. Only roll back this request's newly acquired lease.
+      if (acquired) await this.release().catch(() => this.disconnected());
+      throw error;
+    }
   }
   private sceneState(value: unknown): RemoteSceneAccess {
     const row = record(value);
-    if ([row.agentBusy, row.humanControl, row.inputAllowed].some(value => typeof value !== "boolean")) throw new Error("远端现场状态尚未就绪，请重新连接服务");
-    return { agentBusy: row.agentBusy === true, humanControl: row.humanControl === true, inputAllowed: row.inputAllowed === true };
+    const fields = ["agentBusy", "humanControl", "inputAllowed", "browserBusy", "terminalBusy", "browserInputAllowed", "terminalInputAllowed"] as const;
+    if (fields.some(field => typeof row[field] !== "boolean") || !["none", "waiting", "stopping", "ready"].includes(String(row.takeover))) throw new Error("远端现场状态尚未就绪，请重新连接服务");
+    return row as unknown as RemoteSceneAccess;
   }
   async sceneAccess(id: string): Promise<RemoteSceneAccess> {
     key(id); const scene = this.sceneState(await this.request("selfme.scene.status", { task: remoteTaskId(id) }));
@@ -315,9 +322,11 @@ export class OpenClawTasks {
     return scene;
   }
   async release(): Promise<void> {
-    const hold = this.hold; if (!hold) return; this.hold = undefined; clearInterval(hold.heartbeat);
-    try { await this.request("selfme.control.release", { id: hold.id }); }
-    finally { const view = this.views.get(hold.task); if (view) this.publish(view); }
+    const hold = this.hold; if (!hold) return;
+    await this.request("selfme.control.release", { id: hold.id });
+    if (this.hold === hold) this.hold = undefined;
+    clearInterval(hold.heartbeat);
+    const view = this.views.get(hold.task); if (view) this.publish(view);
   }
   private browserScope(id: string): { sessionKey: string; referencedTabs?: BrowserReference[] } {
     const references = this.views.get(id)?.browserReferences;

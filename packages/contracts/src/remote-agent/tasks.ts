@@ -35,7 +35,13 @@ export interface RemoteFilePage { path: string; files: RemoteWorkspaceFile[]; tr
 export interface RemoteUploadedFile extends RemoteWorkspaceFile { absolutePath: string }
 export interface RemoteFilePreview { kind: "text" | "image" | "pdf" | "html" | "binary"; url?: string; text?: string; truncated: boolean; size: number; mime: string }
 /** Gateway input authority, independent of observation and explicit takeover. */
-export interface RemoteSceneAccess { agentBusy: boolean; humanControl: boolean; inputAllowed: boolean }
+export type RemoteTakeoverState = "none" | "waiting" | "stopping" | "ready";
+export interface RemoteSceneAccess {
+  agentBusy: boolean; humanControl: boolean; inputAllowed: boolean;
+  browserBusy: boolean; terminalBusy: boolean;
+  browserInputAllowed: boolean; terminalInputAllowed: boolean;
+  takeover: RemoteTakeoverState;
+}
 /** One-use, short-lived native framebuffer credentials, never persisted by the client. */
 export interface RemoteDesktopGrant { url: string; password?: string; control: boolean; expiresAt: number; warning?: string; scene?: RemoteSceneAccess }
 export interface RemoteBrowserTab { targetId: string; title: string; url: string }
@@ -64,7 +70,7 @@ export interface RemoteTaskBridge {
   listRemoteTaskFiles(engine: RemoteAgentId, id: string, path?: string): Promise<RemoteFilePage>;
   previewRemoteTaskFile(engine: RemoteAgentId, id: string, path: string): Promise<RemoteFilePreview>;
   downloadRemoteTaskFile(engine: RemoteAgentId, id: string, path: string): Promise<boolean>;
-  observeRemoteDesktop(engine: RemoteAgentId, id: string, control: boolean): Promise<RemoteDesktopGrant>;
+  observeRemoteDesktop(engine: RemoteAgentId, id: string, control: boolean, force?: boolean): Promise<RemoteDesktopGrant>;
   getRemoteSceneAccess(engine: RemoteAgentId, id: string): Promise<RemoteSceneAccess>;
   observeRemoteBrowser(engine: RemoteAgentId, id: string, options?: RemoteBrowserOptions): Promise<RemoteBrowserGrant>;
   listRemoteBrowserTabs(engine: RemoteAgentId, id: string): Promise<RemoteBrowserTab[]>;

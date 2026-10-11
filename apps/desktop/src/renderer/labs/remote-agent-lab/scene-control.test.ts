@@ -1,33 +1,43 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { SceneControlDialog, sceneControlLabel, sceneInputEnabled } from "./scene-control";
+import { sceneAccess } from "../../../../../../services/remote-agent/openclaw/plugin/scene-access";
+import { SceneControlDialog, SceneControlWaiting, sceneControlLabel, sceneInputEnabled } from "./scene-control";
 
 describe("shared remote scene control", () => {
-  const props = { busy: false, followUp: "", onFollowUp() {}, onCancel() {}, onAcquire() {}, onReturn() {} };
-  it("describes one takeover for all three views, without a forced Desktop jump", () => {
-    const html = renderToStaticMarkup(createElement(SceneControlDialog, { ...props, returning: false }));
-    expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("桌面、浏览器和人工终端一起交给你操作");
+  const props = { busy: false, followUp: "", onFollowUp() {}, onCancel() {}, onReturn() {} };
+  it("shows confirmed waiting copy inline without hiding the preview", () => {
+    const html = renderToStaticMarkup(createElement(SceneControlWaiting, { stopping: false, busy: false, onForce() {} }));
+    expect(html).toContain('role="status"'); expect(html).not.toContain('aria-modal');
+    expect(html).toContain("等待智能体完成当前操作");
+    expect(html).toContain("智能体不会开始下一步，当前操作结束后自动交由你控制。");
     expect(html).toContain("停止并接管");
-    expect(html).not.toContain("切换到桌面");
+    expect(html).toContain('title="中止当前操作并接管，当前操作可能尚未完成。"');
+    expect(html).not.toContain("disabled");
+    const stopping = renderToStaticMarkup(createElement(SceneControlWaiting, { stopping: true, busy: false, onForce() {} }));
+    expect(stopping).toContain("正在停止智能体的当前操作"); expect(stopping).toContain("disabled");
+    const retry = renderToStaticMarkup(createElement(SceneControlWaiting, { stopping: true, busy: false, retry: true, onForce() {} }));
+    expect(retry).not.toContain("disabled");
   });
-  it("keeps return-with-or-without-resume explicit and explains idle versus working", () => {
-    const html = renderToStaticMarkup(createElement(SceneControlDialog, { ...props, returning: true }));
+  it("returns the original paused operation without inventing a new continue task", () => {
+    const html = renderToStaticMarkup(createElement(SceneControlDialog, props));
     expect(html).toContain("交还控制");
-    expect(html).toContain("空闲时仍可直接操作");
-    expect(html).toContain("智能体工作时恢复只读");
-    expect(html).toContain("交还，等待指令");
-    expect(html).toContain("交还并继续");
+    expect(html).toContain("暂停的操作可以继续"); expect(html).toContain("对应资源时只读");
+    expect(html).not.toContain("交还并继续"); expect(html).not.toContain("交还，等待指令");
   });
-  it("permits idle input without takeover and fences busy, transition and disconnected states", () => {
-    const idle = { agentBusy: false, humanControl: false, inputAllowed: true };
+  it("permits matching-resource input while model thinking and fences transitions", () => {
+    const idle = sceneAccess(false, undefined, "owner", "task");
     expect(sceneInputEnabled(idle, true, false, false)).toBe(true);
     expect(sceneControlLabel(idle)).toBe("空闲 · 可操作");
-    const working = { agentBusy: true, humanControl: false, inputAllowed: false };
-    expect(sceneInputEnabled(working, true, false, false)).toBe(false);
-    expect(sceneControlLabel(working)).toContain("智能体工作中");
-    expect(sceneControlLabel({ ...idle, humanControl: true })).toBe("人工接管中");
+    const working = sceneAccess(true, undefined, "owner", "task", true, false);
+    expect(sceneInputEnabled(working, true, false, false)).toBe(true);
+    expect(sceneInputEnabled(working, true, false, false, "browser")).toBe(false);
+    expect(sceneInputEnabled(working, true, false, false, "terminal")).toBe(true);
+    expect(sceneControlLabel(working)).toBe("智能体工作中");
+    const lease = { owner: "owner", task: "task", ready: false };
+    const waiting = sceneAccess(true, lease, "owner", "task");
+    expect(sceneInputEnabled(waiting, true, false, false)).toBe(false); expect(sceneControlLabel(waiting)).toBe("等待智能体完成当前操作");
+    lease.ready = true; expect(sceneControlLabel(sceneAccess(true, lease, "owner", "task"))).toBe("已接管 · 可操作");
     expect(sceneInputEnabled(idle, false, false, false)).toBe(false);
     expect(sceneInputEnabled(idle, true, true, false)).toBe(false);
     expect(sceneInputEnabled(idle, true, false, true)).toBe(false);

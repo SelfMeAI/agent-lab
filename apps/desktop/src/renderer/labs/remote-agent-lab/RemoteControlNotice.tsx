@@ -8,7 +8,7 @@ export function RemoteControlNotice({ onHandback }: { onHandback(): void }): JSX
   return <div className="remote-control-banner">
     <span className="remote-control-banner__mark"><RemoteLockMark /></span>
     <div className="remote-control-banner__text" role="status">
-      <strong>你正在接管远端现场</strong>
+      <strong>已接管 · 可操作</strong>
       <span>智能体操作已暂停 · 交还后可切换任务和发送消息</span>
     </div>
     <button type="button" className="remote-button remote-control-return" onClick={onHandback}>交还控制 <span aria-hidden="true">↗</span></button>

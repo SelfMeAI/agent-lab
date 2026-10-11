@@ -13,6 +13,4 @@ export function inputTerminal(task: string, data: string, authorize?: () => void
 export function prepareTerminal(task: string): Promise<Identity>;
 export function showTerminal(task: string, automatic?: boolean, view?: 'agent' | 'manual'): Promise<void>;
 export function showBrowser(): Promise<void>;
-export function foregroundCommand(rows: string, shellPid: number): string | undefined;
-export function terminalForeground(): Promise<{ task: string; command: string } | undefined>;
 export function disposeTerminal(task: string): Promise<void>;
