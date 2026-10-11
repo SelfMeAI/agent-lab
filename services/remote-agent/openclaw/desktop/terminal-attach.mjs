@@ -4,8 +4,9 @@ import { promisify } from 'node:util';
 import { checkedTask, controlPath, tmuxArgv } from './session.mjs';
 const run = promisify(execFile), task = process.argv[2], desktop = process.argv[3] === 'desktop';
 await checkedTask(task);
-// Both entrances start read-only. Only the desktop attachment can unlock,
-// after the Gateway has stopped native work and admitted a control lease.
+// Attachments start read-only. The desktop view unlocks when the Gateway
+// admits idle input or a stopped, explicit human takeover. Operator PTYs
+// always remain read-only; their real input uses the authenticated RPC.
 const child = spawn('tmux', [...tmuxArgv(), 'attach-session', '-r', '-t', 'selfme-' + task], { stdio: 'inherit' });
 let busy = false, writable = false;
 async function checkAccess() {

@@ -17,6 +17,7 @@ const bridge: DesktopBridge = {
   previewRemoteTaskFile: (engine, id, path) => ipcRenderer.invoke("selfme:remote-task-preview", engine, id, path),
   downloadRemoteTaskFile: (engine, id, path) => ipcRenderer.invoke("selfme:remote-task-download", engine, id, path),
   observeRemoteDesktop: (engine, id, control) => ipcRenderer.invoke("selfme:remote-task-desktop", engine, id, control),
+  getRemoteSceneAccess: (engine, id) => ipcRenderer.invoke("selfme:remote-scene-access", engine, id),
   observeRemoteBrowser: (engine, id, options) => ipcRenderer.invoke("selfme:remote-task-browser", engine, id, options),
   listRemoteBrowserTabs: (engine, id) => ipcRenderer.invoke("selfme:remote-task-browser-tabs", engine, id),
   focusRemoteBrowser: (engine, id, targetId) => ipcRenderer.invoke("selfme:remote-task-browser-focus", engine, id, targetId),

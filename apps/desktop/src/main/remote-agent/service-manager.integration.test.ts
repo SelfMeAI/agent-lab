@@ -98,11 +98,16 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await expect(tasks.claw.browser(task.id)).rejects.toThrow("没有打开浏览器页面");
           await tasks.claw.request("selfme.terminal.prepare", { task: remoteTaskId(task.id) });
           await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
-          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 0);
-          await expect(tasks.claw.terminalInput(task.id, terminal.id, "echo BLOCKED\r")).rejects.toThrow("接管");
-          await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: terminal.id, data: "echo BLOCKED\r" })).rejects.toThrow("接管");
+          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
+          expect(await tasks.claw.sceneAccess(task.id)).toEqual({ agentBusy: false, humanControl: false, inputAllowed: true });
+          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nIDLE_INPUT_OK\\n'\r");
+          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/IDLE_INPUT_OK\r?\n/);
+          await tasks.claw.terminalInput(task.id, terminal.id, "sleep 2\r");
+          await expect(tasks.claw.send(task.id, "must not reach provider while manual foreground work runs")).rejects.toThrow("人工终端仍在执行");
+          expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ agentBusy: false, humanControl: false, inputAllowed: true });
+          await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
           await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
-          await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: terminal.id, data: "\x1b[>0;276;0cecho BLOCKED\r" })).rejects.toThrow("接管");
+          await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: "foreign-terminal", data: "echo BLOCKED\r" })).rejects.toThrow("不属于");
           await tasks.claw.desktop(task.id, true);
           await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
           await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
@@ -119,9 +124,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await tasks.claw.terminalInput(task.id, terminal.id, `node '${terminal.cwd}/${serverPath}'\r`);
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain("REMOTE_SERVER_READY");
           await tasks.claw.release();
-          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 0);
-          await expect(tasks.claw.browser(task.id, { url: "about:blank" })).rejects.toThrow("接管");
-          await expect(tasks.claw.request("selfme.browser.open", { task: remoteTaskId(task.id), url: "about:blank", tabScope: { sessionKey: task.id } })).rejects.toThrow("接管");
+          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
+          expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ humanControl: false, inputAllowed: true });
           await tasks.claw.desktop(task.id, true);
           const browser = await tasks.claw.browser(task.id, { url: "about:blank" });
           expect(browser.pageUrl).toBe("about:blank"); expect(browser.tabs.some(tab => tab.targetId === browser.targetId)).toBe(true);
@@ -141,7 +145,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await expect.poll(async () => (await pageState()).result?.scroll, { timeout: 5000 }).toBeGreaterThan(0);
           await expect(tasks.claw.browserInput(task.id, "unowned", [{ kind: "text", text: "BLOCKED" }])).rejects.toThrow("不属于");
           await tasks.claw.release();
-          await expect(tasks.claw.request("selfme.browser.input", { task: remoteTaskId(task.id), targetId: localPage.targetId, events: [{ kind: "text", text: "BLOCKED" }], tabScope: { sessionKey: task.id } })).rejects.toThrow("接管");
+          await tasks.claw.request("selfme.browser.input", { task: remoteTaskId(task.id), targetId: localPage.targetId, events: [{ kind: "release" }], tabScope: { sessionKey: task.id } });
           // Handback restores observation, without closing Chrome or reopening a page.
           expect(await browserFrameLength((await tasks.claw.browser(task.id)).url)).toBeGreaterThan(100);
           await tasks.claw.focusBrowser(task.id, localPage.targetId);
@@ -160,9 +164,15 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).active, { timeout: 5000 }).toBe(focusBefore);
           await execWindow("docker", ["exec", "-e", `DISPLAY=${scene.display}`, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1], true);", remoteTaskId(backgroundTask.id)]);
           expect(await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).toMatchObject({ window: true, visible: true, front: false, active: focusBefore });
+          // Actual agent commands, unlike passive observation, select and
+          // foreground their native output tab. Real manual input selects the
+          // other tab in the same task window; clients never jump views.
+          await execWindow("docker", ["exec", "-e", `DISPLAY=${scene.display}`, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1], true, 'agent');", remoteTaskId(backgroundTask.id)]);
+          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).activeTitle, { timeout: 5000 }).toContain("智能体执行 · " + remoteTaskId(backgroundTask.id).slice(0, 8));
+          await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
+          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(task.id))).activeTitle, { timeout: 5000 }).toContain("人工终端 · " + remoteTaskId(task.id).slice(0, 8));
           await tasks.claw.delete(backgroundTask.id);
           await tasks.claw.desktop(task.id, true);
-          await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
           await tasks.claw.terminalClose(task.id, terminal.id);
           const reopened = await tasks.claw.terminal(task.id);
           await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nREATTACHED_SHELL_OK\\n'\r");

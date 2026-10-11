@@ -220,6 +220,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:remote-task-preview", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.preview(engine, id, path); });
   ipcMain.handle("selfme:remote-task-download", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.download(engine, id, path); });
   ipcMain.handle("selfme:remote-task-desktop", (event, engine, id, control) => { taskClient(event, engine, id); if (typeof control !== "boolean") throw new Error("控制模式无效"); return remoteTasks!.desktop(engine, id, control); });
+  ipcMain.handle("selfme:remote-scene-access", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") return { agentBusy: false, humanControl: false, inputAllowed: false }; return remoteTasks!.claw.sceneAccess(id); });
   ipcMain.handle("selfme:remote-task-browser", (event, engine, id, options) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("OpenHands 使用原生浏览器观察"); return remoteTasks!.claw.browser(id, options); });
   ipcMain.handle("selfme:remote-task-browser-tabs", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("OpenHands 使用原生浏览器观察"); return remoteTasks!.claw.browserTabs(id); });
   ipcMain.handle("selfme:remote-task-browser-focus", (event, engine, id, targetId) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎不提供桌面切换"); return remoteTasks!.claw.focusBrowser(id, targetId); });

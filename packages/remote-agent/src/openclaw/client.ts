@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { RemoteBrowserGrant, RemoteBrowserInput, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import type { RemoteBrowserGrant, RemoteBrowserInput, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteSceneAccess, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { actionTitle, clawToolCall, contentText, executionFailure, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
@@ -267,7 +267,7 @@ export class OpenClawTasks {
     // Steer targets an existing reply operation, including one still retiring
     // after cancellation. An idle/paused task must start a normal native turn.
     const active = view?.snapshot.task.status === "running" || view?.snapshot.task.status === "waiting";
-    await this.request("chat.send", { sessionKey: id, message, ...(active ? { queueMode: "steer" } : {}), idempotencyKey: randomUUID() });
+    await this.request("selfme.scene.send", { sessionKey: id, message, ...(active ? { queueMode: "steer" } : {}), idempotencyKey: randomUUID() });
     if (view) { view.snapshot.error = undefined; view.snapshot.failure = undefined; view.snapshot.task.status = "running"; this.publish(view); }
     this.schedule(id);
     if (view?.snapshot.task.title === "新任务") {
@@ -295,11 +295,24 @@ export class OpenClawTasks {
       } catch (error) { await this.release(); throw error; }
     }
     try {
-      const result = record(await this.request("desktop.observe", { source: { kind: "host" }, control }));
+      const result = record(await this.request("selfme.scene.observe", { task: remoteTaskId(id) }));
       const base = new URL(await this.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
       const view = this.views.get(id); if (view) this.publish(view);
-      return { url: new URL(text(result.wsPath), base).toString(), password: text(result.vncPassword) || undefined, control: result.control === true, expiresAt: Number(result.expiresAtMs) };
+      const scene = this.sceneState(result.scene);
+      if (view) { view.snapshot.scene = scene; this.publish(view); }
+      return { url: new URL(text(result.wsPath), base).toString(), password: text(result.vncPassword) || undefined, control: result.control === true, expiresAt: Number(result.expiresAtMs), scene };
     } catch (error) { if (control) await this.release(); throw error; }
+  }
+  private sceneState(value: unknown): RemoteSceneAccess {
+    const row = record(value);
+    if ([row.agentBusy, row.humanControl, row.inputAllowed].some(value => typeof value !== "boolean")) throw new Error("远端现场状态尚未就绪，请重新连接服务");
+    return { agentBusy: row.agentBusy === true, humanControl: row.humanControl === true, inputAllowed: row.inputAllowed === true };
+  }
+  async sceneAccess(id: string): Promise<RemoteSceneAccess> {
+    key(id); const scene = this.sceneState(await this.request("selfme.scene.status", { task: remoteTaskId(id) }));
+    const view = this.views.get(id);
+    if (view && JSON.stringify(view.snapshot.scene) !== JSON.stringify(scene)) { view.snapshot.scene = scene; this.publish(view); }
+    return scene;
   }
   async release(): Promise<void> {
     const hold = this.hold; if (!hold) return; this.hold = undefined; clearInterval(hold.heartbeat);
@@ -326,7 +339,7 @@ export class OpenClawTasks {
   private assertBrowserTask(id: string): void { if (this.hold && this.hold.task !== id) throw new Error("正在接管其他任务的远端现场"); }
   async browserInput(id: string, targetId: string, events: RemoteBrowserInput[]): Promise<void> {
     key(id);
-    if (this.hold?.task !== id) throw new Error("请先手动接管，再操作浏览器");
+    this.assertBrowserTask(id);
     if (typeof targetId !== "string" || !targetId || targetId.length > 256 || !Array.isArray(events) || !events.length || events.length > 64 || JSON.stringify(events).length > 64 * 1024) throw new Error("浏览器输入无效");
     await this.request("selfme.browser.input", { task: remoteTaskId(id), targetId, events, tabScope: this.browserScope(id) });
   }
@@ -338,7 +351,6 @@ export class OpenClawTasks {
       if (options.url.length > 8192) throw new Error("页面地址过长");
       const url = new URL(options.url);
       if ((!['http:', 'https:'].includes(url.protocol) && url.href !== 'about:blank') || url.username || url.password) throw new Error("页面地址需要 HTTP(S)，不能包含登录凭据");
-      if (this.hold?.task !== id) throw new Error("请先手动接管，再打开浏览器页面");
       address = url.href;
     }
     await this.prepareScene(id);
@@ -346,7 +358,6 @@ export class OpenClawTasks {
     if (targetId && !tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
     if (address) {
       this.assertBrowserTask(id);
-      if (this.hold?.task !== id) throw new Error("请先手动接管，再打开浏览器页面");
       const opened = record(await this.request("selfme.browser.open", { task: remoteTaskId(id), url: address, tabScope: this.browserScope(id) }));
       targetId = text(opened.targetId); tabs = await this.browserTabs(id);
       // The server's admitted human navigation also focuses its native window.
@@ -382,7 +393,8 @@ export class OpenClawTasks {
   }
   private assertTerminal(id: string, terminalId: string): void { key(id); if (this.terminals.get(terminalId) !== id) throw new Error("终端不属于此任务"); }
   async terminalInput(id: string, terminalId: string, data: string): Promise<void> {
-    this.assertTerminal(id, terminalId); if (this.hold?.task !== id && !isTerminalProtocolReply(data)) throw new Error("请先停止并接管，再向人工终端输入");
+    this.assertTerminal(id, terminalId);
+    if (this.hold && this.hold.task !== id && !isTerminalProtocolReply(data)) throw new Error("正在接管其他任务的远端现场");
     await this.request("selfme.terminal.input", { task: remoteTaskId(id), sessionId: terminalId, data });
   }
   async terminalResize(id: string, terminalId: string, cols: number, rows: number): Promise<void> { this.assertTerminal(id, terminalId); await this.request("terminal.resize", { sessionId: terminalId, cols, rows }); }

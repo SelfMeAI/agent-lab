@@ -153,14 +153,14 @@ describe("OpenClaw native task projections and custody", () => {
   it("starts ordinary turns when idle or paused, and steers only a live task", async () => {
     const { client, request, event } = fixture(); await client.open(id);
     await client.send(id, "start");
-    const first = request.mock.calls.find(([name]) => name === "chat.send")?.[1];
+    const first = request.mock.calls.find(([name]) => name === "selfme.scene.send")?.[1];
     expect(first).toMatchObject({ sessionKey: id, message: "start" });
     expect(first).not.toHaveProperty("queueMode"); expect(first).not.toHaveProperty("timeoutMs");
     await client.send(id, "supplement");
-    expect(request).toHaveBeenCalledWith("chat.send", expect.objectContaining({ queueMode: "steer", message: "supplement" }));
+    expect(request).toHaveBeenCalledWith("selfme.scene.send", expect.objectContaining({ queueMode: "steer", message: "supplement" }));
     event({ event: "chat", payload: { sessionKey: id, state: "aborted" } });
     await client.send(id, "retry");
-    const retry = request.mock.calls.filter(([name]) => name === "chat.send").at(-1)?.[1];
+    const retry = request.mock.calls.filter(([name]) => name === "selfme.scene.send").at(-1)?.[1];
     expect(retry).not.toHaveProperty("queueMode"); client.shutdown();
   });
   it("restores the failed native turn on reopen and starts a new turn without losing history", async () => {
@@ -176,8 +176,8 @@ describe("OpenClaw native task projections and custody", () => {
     expect(snapshot.failure?.message).toContain("malformed tool call");
     await client.close(id); expect((await client.open(id)).failure).toEqual(snapshot.failure);
     await client.send(id, "Continue after checking existing files");
-    expect(request).toHaveBeenCalledWith("chat.send", expect.objectContaining({ sessionKey: id, message: "Continue after checking existing files" }));
-    expect(request.mock.calls.filter(([name]) => name === "chat.send").at(-1)?.[1]).not.toHaveProperty("queueMode");
+    expect(request).toHaveBeenCalledWith("selfme.scene.send", expect.objectContaining({ sessionKey: id, message: "Continue after checking existing files" }));
+    expect(request.mock.calls.filter(([name]) => name === "selfme.scene.send").at(-1)?.[1]).not.toHaveProperty("queueMode");
     expect(updates.at(-1)?.task.status).toBe("running"); expect(updates.at(-1)?.failure).toBeUndefined();
     expect(updates.at(-1)?.items.at(-1)?.failure).toBeDefined(); client.shutdown();
   });
@@ -241,7 +241,7 @@ describe("OpenClaw native task projections and custody", () => {
     request.mockImplementation(async (method, params: unknown) => {
       if (method === "selfme.scene.prepare") return { display: ":101" };
       if (method === "selfme.control.acquire") return { id: "lease" };
-      if (method === "desktop.observe") return { wsPath: "/desktop/observe", control: true };
+      if (method === "selfme.scene.observe") return { wsPath: "/desktop/observe", control: true, scene: { agentBusy: false, humanControl: true, inputAllowed: true } };
       if (method === "selfme.browser.open") { opened = true; return { targetId: "owned" }; }
       const request = params as { path?: string; body?: { url?: string } };
       if (request.path === "/tabs/open") { opened = true; return { targetId: "owned" }; }
@@ -336,7 +336,7 @@ describe("OpenClaw native task projections and custody", () => {
       if (method === "sessions.list") return { sessions: [{ key: id, status: running ? "running" : "idle" }] };
       if (method === "selfme.control.acquire") return { id: "lease" };
       if (method === "chat.abort") running = false;
-      if (method === "desktop.observe") return { wsPath: "/desktop/observe?token=fixture", control: true };
+      if (method === "selfme.scene.observe") return { wsPath: "/desktop/observe?token=fixture", control: true, scene: { agentBusy: false, humanControl: true, inputAllowed: true } };
       if ((params as { path?: string })?.path === "/tabs") return { tabs: [{ targetId: "owned" }] };
       return {};
     });
@@ -344,7 +344,7 @@ describe("OpenClaw native task projections and custody", () => {
     const names = request.mock.calls.map(([name]) => name);
     expect(names.indexOf("selfme.control.acquire")).toBeLessThan(names.indexOf("chat.abort"));
     expect(names.indexOf("chat.abort")).toBeLessThan(names.indexOf("selfme.control.ready"));
-    expect(names.indexOf("selfme.control.ready")).toBeLessThan(names.indexOf("desktop.observe"));
+    expect(names.indexOf("selfme.control.ready")).toBeLessThan(names.indexOf("selfme.scene.observe"));
     await client.focusBrowser(id, "owned");
     expect(request).toHaveBeenCalledWith("browser.request", expect.objectContaining({ path: "/tabs/focus", body: { targetId: "owned" } }));
     await expect(client.focusBrowser(id.replace("c0ec", "a0ec"), "owned")).rejects.toThrow("其他任务");
@@ -352,48 +352,51 @@ describe("OpenClaw native task projections and custody", () => {
     expect(request).toHaveBeenCalledWith("selfme.control.release", { id: "lease" });
     await client.focusBrowser(id, "owned"); client.shutdown();
   });
-  it("keeps browser input and navigation read-only before takeover and after handback", async () => {
+  it("routes idle browser input through server admission, without creating a takeover", async () => {
     const { client, request } = fixture();
     request.mockImplementation(async (method, params: unknown) => {
-      if (method === "selfme.control.acquire") return { id: "lease" };
-      if (method === "desktop.observe") return { wsPath: "/desktop/observe", control: true };
-      if (method === "sessions.list") return { sessions: [] };
+      if (method === "selfme.browser.open") return { targetId: "owned" };
       if ((params as { path?: string })?.path === "/tabs") return { tabs: [{ targetId: "owned" }] };
       if ((params as { path?: string })?.path === "/screencast") return { wsPath: "/browser/observe", url: "about:blank" };
       return {};
     });
     const events = [{ kind: "text", text: "你好" }] as const;
-    await expect(client.browserInput(id, "owned", [...events])).rejects.toThrow("接管");
-    await expect(client.browser(id, { url: "about:blank" })).rejects.toThrow("接管");
-    await client.desktop(id, true);
     await client.browserInput(id, "owned", [...events]);
     expect(request).toHaveBeenCalledWith("selfme.browser.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", targetId: "owned", events, tabScope: { sessionKey: id } });
-    expect((await client.browser(id)).targetId).toBe("owned");
-    await expect(client.browserInput(id.replace("c0ec", "a0ec"), "owned", [...events])).rejects.toThrow("接管");
-    await client.release();
-    await expect(client.browserInput(id, "owned", [...events])).rejects.toThrow("接管");
-    await expect(client.browser(id, { url: "about:blank" })).rejects.toThrow("接管");
+    await client.browser(id, { url: "about:blank" });
+    expect(request).not.toHaveBeenCalledWith("selfme.control.acquire", expect.anything());
+    request.mockImplementation(async method => { if (method === "selfme.browser.input") throw new Error("智能体正在工作"); return {}; });
+    await expect(client.browserInput(id, "owned", [...events])).rejects.toThrow("正在工作");
     client.shutdown();
   });
-  it("requires the exact task's admitted takeover for manual input and relocks after return", async () => {
+  it("keeps terminal custody validation while letting the server distinguish idle and running", async () => {
     const { client, request } = fixture();
-    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "sessions.list" ? { sessions: [] } : method === "selfme.control.acquire" ? { id: "lease" } : method === "desktop.observe" ? { wsPath: "/observe", control: true } : {});
-    await client.terminal(id);
-    await expect(client.terminalInput(id, "term", "pwd\r")).rejects.toThrow("接管");
-    expect(request).not.toHaveBeenCalledWith("selfme.terminal.input", expect.anything());
-    await client.terminalInput(id, "term", "\x1b[>0;276;0c");
-    expect(request).toHaveBeenCalledWith("selfme.terminal.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionId: "term", data: "\x1b[>0;276;0c" });
-    await expect(client.terminalInput(id, "term", "\x1b[>0;276;0cpwd\r")).rejects.toThrow("接管");
-    await client.desktop(id, true); await client.terminalInput(id, "term", "pwd\r");
+    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : {});
+    await client.terminal(id); await client.terminalInput(id, "term", "pwd\r");
     expect(request).toHaveBeenCalledWith("selfme.terminal.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionId: "term", data: "pwd\r" });
-    await client.release(); await expect(client.terminalInput(id, "term", "pwd\r")).rejects.toThrow("接管"); client.shutdown();
+    await expect(client.terminalInput(id, "foreign", "pwd\r")).rejects.toThrow("不属于");
+    request.mockImplementation(async method => { if (method === "selfme.terminal.input") throw new Error("智能体正在工作"); return {}; });
+    await expect(client.terminalInput(id, "term", "pwd\r")).rejects.toThrow("正在工作");
+    expect(request).not.toHaveBeenCalledWith("selfme.control.acquire", expect.anything());
+    client.shutdown();
+  });
+  it("publishes separate busy, human control and input permission from the server", async () => {
+    const { client, request, updates } = fixture(); await client.open(id);
+    const state = { agentBusy: false, humanControl: false, inputAllowed: true };
+    request.mockResolvedValue(state);
+    expect(await client.sceneAccess(id)).toEqual(state);
+    expect(updates.at(-1)?.scene).toEqual(state); expect(updates.at(-1)?.humanControl).toBe(false);
+    request.mockResolvedValue({ ...state, agentBusy: true, inputAllowed: false });
+    expect((await client.sceneAccess(id)).inputAllowed).toBe(false);
+    request.mockResolvedValue({}); await expect(client.sceneAccess(id)).rejects.toThrow("尚未就绪");
+    client.shutdown();
   });
   it("releases server custody if a desktop grant fails", async () => {
     const { client, request } = fixture();
     request.mockImplementation(async method => {
       if (method === "selfme.control.acquire") return { id: "failed-lease" };
       if (method === "sessions.list") return { sessions: [] };
-      if (method === "desktop.observe") throw new Error("grant failed"); return {};
+      if (method === "selfme.scene.observe") throw new Error("grant failed"); return {};
     });
     await expect(client.desktop(id, true)).rejects.toThrow("grant failed");
     expect(request).toHaveBeenCalledWith("selfme.control.release", { id: "failed-lease" }); client.shutdown();

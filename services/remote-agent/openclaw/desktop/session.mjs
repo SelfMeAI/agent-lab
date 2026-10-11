@@ -52,11 +52,35 @@ export async function setTerminalControl(lease) {
   await writeFile(temporary, JSON.stringify(lease ?? {}), { mode: 0o600 }); await rename(temporary, controlPath);
   let sessions;
   try { ({ stdout: sessions } = await run('tmux', [...tmuxArgv(), 'list-sessions', '-F', '#{session_name}'])); } catch { return; }
-  for (const name of sessions.trim().split('\n').filter(name => /^selfme-[0-9a-f-]{36}$/.test(name))) await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_control', lease?.ready && name === 'selfme-' + lease.task ? '1' : '0']);
+  for (const name of sessions.trim().split('\n').filter(name => /^selfme-[0-9a-f-]{36}$/.test(name))) {
+    await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_control', lease?.ready && name === 'selfme-' + lease.task ? '1' : '0']);
+    await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_human_control', lease?.humanControl && name === 'selfme-' + lease.task ? '1' : '0']);
+  }
   if (!lease?.ready) {
     // Revoke existing GUI clients immediately; no reconnect or lost shell.
     let stdout; try { ({ stdout } = await run('tmux', [...tmuxArgv(), 'list-clients', '-F', '#{client_tty}'])); } catch { return; }
     await Promise.all(stdout.trim().split('\n').filter(Boolean).map(tty => run('tmux', [...tmuxArgv(), 'refresh-client', '-t', tty, '-f', 'read-only'])));
+  }
+}
+export function foregroundCommand(rows, shellPid) {
+  const processes = rows.trim().split('\n').map(line => line.trim().split(/\s+/));
+  const shell = processes.find(row => Number(row[0]) === shellPid);
+  if (!shell || !/^\d+$/.test(shell[1]) || !/^\d+$/.test(shell[2])) return undefined;
+  const group = Number(shell[2]);
+  if (group <= 0 || group === Number(shell[1])) return undefined;
+  const command = processes.find(row => Number(row[1]) === group);
+  return command?.slice(3).join(' ') || '前台命令';
+}
+export async function terminalForeground() {
+  let panes;
+  try { ({ stdout: panes } = await run('tmux', [...tmuxArgv(), 'list-panes', '-a', '-F', '#{session_name} #{pane_pid} #{pane_tty}'])); }
+  catch (error) { if (/no server running|error connecting|No such file/i.test(String(error.stderr))) return undefined; throw error; }
+  for (const line of panes.trim().split('\n')) {
+    const [name, pid, tty] = line.split(' ');
+    if (!/^selfme-[0-9a-f-]{36}$/.test(name ?? '') || !/^\/dev\/pts\/\d+$/.test(tty ?? '')) continue;
+    const { stdout } = await run('ps', ['-t', tty.slice('/dev/'.length), '-o', 'pid=,pgid=,tpgid=,comm=']);
+    const command = foregroundCommand(stdout, Number(pid));
+    if (command) return { task: name.slice('selfme-'.length), command };
   }
 }
 export async function inputTerminal(task, data, authorize = () => {}) {
@@ -74,6 +98,10 @@ export async function prepareTerminal(task) {
     try { await run('tmux', ['-S', socket, '-f', config, 'new-session', '-d', '-s', identity.name, '-c', identity.cwd, '/bin/bash', '--noprofile', '--norc']); }
     catch (error) { try { await run('tmux', ['-S', socket, 'has-session', '-t', identity.name]); } catch { throw error; } }
   }
+  // A new shell may be created after the access file was last synchronized.
+  let access; try { access = JSON.parse(await readFile(controlPath, 'utf8')); } catch {}
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', identity.name, '@selfme_control', access?.task === task && access.ready && access.expiresAt > Date.now() ? '1' : '0']);
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', identity.name, '@selfme_human_control', access?.task === task && access.humanControl && access.expiresAt > Date.now() ? '1' : '0']);
   return identity;
 }
 const showing = new Map();
@@ -85,16 +113,42 @@ async function terminalWindow(task) {
   });
   return stdout.split('\n').find(line => /(?:智能体执行|人工终端)/.test(line) && line.endsWith(' · ' + task.slice(0, 8)))?.split(/\s+/)[0];
 }
-export async function showTerminal(task, automatic = false) {
+export async function showTerminal(task, automatic = false, view) {
   if (showing.has(task)) {
     await showing.get(task);
     // A deliberate Dock click during automatic restoration still expresses
     // activation intent. Do not create a duplicate window or lose that click.
-    if (!automatic) { const window = await terminalWindow(task); if (window) await run('wmctrl', ['-ia', window]); }
+    if (!automatic || view) await selectTerminalView(task, view);
     return;
   }
-  const pending = openTerminalWindow(task, automatic).finally(() => { if (showing.get(task) === pending) showing.delete(task); });
+  const pending = openTerminalWindow(task, automatic).then(() => view ? selectTerminalView(task, view) : undefined).finally(() => { if (showing.get(task) === pending) showing.delete(task); });
   showing.set(task, pending); return pending;
+}
+async function selectTerminalView(task, view) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const window = await terminalWindow(task);
+    if (window) {
+      const { stdout: windows } = await run('wmctrl', ['-l']);
+      const title = windows.split('\n').find(line => line.startsWith(window + ' ')) ?? '';
+      const { stdout: active } = await run('xprop', ['-root', '_NET_ACTIVE_WINDOW']);
+      const activeId = active.match(/0x[0-9a-f]+/i)?.[0];
+      const selected = view === 'agent' ? title.includes('智能体执行') : view === 'manual' ? title.includes('人工终端') : true;
+      if (selected && activeId && Number.parseInt(activeId, 16) === Number.parseInt(window, 16)) return;
+      // XSendEvent (--window) is ignored by GTK's tab accelerators. Activate
+      // synchronously, then send a real XTEST key to this focused container
+      // window; there is no change to the client's own view or focus.
+      if (view) await run('xdotool', ['windowactivate', '--sync', window, 'key', '--clearmodifiers', view === 'agent' ? 'alt+1' : 'alt+2']);
+      else await run('wmctrl', ['-ia', window]);
+      return;
+    }
+    await wait(50);
+  }
+  throw new Error('终端窗口未能显示');
+}
+export async function showBrowser() {
+  const { stdout } = await run('wmctrl', ['-lx']);
+  const window = stdout.split('\n').find(line => /(?:chromium|google-chrome)\./i.test(line))?.split(/\s+/)[0];
+  if (window) await run('wmctrl', ['-ia', window]);
 }
 async function openTerminalWindow(task, automatic) {
   await prepareTerminal(task);

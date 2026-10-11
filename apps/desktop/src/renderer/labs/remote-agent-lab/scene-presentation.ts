@@ -26,9 +26,9 @@ export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: strin
   return { jpeg, url: typeof metadata.url === "string" ? metadata.url : undefined, ...(viewport ? { viewport } : {}) };
 }
 
-export function observerLabel(state: "loading" | "connected" | "error", busy: boolean, control: boolean): string {
+export function observerLabel(state: "loading" | "connected" | "error", busy: boolean, control: boolean, editable = false): string {
   if (busy || state === "loading") return "正在连接远端画面…";
-  return state === "connected" ? control ? "CONTROL · 人工接管中" : "LIVE · 只读观察" : "观察连接已断开";
+  return state === "connected" ? control ? "CONTROL · 人工接管中" : editable ? "LIVE · 可操作" : "LIVE · 只读观察" : "观察连接已断开";
 }
 
 export function desktopInputEnabled(control: boolean, granted: boolean, state: "loading" | "connected" | "error", busy: boolean, dialog: boolean): boolean {
@@ -43,13 +43,13 @@ export function browserReconnectOptions(tabs: RemoteBrowserTab[], previousId: st
 
 export type BrowserObservationState = "connecting" | "live" | "empty" | "retrying" | "error";
 /** Human control changes input permission, not the observation's connection. */
-export function browserObservationPresentation(state: BrowserObservationState, controlled = false) {
+export function browserObservationPresentation(state: BrowserObservationState, controlled = false, editable = controlled) {
   const labels: Record<BrowserObservationState, string> = {
-    connecting: "正在连接浏览器…", live: controlled ? "CONTROL · 人工接管中" : "LIVE · 只读观察", empty: "尚无任务页面",
+    connecting: "正在连接浏览器…", live: controlled ? "CONTROL · 人工接管中" : editable ? "LIVE · 可操作" : "LIVE · 只读观察", empty: "尚无任务页面",
     retrying: "正在恢复浏览器观察…", error: "浏览器观察已断开",
   };
   return {
     label: labels[state], tone: state === "live" ? "connected" : state === "error" ? "error" : state === "connecting" || state === "retrying" ? "loading" : "idle",
-    loading: state === "connecting" || state === "retrying", reconnect: state === "error", open: state === "empty" && controlled,
+    loading: state === "connecting" || state === "retrying", reconnect: state === "error", open: state === "empty" && editable,
   };
 }

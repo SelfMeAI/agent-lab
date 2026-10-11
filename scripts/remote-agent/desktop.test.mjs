@@ -3,11 +3,22 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { configureDesktop } from '../../services/remote-agent/openclaw/desktop/configure.mjs';
-import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
+import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalViewPattern, tmuxArgv, foregroundCommand } from '../../services/remote-agent/openclaw/desktop/session.mjs';
 import { ExecutionObserver, projectExecution, displayText, readExecution } from '../../services/remote-agent/openclaw/desktop/execution.mjs';
 import { simplifyPanelSource } from '../../services/remote-agent/openclaw/desktop/panel-menu.mjs';
 import { observerTerminalSource } from '../../services/remote-agent/openclaw/desktop/terminal-focus.mjs';
 const task = 'c0ec83da-66be-4f17-a2c2-01dc02c89f00';
+test('manual foreground detection distinguishes the shell prompt and background jobs from active commands', () => {
+  assert.equal(foregroundCommand('100 100 100 bash\n101 101 100 node', 100), undefined);
+  assert.equal(foregroundCommand('100 100 101 bash\n101 101 101 sleep', 100), 'sleep');
+  assert.equal(foregroundCommand('100 100 101 bash\n101 101 101 node\n102 101 101 helper', 100), 'node');
+  assert.equal(foregroundCommand('100 100 -1 bash', 100), undefined);
+});
+test('terminal input status distinguishes idle direct use from explicit takeover', async () => {
+  const config = await readFile('services/remote-agent/openclaw/desktop/config/tmux.conf', 'utf8');
+  assert.match(config, /@selfme_human_control,人工接管中 · 可输入,空闲 · 可输入/);
+  assert.match(config, /只读观察 · 暂不可输入/);
+});
 test('native terminal suppresses initial focus only for our automatic marker and refuses source drift', () => {
   const source = 'before\n      if (attr->startup_id != NULL)\n        gtk_window_set_startup_id (GTK_WINDOW (window), attr->startup_id);\nafter';
   const patched = observerTerminalSource(source);
