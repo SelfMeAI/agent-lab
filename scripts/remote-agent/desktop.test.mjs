@@ -6,10 +6,11 @@ import { configureDesktop } from '../../services/remote-agent/openclaw/desktop/c
 import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
 import { simplifyPanelSource } from '../../services/remote-agent/openclaw/desktop/panel-menu.mjs';
 const task = 'c0ec83da-66be-4f17-a2c2-01dc02c89f00';
-test('terminal input status describes a tool-call boundary, without a takeover state', async () => {
+test('terminal status has no normal-input banner and uses one native restriction notice', async () => {
   const config = await readFile('services/remote-agent/openclaw/desktop/config/tmux.conf', 'utf8');
-  assert.match(config, /可输入命令/);
-  assert.match(config, /等待终端工具调用结束/);
+  assert.match(config, /set -g status off/);
+  assert.match(config, /selfme_terminal_notice/);
+  assert.doesNotMatch(config, /可输入命令/);
   assert.doesNotMatch(config, /接管|selfme_human_control/);
 });
 test('native panel popup patch is narrow and refuses source drift', () => {

@@ -232,7 +232,7 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "shell.pty", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-12",
     evidence: ["packages/remote-agent/src/openclaw/client.ts","packages/remote-agent/src/openclaw/client.test.ts","packages/remote-agent/src/terminal-response.test.ts","packages/remote-agent/src/terminal-access.test.ts","apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx","services/remote-agent/openclaw/desktop/session.mjs","services/remote-agent/openclaw/desktop/terminal-attach.mjs","services/remote-agent/openclaw/plugin/terminal-access.ts","scripts/remote-agent/desktop.test.mjs","apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
-    note: "原生 terminal.open / attach / resize / close 经受控 catalog 连接当前任务共享 tmux shell，校验任务目录、连接和 PTY 归属。外部与桌面终端共用真实人工会话；外部连接、输入或重连不会打开、切换或前置桌面窗口，桌面窗口只由明确的 Dock 操作打开。关闭一个展示入口不结束底层 shell。智能体调用终端工具期间暂不可输入，结束后恢复；已有输入提交完成后才允许对应工具进入。模型思考或浏览器操作不阻止输入。手动命令不自动加入模型对话，容器重启不保留 shell。",
+    note: "原生 terminal.open / attach / resize / close 经受控 catalog 连接当前任务共享 tmux shell，校验任务目录、连接和 PTY 归属。外部与桌面终端共用真实人工会话；外部连接、输入或重连不会打开、切换或前置桌面窗口，桌面窗口只由明确的 Dock 操作打开。关闭一个展示入口不结束底层 shell。智能体调用终端工具期间暂不可输入，结束后恢复；已有输入提交完成后才允许对应工具进入。模型思考或浏览器操作不阻止输入。终端不常驻任务绝对路径、正常可输入状态或工程行为说明，共享会话关系放在页签悬停提示；受限状态仅在共享终端内部显示一次，连接异常保留重连入口。手动命令不自动加入模型对话，容器重启不保留 shell。",
   },
   {
     capabilityId: "files.attachments", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

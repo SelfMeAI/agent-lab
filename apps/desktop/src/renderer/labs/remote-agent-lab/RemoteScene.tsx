@@ -6,7 +6,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import type { RemoteAgentId, RemoteDesktopGrant, RemoteFilePage, RemoteFilePreview, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalAccess, RemoteTerminalEvent } from "../../../../../../packages/contracts/src/remote-agent";
 import { remoteError } from "./service-presentation";
-import { desktopInputEnabled, observerLabel, remoteSceneTabs } from "./scene-presentation";
+import { desktopInputEnabled, observerLabel, remoteSceneTabs, sceneTabDescription, terminalConnectionNotice } from "./scene-presentation";
 import { desktopInputBoundary } from "./desktop-input";
 import { isTerminalProtocolReply } from "../../../../../../packages/remote-agent/src/terminal-response";
 
@@ -23,7 +23,7 @@ export function RemoteScene({ engine, taskId, snapshot, available }: { engine: R
   useEffect(() => () => { ++previewVersion.current; }, [engine, taskId]);
   async function openPreview(path: string): Promise<void> { const version = ++previewVersion.current; setPreviewError(""); setPreview(undefined); setPreviewLoading(true); setTab("preview"); try { const value = await bridge.previewRemoteTaskFile(engine, taskId, path); if (version === previewVersion.current) setPreview({ path, value }); } catch (error) { if (version === previewVersion.current) setPreviewError(remoteError(error)); } finally { if (version === previewVersion.current) setPreviewLoading(false); } }
   return <section className={`remote-scene${expanded ? " is-expanded" : ""}`} aria-label="远端执行现场"><header className="remote-scene__heading"><h2>远端现场</h2><button type="button" className="remote-icon-button" aria-label={expanded ? "退出展开" : "展开执行现场"} title={expanded ? "退出展开 · Esc" : "展开执行现场"} onClick={() => setExpanded(!expanded)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={expanded ? "M8 3v5H3m18 0h-5V3M3 16h5v5m8 0v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} /></svg></button></header>
-    <nav className="remote-scene__tabs" role="tablist" aria-label="执行现场视图">{tabs.map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{tabLabels[id][0]}<span> · {tabLabels[id][1]}</span></button>)}</nav>
+    <nav className="remote-scene__tabs" role="tablist" aria-label="执行现场视图">{tabs.map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} title={sceneTabDescription(engine, id)} onClick={() => setTab(id)}>{tabLabels[id][0]}<span> · {tabLabels[id][1]}</span></button>)}</nav>
     <div className="remote-scene__content">
       {disabled ? <div className="remote-scene-empty"><span>◈</span><p>{taskId ? "连接远端服务后查看执行现场" : "选择或新建任务，观察远端执行现场"}</p></div> : <>
         {/* Keep one desktop connection across views, without accepting hidden input. */}
@@ -92,7 +92,6 @@ function RemoteDesktop({ engine, taskId, active = false }: { engine: RemoteAgent
     </div>
     {size && <small className="remote-frame-size">{size} · 可展开查看</small>}
     {error && state === "connected" && <p className="remote-error">{error}</p>}
-    <small className="remote-scene-note">{engine === "openhands" ? "引擎共享浏览器画面 · 智能体打开网页后在此显示 · 只读观察" : "操作的是远端环境，不是你的电脑 · 网页在桌面 Chrome 中查看"}</small>
   </div>;
 }
 function RemoteFiles({ engine, taskId, running, onPreview }: { engine: RemoteAgentId; taskId: string; running?: boolean; onPreview(path: string): void }): JSX.Element {
@@ -108,6 +107,7 @@ function AdminTerminal({ taskId }: { taskId: string }): JSX.Element {
   const [access, setAccess] = useState<RemoteTerminalAccess>();
   const [accessError, setAccessError] = useState("");
   const writable = access?.inputAllowed === true && !!info && !busy && !ended;
+  const notice = terminalConnectionNotice({ connecting: busy, connected: !!info, ended, error, accessError, access });
   const inputAllowed = useRef(writable); inputAllowed.current = writable;
   useEffect(() => {
     let active = true, querying = false;
@@ -136,7 +136,7 @@ function AdminTerminal({ taskId }: { taskId: string }): JSX.Element {
       if (opening.current && !current.current) { pending.current = [...pending.current.slice(-255), event]; return; }
       if (event.terminalId !== current.current?.id) return;
       if (event.data) term.write(event.data);
-      if (event.exited) { current.current = undefined; setEnded(true); term.writeln("\r\n[终端连接已断开，重新连接后可恢复仍在运行的会话]"); if (event.detail) setError(event.detail); }
+      if (event.exited) { current.current = undefined; setEnded(true); if (event.detail) setError(event.detail); }
     });
     void open();
     return () => { alive.current = false; ++generation.current; opening.current = false; pending.current = []; cancelAnimationFrame(initialFit); observer.disconnect(); input.dispose(); unsubscribe(); if (current.current) void bridge.closeRemoteTerminal("openclaw", taskId, current.current.id).catch(() => {}); current.current = undefined; terminal.current = undefined; fitTerminal.current = undefined; term.dispose(); };
@@ -154,5 +154,9 @@ function AdminTerminal({ taskId }: { taskId: string }): JSX.Element {
     } catch (error) { if (alive.current && version === generation.current) setError(remoteError(error)); }
     finally { if (alive.current && version === generation.current) { opening.current = false; setBusy(false); } }
   }
-  return <div className={`remote-admin-terminal${writable ? " is-writable" : " is-readonly"}`}><div className="remote-terminal-bar"><span title={info?.cwd}>{info && !ended ? info.cwd : "当前任务的远端终端"}</span>{busy ? <span className="remote-observer-status is-loading"><i className="remote-spinner" />连接中…</span> : (ended || (!info && error)) && <button type="button" className="remote-button" onClick={() => void open()}>重新连接</button>}</div><div className="remote-terminal-access"><span><i />{busy ? "正在连接…" : ended || !info ? "连接已断开" : accessError ? "输入状态暂不可用" : !access ? "正在同步输入状态…" : writable ? "可输入命令" : "智能体正在调用终端工具 · 暂不可输入"}</span></div><small className="remote-scene-note">与桌面终端共用会话 · 此处操作不会打开或切换桌面窗口</small>{(error || accessError) && <p className="remote-error">{error || accessError}</p>}<div ref={host} className="remote-xterm" />{busy && <div className="remote-terminal-intro"><span className="remote-spinner" /><p>正在连接当前任务的终端…</p></div>}</div>;
+  return <div className={`remote-admin-terminal${writable ? "" : " is-readonly"}`}>
+    {notice && <div className="remote-terminal-notice" role={error || accessError || notice.reconnect ? "alert" : "status"}><span>{notice.message}</span>{notice.reconnect && <button type="button" className="remote-button" onClick={() => void open()}>重新连接</button>}</div>}
+    <div ref={host} className="remote-xterm" />
+    {busy && <div className="remote-terminal-intro"><span className="remote-spinner" /><p>正在连接远端终端…</p></div>}
+  </div>;
 }

@@ -42,6 +42,15 @@ export function terminalWindowArgv(task) {
   const identity = terminalIdentity(task);
   return ['--disable-server', '--title', '人工终端 · ' + task.slice(0, 8), '--working-directory', identity.cwd, '--hide-menubar', '--hide-toolbar', '--geometry', '110x30', '--command', terminalArgv(task, true).join(' ')];
 }
+async function setInputPresentation(name, access) {
+  const current = name === 'selfme-' + access?.task;
+  const synchronized = access?.expiresAt > Date.now();
+  const writable = synchronized && current && access.ready === true;
+  const notice = writable ? '' : !synchronized ? '终端输入状态暂不可用' : !current ? '请先在应用中选择此任务' : '智能体正在调用终端工具 · 暂不可输入';
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_input', writable ? '1' : '0']);
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_terminal_notice', notice]);
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, 'status', writable ? 'off' : 'on']);
+}
 export async function setTerminalAccess(access) {
   await mkdir(state, { recursive: true, mode: 0o700 });
   const temporary = accessPath + '.' + randomUUID() + '.next';
@@ -49,7 +58,7 @@ export async function setTerminalAccess(access) {
   let sessions;
   try { ({ stdout: sessions } = await run('tmux', [...tmuxArgv(), 'list-sessions', '-F', '#{session_name}'])); } catch { return; }
   for (const name of sessions.trim().split('\n').filter(name => /^selfme-[0-9a-f-]{36}$/.test(name))) {
-    await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_input', access?.ready && name === 'selfme-' + access.task ? '1' : '0']);
+    await setInputPresentation(name, access);
   }
   if (!access?.ready) {
     // Revoke existing GUI clients immediately; no reconnect or lost shell.
@@ -74,7 +83,7 @@ export async function prepareTerminal(task) {
   }
   // A new shell may be created after the access file was last synchronized.
   let access; try { access = JSON.parse(await readFile(accessPath, 'utf8')); } catch {}
-  await run('tmux', [...tmuxArgv(), 'set-option', '-t', identity.name, '@selfme_input', access?.task === task && access.ready && access.expiresAt > Date.now() ? '1' : '0']);
+  await setInputPresentation(identity.name, access);
   return identity;
 }
 const showing = new Map();

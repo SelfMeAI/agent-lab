@@ -93,6 +93,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(scene.display).toMatch(/^:\d+$/);
           const terminal = await tasks.claw.terminal(task.id);
           expect(terminal.cwd).toBe('/home/node/.openclaw/workspace/selfme/' + remoteTaskId(task.id));
+          expect(await sharedTerminalStatus(container.name, remoteTaskId(task.id))).toBe("off");
+          expect(stripVTControlCharacters(terminal.buffer ?? "")).not.toContain("可输入命令");
           const windowState = () => desktopTerminalState(container.name, scene.display, remoteTaskId(task.id));
           expect((await windowState()).window).toBe(false);
           expect(await tasks.claw.terminalAccess(task.id)).toEqual({ busy: false, inputAllowed: true });
@@ -144,6 +146,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await tasks.claw.request("config.patch", { baseHash: cfg.hash, raw: JSON.stringify({ models: { providers: { selfme: { baseUrl: "http://127.0.0.1:8944/v1", api: "openai-completions", apiKey: "execution-fixture", request: { allowPrivateNetwork: true }, models: [{ id: "execution-fixture", name: "Execution fixture", input: ["text"] }] } } }, agents: { defaults: { model: { primary: "selfme/execution-fixture" } } }, tools: { codeMode: false } }) });
           await ready();
           const native = await tasks.claw.create(); await tasks.claw.open(native.id);
+          await tasks.claw.terminal(native.id);
+          expect(await sharedTerminalStatus(container.name, remoteTaskId(native.id))).toBe("off");
           const snapshot = () => taskUpdates.get(native.id);
           const commandText = () => snapshot()?.items.filter(item => item.tool).map(item => item.tool!.output ?? "").join("\n") ?? "";
           await tasks.claw.send(native.id, "EXEC_TEST");
@@ -151,10 +155,12 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
           await expect.poll(commandText, { timeout: 10_000 }).toContain("NATIVE_EXEC_BEGIN");
           expect((await tasks.claw.terminalAccess(native.id)).busy).toBe(true);
+          expect(await sharedTerminalStatus(container.name, remoteTaskId(native.id))).toBe("on");
           const during = await tasks.claw.desktop(native.id); expect(during.control).toBe(true);
           expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
           await expect.poll(() => snapshot()?.task.status, { timeout: 20_000 }).toBe("completed");
           expect(commandText()).toContain("NATIVE_EXEC_END");
+          await expect.poll(() => sharedTerminalStatus(container.name, remoteTaskId(native.id)), { timeout: 5000 }).toBe("off");
           expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
           await tasks.claw.send(native.id, "STOP_TEST");
           await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
@@ -164,6 +170,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await expect.poll(() => snapshot()?.task.status, { timeout: 10_000 }).toBe("paused");
           expect(commandText()).not.toContain("NATIVE_STOP_END");
           expect((await tasks.claw.terminalAccess(native.id)).inputAllowed).toBe(true);
+          await expect.poll(() => sharedTerminalStatus(container.name, remoteTaskId(native.id)), { timeout: 5000 }).toBe("off");
           const processes = await execDesktop("docker", ["exec", container.name, "sh", "-lc", "pgrep -a -f '^sleep 60$' || true"]);
           expect(processes.stdout.trim()).toBe("");
           await tasks.claw.delete(native.id);
@@ -241,6 +248,11 @@ async function defaultDesktopReady(container: string): Promise<void> {
       return true;
     } catch { return false; }
   }, { timeout: 15_000 }).toBe(true);
+}
+
+async function sharedTerminalStatus(container: string, task: string): Promise<string> {
+  const { stdout } = await promisify(execFile)("docker", ["exec", container, "tmux", "-S", "/home/node/.cache/selfme-lab/terminal.sock", "show-options", "-v", "-t", "selfme-" + task, "status"]);
+  return stdout.trim();
 }
 
 async function sharedTerminalOnDesktop(container: string, display: string, task: string): Promise<void> {
