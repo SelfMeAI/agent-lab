@@ -23,7 +23,7 @@ export function RemoteScene({ engine, taskId, snapshot, available }: { engine: R
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); }; window.addEventListener("keydown", escape); return () => window.removeEventListener("keydown", escape); }, []);
   useEffect(() => () => { ++previewVersion.current; }, [engine, taskId]);
   async function openPreview(path: string): Promise<void> { const version = ++previewVersion.current; setPreviewPath(path); setPreviewError(""); setPreview(undefined); setPreviewLoading(true); setTab("preview"); try { const value = await bridge.previewRemoteTaskFile(engine, taskId, path); if (version === previewVersion.current) setPreview({ path, value }); } catch (error) { if (version === previewVersion.current) setPreviewError(remoteError(error)); } finally { if (version === previewVersion.current) setPreviewLoading(false); } }
-  return <section className={`remote-scene${expanded ? " is-expanded" : ""}`} aria-label="远端执行现场"><header className="remote-scene__heading"><h2>远端现场</h2><button type="button" className="remote-icon-button" aria-label={expanded ? "退出展开" : "展开执行现场"} title={expanded ? "退出展开 · Esc" : "展开执行现场"} onClick={() => setExpanded(!expanded)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={expanded ? "M8 3v5H3m18 0h-5V3M3 16h5v5m8 0v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} /></svg></button></header>
+  return <section className={`remote-scene${expanded ? " is-expanded" : ""}`} aria-label="远端执行现场"><header className="remote-scene__heading"><h2>远端现场</h2><button type="button" className="remote-icon-button" aria-label={expanded ? "收起视图" : "展开查看"} title={expanded ? "收起视图 · Esc" : "展开查看"} onClick={() => setExpanded(!expanded)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={expanded ? "M8 3v5H3m18 0h-5V3M3 16h5v5m8 0v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} /></svg></button></header>
     <nav className="remote-scene__tabs" role="tablist" aria-label="执行现场视图">{tabs.map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} title={sceneTabDescription(engine, id)} onClick={() => setTab(id)}>{tabLabels[id][0]}<span> · {tabLabels[id][1]}</span></button>)}</nav>
     <div className="remote-scene__content">
       {disabled ? <div className="remote-scene-empty"><span>◈</span><p>{taskId ? "连接远端服务后查看执行现场" : "选择或新建任务，观察远端执行现场"}</p></div> : <>
@@ -91,7 +91,7 @@ function RemoteDesktop({ engine, taskId, active = false }: { engine: RemoteAgent
       <div ref={host} className={`remote-rfb${inputEnabled ? "" : " is-view-only"}`} title={inputEnabled ? "控制远端桌面" : "只读观察 · 鼠标与键盘不会操作远端"} />
       {state !== "connected" && <div className="remote-rfb-overlay">{state === "loading" ? <><span className="remote-spinner" /><p>正在连接远端画面…</p></> : <><p>{error}</p><button type="button" className="remote-button" onClick={() => void observe()}>重新连接</button></>}</div>}
     </div>
-    {size && <small className="remote-frame-size">{size} · 可展开查看</small>}
+    {size && <small className="remote-frame-size">{size}</small>}
     {error && state === "connected" && <p className="remote-error">{error}</p>}
   </div>;
 }
