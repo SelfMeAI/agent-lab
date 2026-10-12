@@ -7,6 +7,7 @@ import { remoteError } from "./service-presentation";
 import { calendarDayKey, dateDividerLabel, exactTime, sessionTimeLabel } from "../agent-lab/conversation-time";
 import { observeTranscriptLayout } from "../agent-lab/transcript-layout";
 import { activeRemoteFailure, continueRemoteTaskPrompt, remoteTaskLabels } from "./task-presentation";
+import { mergeRemoteTaskCatalog, upsertRemoteTask } from "../../../../../../packages/remote-agent/src/task-order";
 import "./workspace.css";
 
 const selectedTasks = new Map<RemoteAgentId, string>();
@@ -19,6 +20,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
   const [prompt, setPrompt] = useState(""); const [files, setFiles] = useState<RemoteUploadedFile[]>([]); const [error, setError] = useState(""); const [atBottom, setAtBottom] = useState(true);
   const active = useRef(""); const alive = useRef(true); const output = useRef<HTMLDivElement>(null); const input = useRef<HTMLTextAreaElement>(null); const follow = useRef(true); const version = useRef(0);
   const submissionLock = useRef(false);
+  const catalogVersion = useRef(0);
   const busy = snapshot?.task.status === "running" || snapshot?.task.status === "waiting";
   const failure = activeRemoteFailure(snapshot);
   const connectionLost = snapshot && snapshot.connection !== "connected";
@@ -28,7 +30,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     onContinue: () => void send(true), onCompose: () => input.current?.focus(),
   };
   const slot = (id: string) => engine + ":" + id;
-  const updateTask = (task: RemoteTask): void => setTasks(previous => [task, ...previous.filter(item => item.id !== task.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  const updateTask = (task: RemoteTask): void => setTasks(previous => upsertRemoteTask(previous, task));
   async function select(id: string): Promise<void> {
     const ticket = ++version.current; const previous = active.current; active.current = id; setSelected(id); selectedTasks.set(engine, id); setOpening(true); setSnapshot(undefined); setError("");
     setPrompt(drafts.get(slot(id)) ?? ""); setFiles(attachments.get(slot(id)) ?? []); follow.current = true;
@@ -38,8 +40,9 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     finally { if (alive.current && ticket === version.current) setOpening(false); }
   }
   async function refresh(): Promise<void> {
-    const rows = await bridge.listRemoteTasks(engine); if (!alive.current) return;
-    setTasks(rows);
+    const ticket = ++catalogVersion.current;
+    const rows = await bridge.listRemoteTasks(engine); if (!alive.current || ticket !== catalogVersion.current) return;
+    setTasks(previous => mergeRemoteTaskCatalog(previous, rows));
     if (!active.current) { const id = selectedTasks.get(engine); const task = rows.find(task => task.id === id) ?? rows[0]; if (task) await select(task.id); }
   }
   useEffect(() => {
@@ -47,7 +50,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     const unsubscribe = bridge.onRemoteTaskUpdate(event => { if (event.engine !== engine || !alive.current) return; updateTask(event.snapshot.task); if (event.taskId === active.current) setSnapshot(event.snapshot); });
     async function poll(): Promise<void> { if (available) try { await refresh(); } catch (cause) { if (alive.current) setError(remoteError(cause)); } if (alive.current) timer = setTimeout(() => void poll(), 6000); }
     active.current = ""; setSelected(""); setSnapshot(undefined); void poll();
-    return () => { alive.current = false; ++version.current; clearTimeout(timer); unsubscribe(); if (active.current) void bridge.closeRemoteTask(engine, active.current).catch(() => {}); active.current = ""; };
+    return () => { alive.current = false; ++version.current; ++catalogVersion.current; clearTimeout(timer); unsubscribe(); if (active.current) void bridge.closeRemoteTask(engine, active.current).catch(() => {}); active.current = ""; };
   }, [engine, available, revision]);
   useLayoutEffect(() => { if (output.current) return observeTranscriptLayout(output.current, follow, setAtBottom); }, [selected, opening]);
   useLayoutEffect(() => { const area = input.current; if (!area) return; area.style.height = "0px"; area.style.height = Math.min(132, Math.max(42, area.scrollHeight)) + "px"; area.style.overflowY = area.scrollHeight > 132 ? "auto" : "hidden"; }, [prompt, selected]);
@@ -55,7 +58,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
   async function run(action: () => Promise<unknown>): Promise<void> { if (acting) return; setActing(true); setError(""); try { await action(); } catch (cause) { setError(remoteError(cause)); } finally { if (alive.current) setActing(false); } }
   async function create(): Promise<void> {
     // Disable the old composer immediately; a new native task can take a moment to create.
-    await run(async () => { setOpening(true); try { const task = await bridge.createRemoteTask(engine); updateTask(task); await select(task.id); } finally { if (alive.current) setOpening(false); } });
+    await run(async () => { setOpening(true); try { const task = await bridge.createRemoteTask(engine); ++catalogVersion.current; updateTask(task); await select(task.id); } finally { if (alive.current) setOpening(false); } });
   }
   async function send(continuing = false): Promise<void> {
     if (submissionLock.current || acting || opening || !available || !snapshot || !selected) return;
@@ -75,7 +78,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     catch (cause) { if (active.current === id) setError(remoteError(cause)); }
     finally { submissionLock.current = false; if (alive.current) setSubmitting(false); }
   }
-  async function remove(id: string): Promise<void> { await run(async () => { await bridge.deleteRemoteTask(engine, id); const rows = await bridge.listRemoteTasks(engine); setTasks(rows); if (rows.some(task => task.id === id)) return; drafts.delete(slot(id)); attachments.delete(slot(id)); if (active.current === id) { active.current = ""; setSelected(""); setSnapshot(undefined); selectedTasks.delete(engine); if (rows[0]) await select(rows[0].id); } }); }
+  async function remove(id: string): Promise<void> { await run(async () => { ++catalogVersion.current; await bridge.deleteRemoteTask(engine, id); const rows = await bridge.listRemoteTasks(engine); ++catalogVersion.current; setTasks(previous => mergeRemoteTaskCatalog(previous, rows)); if (rows.some(task => task.id === id)) return; drafts.delete(slot(id)); attachments.delete(slot(id)); if (active.current === id) { active.current = ""; setSelected(""); setSnapshot(undefined); selectedTasks.delete(engine); if (rows[0]) await select(rows[0].id); } }); }
   function draft(value: string): void { setPrompt(value); drafts.set(slot(selected), value); }
   let lastDay: string | null = null;
   return <div className="remote-workspace" style={{ "--remote-accent": remoteEngines[engine].color } as CSSProperties}>

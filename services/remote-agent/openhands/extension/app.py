@@ -19,11 +19,12 @@ from openhands.agent_server.dependencies import check_session_api_key, get_conve
 from openhands.agent_server._secrets_exposure import get_config
 from openhands.agent_server.persistence import get_settings_store
 from model_discovery import discover_models
+from task_browser import close_task_browsers, task_browser
 
 app = create_app()
 router = APIRouter(prefix="/api/selfme", dependencies=[Depends(check_session_api_key)])
 tasks = Path("/workspace/selfme/tasks")
-tickets: dict[str, float] = {}
+tickets: dict[str, tuple[float, object, int]] = {}
 
 
 @router.post("/models")
@@ -161,9 +162,8 @@ async def upload(request: Request, task: str, path: str):
 
 @router.post("/observer")
 async def observer(request: Request):
-    # Start the conversation's own headful SDK browser by querying its tabs.
-    # No navigation, clicks, model calls, duplicate browser or agent loop.
-    # An authenticated observer must never report LIVE against an empty Xvfb.
+    # Each task has its own native browser AND display. A view switch must
+    # never select a process-wide/shared framebuffer from another task.
     task = identity((await request.json()).get("task", ""))
     service = await get_conversation_service(request).get_event_service(UUID(task))
     if service is None:
@@ -173,19 +173,27 @@ async def observer(request: Request):
     try:
         # Public native API also handles lazy tool/plugin initialization and
         # locking before the first agent turn. Do not reach into tools_map.
-        observation = await asyncio.to_thread(conversation.execute_tool, "browser_list_tabs", BrowserListTabsAction())
+        browser = task_browser(task)
+        if browser is None:
+            observation = await asyncio.to_thread(conversation.execute_tool, "browser_list_tabs", BrowserListTabsAction())
+            if observation.is_error:
+                raise RuntimeError("原生浏览器启动失败")
+            browser = task_browser(task)
+        if browser is None:
+            raise RuntimeError("任务浏览器未就绪")
+        port = await asyncio.to_thread(browser.observer_port)
     except (KeyError, NotImplementedError):
         raise HTTPException(503, "此任务没有可用的原生浏览器工具，请新建任务后重试")
-    if observation.is_error:
-        raise HTTPException(503, "原生浏览器启动失败，请检查服务日志后重试")
+    except RuntimeError:
+        raise HTTPException(503, "此任务的浏览器暂不可用，请重新连接；对话和文件保留") from None
     now = time.time()
-    for token, expiry in list(tickets.items()):
+    for token, (expiry, _, _) in list(tickets.items()):
         if expiry <= now:
             del tickets[token]
     if len(tickets) >= 16:
         raise HTTPException(429, "观察连接过多，请关闭旧窗口后重试")
     token = secrets.token_urlsafe(32)
-    tickets[token] = now + 60
+    tickets[token] = (now + 60, browser, port)
     return {"wsPath": "/selfme/observe?ticket=" + token, "expiresAt": int((now + 60) * 1000), "control": False}
 
 
@@ -193,14 +201,14 @@ async def observer(request: Request):
 async def observe(socket: WebSocket):
     # One-use grant minted by an authenticated HTTP request. RFB is loopback
     # only, and x11vnc itself rejects keyboard/mouse input in -viewonly mode.
-    expiry = tickets.pop(socket.query_params.get("ticket", ""), 0)
-    if expiry <= time.time():
+    grant = tickets.pop(socket.query_params.get("ticket", ""), None)
+    if grant is None or grant[0] <= time.time() or grant[1].closed or not grant[1].display.alive() or grant[1].display.port != grant[2]:
         await socket.close(code=4401)
         return
     await socket.accept(subprotocol="binary" if "binary" in socket.headers.get("sec-websocket-protocol", "") else None)
     writer = None
     try:
-        reader, writer = await asyncio.open_connection("127.0.0.1", 5900)
+        reader, writer = await asyncio.open_connection("127.0.0.1", grant[2])
         async def outbound():
             while chunk := await reader.read(65536):
                 await socket.send_bytes(chunk)
@@ -230,47 +238,9 @@ async def observe(socket: WebSocket):
 app.include_router(router)
 
 if __name__ == "__main__":
-    import select
-    import socket
-    import subprocess
     import uvicorn
-    os.environ["DISPLAY"] = ":88"
-    processes = []
     try:
-        # A stale X socket after restart is not a readiness signal. Xvfb
-        # explicitly writes its display number only after it can serve clients.
-        ready_read, ready_write = os.pipe()
-        try:
-            processes.append(subprocess.Popen(["Xvfb", ":88", "-displayfd", str(ready_write), "-screen", "0", "1280x800x24", "-nolisten", "tcp"], pass_fds=(ready_write,), stdout=subprocess.DEVNULL))
-        finally:
-            os.close(ready_write)
-        try:
-            ready, _, _ = select.select([ready_read], [], [], 10)
-            if not ready or os.read(ready_read, 64).strip() != b"88":
-                raise RuntimeError("远端显示服务未就绪")
-        finally:
-            os.close(ready_read)
-        vnc = subprocess.Popen(["x11vnc", "-display", ":88", "-localhost", "-rfbport", "5900", "-nopw", "-shared", "-forever", "-viewonly"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        processes.append(vnc)
-        deadline = time.monotonic() + 10
-        while True:
-            if vnc.poll() is not None:
-                raise RuntimeError("远端观察服务启动后退出")
-            try:
-                with socket.create_connection(("127.0.0.1", 5900), timeout=1) as probe:
-                    if probe.recv(12).startswith(b"RFB "):
-                        break
-            except OSError:
-                pass
-            if time.monotonic() > deadline:
-                raise RuntimeError("远端观察服务未就绪")
-            time.sleep(0.1)
         os.environ["OH_INTERNAL_SERVER_URL"] = "http://127.0.0.1:8000"
         uvicorn.run(app, host="0.0.0.0", port=8000)
     finally:
-        for process in reversed(processes):
-            process.terminate()
-            with contextlib.suppress(subprocess.TimeoutExpired):
-                process.wait(timeout=5)
-            if process.poll() is None:
-                process.kill()
+        close_task_browsers()

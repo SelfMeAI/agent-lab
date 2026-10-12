@@ -3,11 +3,13 @@ import type { RemoteTask, RemoteTaskSnapshot, RemoteUploadedFile } from "../../.
 import { applyOpenHandsEvent, contentText, executionFailure, record, taskStatus, text, timestamp } from "../transcript";
 import { RemoteHttp, RemoteHttpError, remoteTaskId } from "../transport/http";
 import { knownRemoteVision, remoteCanonicalModel } from "../model-capabilities";
+import { latestTaskTime, sortRemoteTasks, unknownTaskTime } from "../task-order";
 
 type View = { snapshot: RemoteTaskSnapshot; socket?: WebSocket; seq: number; retry?: ReturnType<typeof setTimeout>; closed: boolean; slots: Map<string, { attempt: number; order: number; lossy: boolean }> };
 export function handsTask(value: unknown): RemoteTask {
   const row = record(value); const id = text(row.id);
-  return { id, title: text(row.title) || "新任务", status: taskStatus(row.execution_status), createdAt: timestamp(row.created_at) ?? new Date().toISOString(), updatedAt: timestamp(row.updated_at) ?? new Date().toISOString() };
+  const createdAt = timestamp(row.created_at) ?? timestamp(row.updated_at) ?? unknownTaskTime;
+  return { id, title: text(row.title) || "新任务", status: taskStatus(row.execution_status), createdAt, updatedAt: timestamp(row.updated_at) ?? createdAt };
 }
 export class OpenHandsTasks {
   private views = new Map<string, View>();
@@ -19,7 +21,7 @@ export class OpenHandsTasks {
       const result = await this.http.json<{ items: unknown[]; next_page_id?: string }>("/api/conversations/search?sort_order=UPDATED_AT_DESC&limit=100" + (page ? "&page_id=" + encodeURIComponent(page) : ""));
       tasks.push(...result.items.map(handsTask)); page = result.next_page_id ?? "";
     } while (page);
-    return tasks;
+    return sortRemoteTasks(tasks);
   }
   async create(): Promise<RemoteTask> {
     const id = randomUUID();
@@ -108,7 +110,9 @@ export class OpenHandsTasks {
           snapshot.task.status = "error";
           snapshot.failure = executionFailure(text(event.detail) || text(event.error) || text(event.message), timestamp(event.timestamp));
         }
-        if (event.kind === "MessageEvent" && event.source === "user") snapshot.task.updatedAt = timestamp(event.timestamp) ?? snapshot.task.updatedAt;
+        // Native history is replayed on every view open. Never regress activity,
+        // and include assistant/tool work rather than only the last user message.
+        snapshot.task.updatedAt = latestTaskTime(snapshot.task.updatedAt, timestamp(event.timestamp));
       }
     } else if (frame.type === "item_started") {
       const id = text(frame.item_id), attempt = Number(frame.attempt ?? 1);

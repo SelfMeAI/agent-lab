@@ -1,0 +1,18 @@
+#!/bin/sh
+# browser-use's pinned launcher does not forward BrowserProfile.env. Apply a
+# task-local DISPLAY in this child only, never mutate the agent server's env.
+task_display=
+for option in "$@"; do
+    case "$option" in
+        --selfme-x11-display=*) task_display="${option#--selfme-x11-display=}" ;;
+    esac
+done
+case "$task_display" in
+    :*) display_number="${task_display#:}" ;;
+    *) exit 64 ;;
+esac
+case "$display_number" in
+    ''|*[!0-9]*) exit 64 ;;
+esac
+export DISPLAY="$task_display"
+exec /usr/bin/chromium "$@"

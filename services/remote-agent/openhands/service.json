@@ -3,7 +3,7 @@
   "id": "openhands",
   "name": "OpenHands",
   "stage": "capability-validation",
-  "deployment": { "dockerfile": "deployment.Dockerfile", "image": "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab6" },
+  "deployment": { "dockerfile": "deployment.Dockerfile", "image": "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab7" },
   "build": {
     "source": "sdk",
     "dockerfile": "openhands-agent-server/openhands/agent_server/docker/Dockerfile",

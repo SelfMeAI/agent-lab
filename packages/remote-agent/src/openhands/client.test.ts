@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RemoteTaskSnapshot } from "../../../contracts/src/remote-agent";
-import { OpenHandsTasks } from "./client";
+import { handsTask, OpenHandsTasks } from "./client";
 import { RemoteHttp, RemoteHttpError } from "../transport/http";
 
 const id = "c0ec83da-66be-4f17-a2c2-01dc02c89f00";
@@ -13,7 +13,7 @@ class NativeSocket extends EventTarget {
   frame(value: unknown): void { this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(value) })); }
   close(): void { if (!this.closed) { this.closed = true; this.dispatchEvent(new Event("close")); } }
 }
-afterEach(() => { NativeSocket.through = -1; vi.unstubAllGlobals(); });
+afterEach(() => { NativeSocket.through = -1; Reflect.deleteProperty(NativeSocket, "current"); vi.unstubAllGlobals(); });
 function fixture() {
   vi.stubGlobal("WebSocket", NativeSocket);
   const http = new RemoteHttp("openhands", async () => "http://127.0.0.1:1234", async () => "private-token");
@@ -26,6 +26,24 @@ function fixture() {
   return { client, json, updates };
 }
 describe("OpenHands ordered native task stream", () => {
+  it("does not invent fresh activity when native metadata omits a timestamp", () => {
+    const row = { id, title: "新任务", created_at: "2026-10-12T12:00:00Z" };
+    expect(handsTask(row).updatedAt).toBe("2026-10-12T12:00:00.000Z");
+    expect(handsTask(row)).toEqual(handsTask(row));
+    expect(handsTask({ id }).updatedAt).toBe("1970-01-01T00:00:00.000Z");
+  });
+  it("history replay cannot regress activity and newer assistant/tool work advances it", async () => {
+    const { client, json, updates } = fixture();
+    json.mockResolvedValue({ id, title: "Task", execution_status: "finished", updated_at: "2026-10-12T15:10:00Z" });
+    await client.open(id);
+    NativeSocket.current.frame({ type: "durable", seq: 0, event: { id: "old", kind: "MessageEvent", source: "user", timestamp: "2026-10-12T14:50:00", llm_message: { content: [{ text: "old" }] } } });
+    expect(updates.at(-1)?.task.updatedAt).toBe("2026-10-12T15:10:00.000Z");
+    NativeSocket.current.frame({ type: "durable", seq: 1, event: { id: "assistant", kind: "MessageEvent", source: "agent", timestamp: "2026-10-12T15:11:00", llm_message: { content: [{ text: "done" }] } } });
+    expect(updates.at(-1)?.task.updatedAt).toBe("2026-10-12T15:11:00.000Z");
+    NativeSocket.current.frame({ type: "durable", seq: 2, event: { id: "state", kind: "ConversationStateUpdateEvent", timestamp: "2026-10-12T15:12:00", key: "execution_status", value: "finished" } });
+    expect(updates.at(-1)?.task.updatedAt).toBe("2026-10-12T15:11:00.000Z");
+    client.shutdown();
+  });
   it("creates a visible browser with automatic confirmed vision instead of a stale override", async () => {
     const { client, json } = fixture();
     json.mockImplementation(async (path: string) => {

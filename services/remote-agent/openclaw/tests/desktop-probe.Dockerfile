@@ -6,7 +6,7 @@ FROM ${SOURCE_IMAGE}
 USER root
 RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
     tigervnc-standalone-server tigervnc-tools xfce4-session xfce4-panel xfwm4 \
-    dbus-daemon dbus-x11 mousepad fonts-noto-cjk \
+    dbus-daemon dbus-x11 mousepad fonts-noto-cjk fonts-noto-color-emoji \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /proof /app/.artifacts && chown node:node /proof \
     && chown -R node:node /app/.artifacts

@@ -73,7 +73,7 @@ export const atlasModules: readonly AtlasModule[] = [
       "delivery-experience",
       "visual-system",
     ],
-    note: "已接通固定源码 OpenHands / OpenClaw 的原生远端任务、历史、增量输出、工具、审批、文件交换和执行现场。OpenClaw 的网页与服务页面通过桌面 Chrome 查看，命令过程在对话详情展示，人工终端独立使用；文件可预览或下载。OpenHands 保留共享浏览器只读观察，不提供额外终端或接管入口。模型、历史与文件保存在服务卷；本机 Docker 是远端业务的研发部署，不使用本机工作目录。尚非公网多租户服务，也不把人工桌面操作算作已验收自主视觉操作。",
+    note: "已接通固定源码 OpenHands / OpenClaw 的原生远端任务、历史、增量输出、工具、审批、文件交换和执行现场。OpenClaw 的网页与服务页面通过桌面 Chrome 查看，命令过程在对话详情展示，人工终端独立使用；文件可预览或下载。OpenHands 每个会话有独立的原生浏览器、profile 和只读观察画面，不提供额外终端或接管入口。两种浏览器部署默认包含中文及彩色 emoji 字库。模型、历史与文件保存在服务卷；本机 Docker 是远端业务的研发部署，不使用本机工作目录。浏览器会话隔离不等于公网多租户安全隔离，也不把人工桌面操作算作已验收自主视觉操作。",
   },
   {
     id: "local-model-lab",
@@ -206,9 +206,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "sessions.list-search", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "integrated", upstream: "tested", passedChecks: [2], checkedAt: "2026-10-10",
-    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openhands/client.ts"],
-    note: "任务侧栏独立滚动、按更新时间排序并显示原生运行状态与日期。服务列表分页读取；尚无搜索、筛选和大量历史的性能基准。",
+    state: "integrated", upstream: "tested", passedChecks: [2], checkedAt: "2026-10-13",
+    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openhands/client.test.ts", "packages/remote-agent/src/task-order.test.ts"],
+    note: "任务侧栏独立滚动，按真实活动时间和固定同时间排序规则显示原生状态与日期。OH 回放旧消息不回退时间，助手及工具的新活动会推进时间；列表刷新保留已收到的较新活动，创建和删除会丢弃过期列表请求。仅查看或切换不制造新活动。服务列表分页读取；尚无搜索、筛选和大量历史的性能基准。",
   },
   {
     capabilityId: "sessions.archive-delete", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -242,9 +242,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "web-action.browser-session", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-12",
-    evidence: ["services/remote-agent/openclaw/desktop/launch.mjs","services/remote-agent/openclaw/plugin/index.ts","apps/desktop/src/main/remote-agent/deployment.test.ts","apps/desktop/src/main/remote-agent/service-manager.integration.test.ts","apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx","apps/desktop/src/renderer/labs/remote-agent-lab/scene-presentation.test.ts","services/remote-agent/openhands/extension/app.py"],
-    note: "OpenClaw 的原生浏览器工具继续使用桌面可见 Chromium；网页、运行中的服务页面和人工操作集中在远端桌面 Chrome，不提供重复的外部 Browser 页签或自制 CDP 输入入口。原生浏览器鉴权、profile 与任务页面约束保留，不因删视图改成纯截图执行。OpenHands 保留原生只读浏览器观察。共享环境尚非任务独占桌面或独立登录态。",
+    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-13",
+    evidence: ["services/remote-agent/openclaw/desktop/launch.mjs","services/remote-agent/openclaw/plugin/index.ts","apps/desktop/src/main/remote-agent/deployment.test.ts","apps/desktop/src/main/remote-agent/service-manager.integration.test.ts","apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx","services/remote-agent/openhands/extension/task_browser.py","services/remote-agent/openhands/tests/task_browser_probe.py"],
+    note: "OpenClaw 的原生浏览器工具继续使用桌面可见 Chromium；网页、运行中的服务页面和人工操作集中在远端桌面 Chrome，不提供重复的外部 Browser 页签或自制 CDP 输入入口。原生浏览器鉴权、profile 与任务页面约束保留。OH 通过公开工具注册扩展保留原生动作，为每个会话分配独立 executor、profile、显示与观察端口；三会话并行导航、关闭互不影响、浏览器和显示进程恢复已实测。崩溃后恢复页面但不重试旧点击等写入动作。两种镜像默认包含彩色 emoji；OpenClaw 桌面仍是共享环境，尚非公网多租户安全隔离。",
   },
   {
     capabilityId: "web-action.browser-dom", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
@@ -254,9 +254,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "computer.screen-observation", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-12",
-    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/scene-presentation.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/workspace.css", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "services/remote-agent/openhands/extension/app.py"],
-    note: "OpenHands 的只读浏览器画面与 OpenClaw 完整桌面按区域适配、可展开，不撑高主界面。连接状态与实际可输入状态分开描述；切换客户端页签只改变展示，不暂停智能体、不打开桌面终端。画面使用原生短时凭据与已认证连接，OpenHands 一次性消费；断线可重连且不重发任务。保留失焦释放键鼠的边界，尚无隐私遮罩及任务独占桌面。",
+    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-13",
+    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/scene-presentation.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/workspace.css", "services/remote-agent/openhands/extension/app.py", "services/remote-agent/openhands/tests/observer_grants_test.py", "services/remote-agent/openhands/tests/task_browser_probe.py"],
+    note: "OpenHands 的会话独立只读浏览器画面与 OpenClaw 完整桌面按区域适配、可展开，不撑高主界面。切换客户端页签只改变展示，不暂停智能体、不打开桌面终端。OH 的已认证一次性观察凭据绑定具体会话的显示实例和端口，过期、重复、已关闭或已替换的资源拒绝连接；三路画面不同已实测，已运行的画面观察不等待工具结束。断线可重连且不重发任务。保留失焦释放键鼠的边界，尚无隐私遮罩或 OpenClaw 任务独占桌面。",
   },
   {
     capabilityId: "computer.mouse-keyboard", moduleId: "remote-agent-lab", harnessId: "OpenClaw", platform: "desktop",

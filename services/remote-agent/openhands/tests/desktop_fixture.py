@@ -43,7 +43,11 @@ class DesktopFixture:
             time.sleep(0.1)
         self.spawn(["x11vnc", "-display", ":77", "-localhost", "-rfbport", "5900", "-nopw", "-shared", "-forever", "-viewonly"])
         self.spawn(["websockify", "--web", "/usr/share/novnc", "127.0.0.1:6080", "127.0.0.1:5900"])
-        self.connection = self.connect(5900)
+        self.attach(5900)
+        self.verify_websocket()
+
+    def attach(self, port):
+        self.connection = self.connect(port)
         version = read_exact(self.connection, 12)
         assert version.startswith(b"RFB 003."), "Not a native RFB connection"
         self.connection.sendall(b"RFB 003.008\n")
@@ -58,7 +62,6 @@ class DesktopFixture:
         pixel_format = struct.pack("!BBBBHHHBBBxxx", 32, 24, 0, 1, 255, 255, 255, 16, 8, 0)
         self.connection.sendall(b"\0\0\0\0" + pixel_format)
         self.connection.sendall(struct.pack("!BBHi", 2, 0, 1, 0))
-        self.verify_websocket()
 
     def spawn(self, args):
         process = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

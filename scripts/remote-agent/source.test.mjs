@@ -53,11 +53,26 @@ test("deployment layers are explicit, source-derived and ownership-labelled", as
 test("OpenClaw adds the curated Xfce desktop and shared terminal in the deployment layer", async () => {
   const definition = JSON.parse(await readFile(new URL("../../services/remote-agent/openclaw/service.json", import.meta.url), "utf8"));
   const dockerfile = await readFile(new URL("../../services/remote-agent/openclaw/deployment.Dockerfile", import.meta.url), "utf8");
-  assert.ok(definition.deployment.image.endsWith("-lab24"));
+  assert.ok(definition.deployment.image.endsWith("-lab25"));
   assert.doesNotMatch(dockerfile, /terminal-build|terminal-focus/);
   assert.match(dockerfile, /COPY --from=panel-build \/panel-root\/usr\/bin\/xfce4-panel/);
   assert.match(dockerfile, /install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl xdotool/);
   assert.match(dockerfile, /COPY desktop \/opt\/selfme\/desktop/);
   assert.match(dockerfile, /COPY bootstrap \/opt\/selfme\/bootstrap/);
   assert.match(dockerfile, /COPY --from=model-discovery \/terminal-response\.ts \/opt\/selfme\/plugin\/terminal-response\.ts/);
+});
+
+test("both native browser deployment layers include color emoji by default", async () => {
+  for (const engine of ["openhands", "openclaw"]) {
+    const dockerfile = await readFile(new URL(`../../services/remote-agent/${engine}/deployment.Dockerfile`, import.meta.url), "utf8");
+    assert.match(dockerfile, /install -y --no-install-recommends[^\n]*fonts-noto-color-emoji/);
+  }
+});
+
+test("OH observation grants select the task's own display, not a global VNC port", async () => {
+  const app = await readFile(new URL("../../services/remote-agent/openhands/extension/app.py", import.meta.url), "utf8");
+  assert.match(app, /task_browser\(task\)/);
+  assert.match(app, /tickets\[token\] = \(now \+ 60, browser, port\)/);
+  assert.match(app, /open_connection\("127\.0\.0\.1", grant\[2\]\)/);
+  assert.doesNotMatch(app, /DISPLAY.*:88|rfbport.*5900/);
 });
