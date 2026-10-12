@@ -58,6 +58,10 @@ test('curated desktop is reproducible and does not modify task/provider state', 
     assert.match(panel, /value="16"\/><value type="int" value="18"\/><value type="int" value="19"\/><value type="int" value="17"\/><value type="int" value="20"/);
     assert.equal((panel.match(/name="autohide-behavior" type="uint" value="0"/g) ?? []).length, 2);
     assert.equal((panel.match(/name="disable-struts" type="bool" value="false"/g) ?? []).length, 2);
+    const filesLauncher = await readFile(join(fixture, '.config/xfce4/panel/launcher-17/files.desktop'), 'utf8');
+    assert.match(filesLauncher, /^Icon=folder$/m);
+    assert.doesNotMatch(filesLauncher, /system-file-manager/);
+    assert.match(filesLauncher, /^Exec=\/usr\/local\/bin\/node \/opt\/selfme\/desktop\/launch\.mjs files$/m);
     const desktop = await readFile(join(fixture, '.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml'), 'utf8');
     assert.match(desktop, /galaxy\.png/);
     assert.match(desktop, /name="style" type="int" value="2"/);
