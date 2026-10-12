@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify, stripVTControlCharacters } from "node:util";
 import { RemoteServiceCredentials } from "./credentials";
@@ -10,7 +10,7 @@ import { remoteDeployments } from "./deployment";
 import { RemoteModelClient } from "../../../../../packages/remote-agent/src/model-connection";
 import { RemoteTaskController } from "./task-controller";
 import { remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
-import type { RemoteTerminalEvent } from "../../../../../packages/contracts/src/remote-agent";
+import type { RemoteTaskSnapshot, RemoteTerminalEvent } from "../../../../../packages/contracts/src/remote-agent";
 
 // Explicit Docker integration; fixture-only connection keys, never real API calls.
 describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-built remote services", () => {
@@ -24,7 +24,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
       const models = new RemoteModelClient(engine, () => container.requireEndpoint(), () => credentials.get());
       const connection = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get() };
       const terminalEvents: RemoteTerminalEvent[] = [];
-      const tasks = new RemoteTaskController({ openhands: connection, openclaw: connection }, { choose: async () => [], save: async () => null }, () => {}, event => terminalEvents.push(event));
+      const taskUpdates = new Map<string, RemoteTaskSnapshot>();
+      const tasks = new RemoteTaskController({ openhands: connection, openclaw: connection }, { choose: async () => [], save: async () => null }, update => taskUpdates.set(update.taskId, update.snapshot), event => terminalEvents.push(event));
       try {
         const state = await container.start();
         expect(state.phase).toBe("ready");
@@ -81,109 +82,93 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         await expect(files.request(`${fileRoute}?${query}`)).rejects.toThrow("文件路径");
         expect([401, 403]).toContain((await fetch(`${await container.requireEndpoint()}${fileRoute}?task=${remoteTaskId(task.id)}&op=list`)).status);
         if (engine === "openhands") {
-          const grant = await tasks.desktop(engine, task.id, false);
+          const grant = await tasks.desktop(engine, task.id);
           expect(grant.control).toBe(false); expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await expect(framebufferHeader(grant.url)).rejects.toThrow();
         } else {
-          const grant = await tasks.desktop(engine, task.id, false);
-          expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
+          const grant = await tasks.desktop(engine, task.id);
+          expect(grant.control).toBe(true); expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
           const scene = await tasks.claw.request<{ display: string }>("selfme.scene.prepare", { task: remoteTaskId(task.id) });
           expect(scene.display).toMatch(/^:\d+$/);
           const terminal = await tasks.claw.terminal(task.id);
-          expect(terminal.cwd).toBe(`/home/node/.openclaw/workspace/selfme/${remoteTaskId(task.id)}`);
-          // Opening the external terminal is an attachment, never a GUI launch.
-          expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(task.id))).window).toBe(false);
-          expect(await tasks.claw.browserTabs(task.id)).toEqual([]);
-          await expect(tasks.claw.browser(task.id)).rejects.toThrow("没有打开浏览器页面");
-          await tasks.claw.request("selfme.terminal.prepare", { task: remoteTaskId(task.id) });
-          await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
-          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
-          expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ agentBusy: false, humanControl: false, inputAllowed: true, browserInputAllowed: true, terminalInputAllowed: true, takeover: "none" });
-          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nIDLE_INPUT_OK\\n'\r");
+          expect(terminal.cwd).toBe('/home/node/.openclaw/workspace/selfme/' + remoteTaskId(task.id));
+          const windowState = () => desktopTerminalState(container.name, scene.display, remoteTaskId(task.id));
+          expect((await windowState()).window).toBe(false);
+          expect(await tasks.claw.terminalAccess(task.id)).toEqual({ busy: false, inputAllowed: true });
+          await tasks.claw.terminalInput(task.id, terminal.id, "export SELFME_SHARED_SHELL=retained; printf '\\nIDLE_INPUT_OK\\n'\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/IDLE_INPUT_OK\r?\n/);
+          expect((await windowState()).window).toBe(false);
           await tasks.claw.terminalInput(task.id, terminal.id, "sleep 2\r");
-          expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ agentBusy: false, humanControl: false, inputAllowed: true });
           await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
           await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
           await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: "foreign-terminal", data: "echo BLOCKED\r" })).rejects.toThrow("不属于");
-          await tasks.claw.desktop(task.id, true);
+          const execDesktop = promisify(execFile);
+          // Only an explicit desktop launcher opens the real shell window.
+          await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1]);", remoteTaskId(task.id)]);
+          await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
           await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
-          await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
           await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd; printenv DISPLAY\r");
-          // tmux may position the cursor instead of emitting a preceding LF,
-          // and append erase-to-end-of-line before the next actual newline.
-          // The trailing real newline still distinguishes output from the
-          // echoed command's literal backslash-n marker.
-          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 15_000 }).toMatch(/REMOTE_PTY_OK\r?\n/);
+          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 10_000 }).toMatch(/REMOTE_PTY_OK\r?\n/);
           expect(terminalEvents.map(event => event.data ?? "").join("")).not.toContain("command not found");
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain(scene.display);
-          const serverPath = `uploads/scene-server.cjs`;
-          await files.upload(task.id, serverPath, new TextEncoder().encode(`const http = require('node:http'); http.createServer((req,res) => { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<!doctype html><title>Remote scene proof</title><body style="min-height:2800px"><h1>REMOTE_SCENE_OK</h1><button id="count" style="position:absolute;left:20px;top:80px;width:200px;height:50px" onclick="this.textContent=String(Number(this.textContent)+1)">0</button><textarea id="input" aria-label="Input proof" style="position:absolute;left:20px;top:150px;width:300px;height:60px"></textarea>'); }).listen(8734,'127.0.0.1',()=>console.log('REMOTE_SERVER_READY'));`));
-          await tasks.claw.terminalInput(task.id, terminal.id, `node '${terminal.cwd}/${serverPath}'\r`);
+          const serverPath = "uploads/scene-server.cjs";
+          await files.upload(task.id, serverPath, new TextEncoder().encode("const http=require('node:http');http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<!doctype html><title>Remote scene proof</title><h1>REMOTE_SCENE_OK</h1>');}).listen(8734,'127.0.0.1',()=>console.log('REMOTE_SERVER_READY'));"));
+          await tasks.claw.terminalInput(task.id, terminal.id, "node '" + terminal.cwd + "/" + serverPath + "'\r");
           await expect.poll(() => terminalEvents.map(event => event.data ?? "").join(""), { timeout: 5000 }).toContain("REMOTE_SERVER_READY");
-          await tasks.claw.release();
-          await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
-          expect(await tasks.claw.sceneAccess(task.id)).toMatchObject({ humanControl: false, inputAllowed: true });
-          await tasks.claw.desktop(task.id, true);
-          const browser = await tasks.claw.browser(task.id, { url: "about:blank" });
-          expect(browser.pageUrl).toBe("about:blank"); expect(browser.tabs.some(tab => tab.targetId === browser.targetId)).toBe(true);
-          expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
-          await tasks.claw.focusBrowser(task.id, browser.targetId);
+          // Exercise the native browser API, not a replacement client browser.
+          const browser = await tasks.claw.request<{ targetId: string }>("browser.request", { method: "POST", path: "/tabs/open", body: { url: "http://127.0.0.1:8734/" }, tabScope: { sessionKey: task.id } });
+          await tasks.claw.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId: browser.targetId }, tabScope: { sessionKey: task.id } });
           await browserOnDesktop(container.name, scene.display);
-          const localPage = await tasks.claw.browser(task.id, { url: "http://127.0.0.1:8734/" });
-          expect(localPage.pageUrl).toBe("http://127.0.0.1:8734/");
-          expect(await browserFrameLength(localPage.url)).toBeGreaterThan(100);
-          expect((await tasks.claw.browserTabs(task.id)).find(tab => tab.targetId === localPage.targetId)?.title).toBe("Remote scene proof");
-          const click = (x: number, y: number) => tasks.claw.browserInput(task.id, localPage.targetId, [{ kind: "mouse", type: "down", button: "left", buttons: 1, x, y }, { kind: "mouse", type: "up", button: "left", buttons: 0, x, y }]);
-          await click(40, 100); await click(40, 170);
-          await tasks.claw.browserInput(task.id, localPage.targetId, [{ kind: "text", text: "中文输入验收" }, { kind: "key", type: "down", key: "Enter", code: "Enter", keyCode: 13, modifiers: 0 }, { kind: "key", type: "up", key: "Enter", code: "Enter", keyCode: 13, modifiers: 0 }]);
-          const pageState = () => tasks.claw.request<{ result?: { count?: string; text?: string; scroll?: number } }>("browser.request", { method: "POST", path: "/act", body: { kind: "evaluate", targetId: localPage.targetId, fn: "() => ({count:document.getElementById('count').textContent,text:document.getElementById('input').value,scroll:window.scrollY})" }, tabScope: { sessionKey: task.id } });
-          await expect.poll(pageState, { timeout: 5000 }).toMatchObject({ result: { count: "1", text: "中文输入验收\n" } });
-          await tasks.claw.browserInput(task.id, localPage.targetId, [{ kind: "mouse", type: "wheel", x: 700, y: 400, deltaY: 300 }]);
-          await expect.poll(async () => (await pageState()).result?.scroll, { timeout: 5000 }).toBeGreaterThan(0);
-          await expect(tasks.claw.browserInput(task.id, "unowned", [{ kind: "text", text: "BLOCKED" }])).rejects.toThrow("不属于");
-          await tasks.claw.release();
-          await tasks.claw.request("selfme.browser.input", { task: remoteTaskId(task.id), targetId: localPage.targetId, events: [{ kind: "release" }], tabScope: { sessionKey: task.id } });
-          // Handback restores observation, without closing Chrome or reopening a page.
-          expect(await browserFrameLength((await tasks.claw.browser(task.id)).url)).toBeGreaterThan(100);
-          await tasks.claw.focusBrowser(task.id, localPage.targetId);
-          const backgroundTask = await tasks.claw.create();
-          await tasks.claw.request("selfme.scene.prepare", { task: remoteTaskId(backgroundTask.id) });
-          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).activeTitle, { timeout: 5000 }).toContain("Chromium");
-          const focusBefore = (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).active;
-          const execWindow = promisify(execFile);
-          await execWindow("docker", ["exec", "-e", `DISPLAY=${scene.display}`, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1], true);", remoteTaskId(backgroundTask.id)]);
-          await expect.poll(() => desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id)), { timeout: 10_000 }).toMatchObject({ window: true, visible: true, front: true, active: focusBefore });
-          // A deliberate Dock-style open still activates the window. Updating
-          // that existing window on another round must not activate or raise it.
-          await tasks.claw.request("selfme.terminal.prepare", { task: remoteTaskId(backgroundTask.id) });
-          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).activeTitle, { timeout: 5000 }).toContain(" · " + remoteTaskId(backgroundTask.id).slice(0, 8));
-          await tasks.claw.focusBrowser(task.id, localPage.targetId);
-          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).active, { timeout: 5000 }).toBe(focusBefore);
-          await execWindow("docker", ["exec", "-e", `DISPLAY=${scene.display}`, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1], true);", remoteTaskId(backgroundTask.id)]);
-          expect(await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).toMatchObject({ window: true, visible: true, front: false, active: focusBefore });
-          // Actual agent commands, unlike passive observation, select and
-          // foreground their native output tab. Real manual input selects the
-          // other tab in the same task window; clients never jump views.
-          await execWindow("docker", ["exec", "-e", `DISPLAY=${scene.display}`, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1], true, 'agent');", remoteTaskId(backgroundTask.id)]);
-          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(backgroundTask.id))).activeTitle, { timeout: 5000 }).toContain("智能体执行 · " + remoteTaskId(backgroundTask.id).slice(0, 8));
+          await expect.poll(async () => (await windowState()).activeTitle, { timeout: 5000 }).toContain("Chromium");
+          const focus = (await windowState()).active;
           await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
-          await expect.poll(async () => (await desktopTerminalState(container.name, scene.display, remoteTaskId(task.id))).activeTitle, { timeout: 5000 }).toContain("人工终端 · " + remoteTaskId(task.id).slice(0, 8));
-          await tasks.claw.delete(backgroundTask.id);
-          await tasks.claw.desktop(task.id, true);
+          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\n%s\\n' \"$SELFME_SHARED_SHELL\"\r");
+          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/retained\r?\n/);
+          expect((await windowState()).active).toBe(focus);
           await tasks.claw.terminalClose(task.id, terminal.id);
           const reopened = await tasks.claw.terminal(task.id);
-          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nREATTACHED_SHELL_OK\\n'\r");
-          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/REATTACHED_SHELL_OK\r?\n/);
-          await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
+          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nREATTACHED_%s\\n' \"$SELFME_SHARED_SHELL\"\r");
+          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/REATTACHED_retained\r?\n/);
+          expect((await windowState()).active).toBe(focus);
+          // Closing the GUI attachment must not kill or reopen the shared shell.
+          await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { execFileSync } from 'node:child_process';const id=process.argv[1];const row=execFileSync('wmctrl',['-l'],{encoding:'utf8'}).split('\\n').find(line=>line.endsWith('人工终端 · '+id.slice(0,8)));if(row)execFileSync('wmctrl',['-ic',row.split(/\\s+/)[0]]);", remoteTaskId(task.id)]);
+          await expect.poll(async () => (await windowState()).window, { timeout: 5000 }).toBe(false);
+          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nAFTER_GUI_CLOSE_%s\\n' \"$SELFME_SHARED_SHELL\"\r");
+          await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/AFTER_GUI_CLOSE_retained\r?\n/);
+          expect((await windowState()).window).toBe(false);
           await tasks.claw.terminalClose(task.id, reopened.id);
-          await tasks.claw.release();
-          await expect(tasks.claw.browser(task.id, { targetId: "unowned" })).rejects.toThrow("不属于");
-          await expect(tasks.claw.focusBrowser(task.id, "unowned")).rejects.toThrow("不属于");
-          const lease = await tasks.claw.request<{ id: string }>("selfme.control.acquire", { task: remoteTaskId(task.id) });
-          await expect(tasks.claw.request("selfme.control.acquire", { task: remoteTaskId(task.id) })).rejects.toThrow("已有接管者");
-          await tasks.claw.request("selfme.control.release", { id: lease.id });
+          // Real native command execution, live output and Stop, without paid API calls.
+          await execDesktop("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile("scripts/remote-agent/fixtures/execution-provider.mjs", "utf8")]);
+          const cfg = await tasks.claw.request<{ hash: string }>("config.get");
+          await tasks.claw.request("config.patch", { baseHash: cfg.hash, raw: JSON.stringify({ models: { providers: { selfme: { baseUrl: "http://127.0.0.1:8944/v1", api: "openai-completions", apiKey: "execution-fixture", request: { allowPrivateNetwork: true }, models: [{ id: "execution-fixture", name: "Execution fixture", input: ["text"] }] } } }, agents: { defaults: { model: { primary: "selfme/execution-fixture" } } }, tools: { codeMode: false } }) });
+          await ready();
+          const native = await tasks.claw.create(); await tasks.claw.open(native.id);
+          const snapshot = () => taskUpdates.get(native.id);
+          const commandText = () => snapshot()?.items.filter(item => item.tool).map(item => item.tool!.output ?? "").join("\n") ?? "";
+          await tasks.claw.send(native.id, "EXEC_TEST");
+          await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
+          await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
+          await expect.poll(commandText, { timeout: 10_000 }).toContain("NATIVE_EXEC_BEGIN");
+          expect((await tasks.claw.terminalAccess(native.id)).busy).toBe(true);
+          const during = await tasks.claw.desktop(native.id); expect(during.control).toBe(true);
+          expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
+          await expect.poll(() => snapshot()?.task.status, { timeout: 20_000 }).toBe("completed");
+          expect(commandText()).toContain("NATIVE_EXEC_END");
+          expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
+          await tasks.claw.send(native.id, "STOP_TEST");
+          await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
+          await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
+          await expect.poll(commandText, { timeout: 10_000 }).toContain("NATIVE_STOP_BEGIN");
+          await tasks.claw.control(native.id, "stop");
+          await expect.poll(() => snapshot()?.task.status, { timeout: 10_000 }).toBe("paused");
+          expect(commandText()).not.toContain("NATIVE_STOP_END");
+          expect((await tasks.claw.terminalAccess(native.id)).inputAllowed).toBe(true);
+          const processes = await execDesktop("docker", ["exec", container.name, "sh", "-lc", "pgrep -a -f '^sleep 60$' || true"]);
+          expect(processes.stdout.trim()).toBe("");
+          await tasks.claw.delete(native.id);
+          await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-reasoner", apiKey: "fixture-restored" });
+          await ready();
         }
         tasks.reset();
         if (engine === "openclaw") {
@@ -208,13 +193,11 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         expect((await client.list()).some(row => row.id === task.id)).toBe(true);
         expect(await (await files.download(task.id, "uploads/proof.txt")).text()).toBe("NATIVE_REMOTE_FILES_OK\n");
         if (engine === "openclaw") {
-          const grant = await tasks.desktop(engine, task.id, false);
+          const grant = await tasks.desktop(engine, task.id);
           expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
-          await tasks.claw.desktop(task.id, true);
-          const browser = await tasks.claw.browser(task.id, { url: "about:blank" });
-          expect(await browserFrameLength(browser.url)).toBeGreaterThan(100);
-          await tasks.claw.release();
+          const page = await tasks.claw.request<{ targetId: string }>("browser.request", { method: "POST", path: "/tabs/open", body: { url: "about:blank" }, tabScope: { sessionKey: task.id } });
+          expect(page.targetId).toBeTruthy(); await browserOnDesktop(container.name, (await tasks.claw.request<{ display: string }>("selfme.scene.prepare", { task: remoteTaskId(task.id) })).display);
         }
         await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
         if (engine === "openhands") {
@@ -268,11 +251,10 @@ async function sharedTerminalOnDesktop(container: string, display: string, task:
       const task = process.argv[1], socket = '/home/node/.cache/selfme-lab/terminal.sock';
       const clients = execFileSync('tmux', ['-S', socket, 'list-clients', '-t', 'selfme-' + task, '-F', '#{client_tty}'], {encoding:'utf8'}).trim().split('\\n');
       const windows = execFileSync('wmctrl', ['-l'], {encoding:'utf8'});
-      const observer = execFileSync('pgrep', ['-f', '^.*node /opt/selfme/desktop/agent-terminal.mjs ' + task + '$'], {encoding:'utf8'});
-      console.log(JSON.stringify({clients:clients.length, window:windows.includes(' · ' + task.slice(0,8)), observer:!!observer.trim()}));
+      console.log(JSON.stringify({clients:clients.length, window:windows.includes('人工终端 · ' + task.slice(0,8))}));
     `, task]);
     return JSON.parse(stdout);
-  }, { timeout: 10_000 }).toMatchObject({ clients: 2, window: true, observer: true });
+  }, { timeout: 10_000 }).toMatchObject({ clients: 2, window: true });
 }
 
 async function desktopTerminalState(container: string, display: string, task: string): Promise<{ window: boolean; visible: boolean; front: boolean; active: string; activeTitle: string }> {
@@ -281,7 +263,7 @@ async function desktopTerminalState(container: string, display: string, task: st
     import { execFileSync } from 'node:child_process';
     const task = process.argv[1];
     let listing = ''; try { listing = execFileSync('wmctrl', ['-l'], {encoding:'utf8',stdio:['ignore','pipe','pipe']}); } catch (error) { if (!String(error.stderr).includes('Cannot get client list properties')) throw error; }
-    const window = listing.split('\\n').find(line => /(?:智能体执行|人工终端)/.test(line) && line.endsWith(' · ' + task.slice(0,8)))?.split(/\\s+/)[0];
+    const window = listing.split('\\n').find(line => /人工终端/.test(line) && line.endsWith(' · ' + task.slice(0,8)))?.split(/\\s+/)[0];
     const active = execFileSync('xprop', ['-root', '_NET_ACTIVE_WINDOW'], {encoding:'utf8'}).trim();
     const visible = !!window && /Map State: IsViewable/.test(execFileSync('xwininfo', ['-id', window], {encoding:'utf8'}));
     const activeId = active.match(/0x[0-9a-f]+/i)?.[0];
@@ -333,16 +315,5 @@ async function framebufferHeader(url: string): Promise<string> {
     socket.addEventListener("message", event => finish(undefined, new TextDecoder().decode(new Uint8Array(event.data as ArrayBuffer))));
     socket.addEventListener("error", () => finish(new Error("观察连接被拒绝")));
     socket.addEventListener("close", event => finish(new Error(`观察连接已关闭（${event.code}）${event.reason}`)));
-  });
-}
-
-async function browserFrameLength(url: string): Promise<number> {
-  const socket = new WebSocket(url); socket.binaryType = "arraybuffer";
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error("浏览器没有传回实际画面")), 20_000); let settled = false;
-    const finish = (error?: Error, size?: number) => { if (settled) return; settled = true; clearTimeout(timer); socket.close(); if (error) reject(error); else resolve(size!); };
-    socket.addEventListener("message", event => { if (typeof event.data !== "string") finish(undefined, (event.data as ArrayBuffer).byteLength); });
-    socket.addEventListener("error", () => finish(new Error("浏览器画面连接失败")));
-    socket.addEventListener("close", () => finish(new Error("浏览器画面连接已关闭")));
   });
 }

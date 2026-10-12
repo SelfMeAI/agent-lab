@@ -1,55 +1,13 @@
-import type { RemoteBrowserOptions, RemoteBrowserTab, RemoteItem } from "../../../../../../packages/contracts/src/remote-agent";
+import type { RemoteAgentId } from "../../../../../../packages/contracts/src/remote-agent";
 
-/** Follow genuinely new pages, not arbitrary reordering of a CDP listing. */
-export function followBrowserTab(previousIds: ReadonlySet<string>, tabs: RemoteBrowserTab[], currentId: string): string | undefined {
-  const added = tabs.filter(tab => !previousIds.has(tab.targetId));
-  const preferred = (values: RemoteBrowserTab[]) => (values.find(tab => tab.url && tab.url !== "about:blank") ?? values[0])?.targetId;
-  if (added.length) return preferred(added);
-  if (!tabs.some(tab => tab.targetId === currentId)) return preferred(tabs);
-  return undefined;
+export function remoteSceneTabs(engine: RemoteAgentId) {
+  return engine === "openclaw" ? ["desktop", "terminal", "files", "preview"] as const : ["browser", "files", "preview"] as const;
 }
-
-/** Shell tools and command-like filesystem queries, not arbitrary file edits. */
-export function remoteCommandItems(items: RemoteItem[]): RemoteItem[] {
-  return items.filter(item => item.tool && /(?:^|[.:/_-])(?:terminal|exec(?:_command)?|bash|shell|run_command|run_cmd|process|ls|grep|find)(?:$|[.:/_-])/i.test(item.tool.name));
+export function observerLabel(state: "loading" | "connected" | "error", editable: boolean): string {
+  if (state === "loading") return "正在连接远端画面…";
+  if (state === "error") return "画面连接已断开";
+  return editable ? "LIVE · 可操作" : "LIVE · 只读观察";
 }
-
-export function browserFrame(data: ArrayBuffer): { jpeg: Uint8Array; url?: string; viewport?: { width: number; height: number } } {
-  const bytes = new Uint8Array(data);
-  if (bytes.length < 4) throw new Error("浏览器画面不完整");
-  const length = new DataView(data).getUint32(0);
-  if (!length || length > 32_000 || length + 6 >= bytes.length) throw new Error("浏览器画面不完整");
-  const metadata = JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + length)));
-  const jpeg = bytes.subarray(4 + length);
-  if (jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error("浏览器画面格式异常");
-  const viewport = typeof metadata.cssWidth === "number" && typeof metadata.cssHeight === "number" && [metadata.cssWidth, metadata.cssHeight].every(value => Number.isFinite(value) && value > 0 && value <= 16_384) ? { width: metadata.cssWidth, height: metadata.cssHeight } : undefined;
-  return { jpeg, url: typeof metadata.url === "string" ? metadata.url : undefined, ...(viewport ? { viewport } : {}) };
-}
-
-export function observerLabel(state: "loading" | "connected" | "error", busy: boolean, control: boolean, editable = false): string {
-  if (busy || state === "loading") return "正在连接远端画面…";
-  return state === "connected" ? control ? "CONTROL · 已接管 · 可操作" : editable ? "LIVE · 可操作" : "LIVE · 只读观察" : "观察连接已断开";
-}
-
-export function desktopInputEnabled(control: boolean, granted: boolean, state: "loading" | "connected" | "error", busy: boolean, dialog: boolean): boolean {
-  return control && granted && state === "connected" && !busy && !dialog;
-}
-
-/** A reconnect is a fresh lookup, not a replay of a historical page identity. */
-export function browserReconnectOptions(tabs: RemoteBrowserTab[], previousId: string): RemoteBrowserOptions | undefined {
-  if (!tabs.length) return undefined;
-  return tabs.some(tab => tab.targetId === previousId) ? { targetId: previousId } : {};
-}
-
-export type BrowserObservationState = "connecting" | "live" | "empty" | "retrying" | "error";
-/** Human control changes input permission, not the observation's connection. */
-export function browserObservationPresentation(state: BrowserObservationState, controlled = false, editable = controlled) {
-  const labels: Record<BrowserObservationState, string> = {
-    connecting: "正在连接浏览器…", live: controlled ? "CONTROL · 已接管 · 可操作" : editable ? "LIVE · 可操作" : "LIVE · 只读观察", empty: "尚无任务页面",
-    retrying: "正在恢复浏览器观察…", error: "浏览器观察已断开",
-  };
-  return {
-    label: labels[state], tone: state === "live" ? "connected" : state === "error" ? "error" : state === "connecting" || state === "retrying" ? "loading" : "idle",
-    loading: state === "connecting" || state === "retrying", reconnect: state === "error", open: state === "empty" && editable,
-  };
+export function desktopInputEnabled(active: boolean, granted: boolean, state: "loading" | "connected" | "error"): boolean {
+  return active && granted && state === "connected";
 }

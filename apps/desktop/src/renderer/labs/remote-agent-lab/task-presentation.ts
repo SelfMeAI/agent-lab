@@ -1,6 +1,6 @@
 import type { RemoteFailure, RemoteItem, RemoteTaskSnapshot } from "../../../../../../packages/contracts/src/remote-agent";
 
-export const remoteTaskLabels = { idle: "待命", running: "工作中", waiting: "待确认", paused: "已暂停", completed: "已完成", error: "本轮中断" };
+export const remoteTaskLabels = { idle: "待命", running: "工作中", waiting: "待确认", paused: "已停止", completed: "已完成", error: "本轮中断" };
 export const continueRemoteTaskPrompt = "继续刚才的任务；先核对已有进度与产物，不要重复已完成的操作。";
 
 /** Link recovery to the current native failure only; old failures remain history. */

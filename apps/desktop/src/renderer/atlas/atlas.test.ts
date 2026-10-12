@@ -139,9 +139,10 @@ describe("Agent Atlas knowledge base", () => {
     expect(capabilityState("sandbox.process-isolation", "remote-agent-lab")).toBe("integrated");
     expect(capabilityState("sessions.resume", "remote-agent-lab")).toBe("usable");
     expect(capabilityState("computer.mouse-keyboard", "remote-agent-lab")).toBe("usable");
+    expect(capabilityState("consent-experience.takeover", "remote-agent-lab")).toBe("unstarted");
     expect(capabilityState("web-action.browser-visual", "remote-agent-lab")).toBe("unstarted");
     expect(capabilityState("enterprise.tenant", "remote-agent-lab")).toBe("unstarted");
     const remoteRecords = coverageRecords.filter(record => record.moduleId === "remote-agent-lab");
-    expect(moduleSummary("remote-agent-lab").counts.unstarted).toBe(moduleSummary("remote-agent-lab").total - new Set(remoteRecords.map(record => record.capabilityId)).size);
+    expect(moduleSummary("remote-agent-lab").counts.unstarted).toBe(moduleSummary("remote-agent-lab").total - new Set(remoteRecords.filter(record => record.state !== "unstarted").map(record => record.capabilityId)).size);
   });
 });

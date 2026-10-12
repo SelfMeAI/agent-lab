@@ -47,7 +47,7 @@ export async function probeOpenClaw() {
       native_click_and_type: native.typedMarkerReadBack === true,
       stale_generation_rejected: native.staleGenerationRejected === true,
       native_cleanup_joined: native.gatewayCleanupJoined === true,
-      observer_stream: "not-tested", human_takeover: "not-tested", model_driven_task: "not-tested",
+      observer_stream: "not-tested", model_driven_task: "not-tested",
       failures: native.failures,
     };
     await writeFile(join(artifacts, "probe.json"), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });

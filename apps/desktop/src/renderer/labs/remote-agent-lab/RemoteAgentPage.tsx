@@ -9,8 +9,8 @@ import { RemoteWorkspace } from "./RemoteWorkspace";
 import "./remote-agent.css";
 
 export const remoteEngines = {
-  openhands: { name: "OpenHands", mark: "OH", color: "#39dce3", description: "代码、浏览器与任务执行" },
-  openclaw: { name: "OpenClaw", mark: "OC", color: "#f28b7b", description: "桌面、浏览器与任务执行" },
+  openhands: { name: "OpenHands", mark: "OH", color: "#39dce3", description: "远端任务 · 浏览器观察" },
+  openclaw: { name: "OpenClaw", mark: "OC", color: "#f28b7b", description: "远端任务 · 桌面操作" },
 };
 export type ServiceStates = Partial<Record<RemoteAgentId, RemoteServiceState>>;
 export type ServiceBusy = Partial<Record<RemoteAgentId, boolean>>;
@@ -82,12 +82,12 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
           <svg className="remote-engine-card__arrow" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 16h26M17 5l11 11-11 11" /></svg>
         </button>)}
       </section>
-      <footer className="remote-index-note"><span>ⓘ</span>任务在远端执行，文件通过上传和下载交换</footer>
+      <footer className="remote-index-note"><span>ⓘ</span>任务在远端执行，资料通过上传提交，产物可预览或下载</footer>
     </> : states[engine]?.phase === "ready" && !busy[engine] ? <RemoteWorkspace key={engine} engine={engine} available={true} revision={revision} /> : <section className="remote-connection-stage" aria-label={`${remoteEngines[engine].name} 服务接入`}>
       <RemoteMark engine={engine} />
       <h2>{remoteEngines[engine].name}</h2>
       <ServiceStatus state={states[engine]} />
-      <p>{busy[engine] ? "服务正在准备中，已有任务与文件保留在服务卷中。" : "先启动远端服务，再配置模型连接。任务与文件将留在服务端。"}</p>
+      <p>{busy[engine] ? "服务正在启动，已有任务与文件会保留。" : "先启动远端服务，再配置模型连接。任务与文件将留在服务端。"}</p>
       <button type="button" className="remote-button" onClick={() => setPanel(true)}>打开服务管理</button>
       {errors[engine] && <p className="remote-error" role="alert">{errors[engine]}</p>}
     </section>}

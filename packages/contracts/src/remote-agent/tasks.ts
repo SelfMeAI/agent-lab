@@ -27,32 +27,17 @@ export interface RemoteItem {
 }
 export interface RemoteTaskSnapshot {
   task: RemoteTask; items: RemoteItem[]; connection: "connected" | "reconnecting" | "disconnected";
-  error?: string; failure?: RemoteFailure; hasEarlier?: boolean; humanControl?: boolean; scene?: RemoteSceneAccess;
+  error?: string; failure?: RemoteFailure; hasEarlier?: boolean;
 }
 export interface RemoteTaskUpdate { engine: RemoteAgentId; taskId: string; snapshot: RemoteTaskSnapshot }
 export interface RemoteWorkspaceFile { path: string; name: string; size: number; directory: boolean; modifiedAt?: string }
 export interface RemoteFilePage { path: string; files: RemoteWorkspaceFile[]; truncated?: boolean }
 export interface RemoteUploadedFile extends RemoteWorkspaceFile { absolutePath: string }
 export interface RemoteFilePreview { kind: "text" | "image" | "pdf" | "html" | "binary"; url?: string; text?: string; truncated: boolean; size: number; mime: string }
-/** Gateway input authority, independent of observation and explicit takeover. */
-export type RemoteTakeoverState = "none" | "waiting" | "stopping" | "ready";
-export interface RemoteSceneAccess {
-  agentBusy: boolean; humanControl: boolean; inputAllowed: boolean;
-  browserBusy: boolean; terminalBusy: boolean;
-  browserInputAllowed: boolean; terminalInputAllowed: boolean;
-  takeover: RemoteTakeoverState;
-}
+/** Brief input protection while the agent invokes a terminal tool. */
+export interface RemoteTerminalAccess { busy: boolean; inputAllowed: boolean }
 /** One-use, short-lived native framebuffer credentials, never persisted by the client. */
-export interface RemoteDesktopGrant { url: string; password?: string; control: boolean; expiresAt: number; warning?: string; scene?: RemoteSceneAccess }
-export interface RemoteBrowserTab { targetId: string; title: string; url: string }
-export interface RemoteBrowserOptions { targetId?: string; url?: string }
-export interface RemoteBrowserGrant { url: string; pageUrl: string; expiresAt: number; targetId: string; tabs: RemoteBrowserTab[] }
-/** Closed human input surface; no script, selector or arbitrary CDP command. */
-export type RemoteBrowserInput =
-  | { kind: "mouse"; type: "move" | "down" | "up" | "wheel"; x: number; y: number; button?: "left" | "middle" | "right"; buttons?: number; clickCount?: number; deltaX?: number; deltaY?: number; modifiers?: number }
-  | { kind: "key"; type: "down" | "up"; key: string; code: string; keyCode: number; modifiers: number; text?: string }
-  | { kind: "text"; text: string }
-  | { kind: "release" };
+export interface RemoteDesktopGrant { url: string; password?: string; control: boolean; expiresAt: number }
 export interface RemoteTerminal { id: string; cwd: string; confined: boolean; buffer?: string }
 export interface RemoteTerminalEvent { engine: RemoteAgentId; taskId: string; terminalId: string; data?: string; exited?: boolean; detail?: string }
 export interface RemoteTaskBridge {
@@ -70,13 +55,8 @@ export interface RemoteTaskBridge {
   listRemoteTaskFiles(engine: RemoteAgentId, id: string, path?: string): Promise<RemoteFilePage>;
   previewRemoteTaskFile(engine: RemoteAgentId, id: string, path: string): Promise<RemoteFilePreview>;
   downloadRemoteTaskFile(engine: RemoteAgentId, id: string, path: string): Promise<boolean>;
-  observeRemoteDesktop(engine: RemoteAgentId, id: string, control: boolean, force?: boolean): Promise<RemoteDesktopGrant>;
-  getRemoteSceneAccess(engine: RemoteAgentId, id: string): Promise<RemoteSceneAccess>;
-  observeRemoteBrowser(engine: RemoteAgentId, id: string, options?: RemoteBrowserOptions): Promise<RemoteBrowserGrant>;
-  listRemoteBrowserTabs(engine: RemoteAgentId, id: string): Promise<RemoteBrowserTab[]>;
-  focusRemoteBrowser(engine: RemoteAgentId, id: string, targetId: string): Promise<void>;
-  inputRemoteBrowser(engine: RemoteAgentId, id: string, targetId: string, events: RemoteBrowserInput[]): Promise<void>;
-  returnRemoteDesktop(engine: RemoteAgentId, id: string, followUp?: string): Promise<RemoteDesktopGrant>;
+  observeRemoteDesktop(engine: RemoteAgentId, id: string): Promise<RemoteDesktopGrant>;
+  getRemoteTerminalAccess(engine: RemoteAgentId, id: string): Promise<RemoteTerminalAccess>;
   openRemoteTerminal(engine: RemoteAgentId, id: string): Promise<RemoteTerminal>;
   inputRemoteTerminal(engine: RemoteAgentId, id: string, terminalId: string, data: string): Promise<void>;
   resizeRemoteTerminal(engine: RemoteAgentId, id: string, terminalId: string, cols: number, rows: number): Promise<void>;

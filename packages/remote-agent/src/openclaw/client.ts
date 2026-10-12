@@ -1,26 +1,14 @@
 import { randomUUID } from "node:crypto";
-import type { RemoteBrowserGrant, RemoteBrowserInput, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteItem, RemoteSceneAccess, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import type { RemoteDesktopGrant, RemoteItem, RemoteTerminalAccess, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { actionTitle, clawToolCall, contentText, executionFailure, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
 import type { OpenClawIdentity } from "./gateway";
-import { isTerminalProtocolReply } from "../terminal-response";
 
-type BrowserReference = { target: "host"; profile: "openclaw"; targetId: string };
-type View = { snapshot: RemoteTaskSnapshot; browserReferences: BrowserReference[]; offset: number; total?: number; earlierItems: RemoteItem[]; loadedEarlier: boolean; refreshing?: Promise<void>; timer?: ReturnType<typeof setTimeout> };
+type View = { snapshot: RemoteTaskSnapshot; offset: number; total?: number; earlierItems: RemoteItem[]; loadedEarlier: boolean; refreshing?: Promise<void>; timer?: ReturnType<typeof setTimeout> };
 const prefix = "agent:main:selfme:";
 function upsert(items: RemoteItem[], item: RemoteItem): RemoteItem[] { return items.some(row => row.id === item.id) ? items.map(row => row.id === item.id ? item : row) : [...items, item]; }
 function key(id: string): string { if (!id.startsWith(prefix) || prefix + remoteTaskId(id) !== id) throw new Error("OpenClaw 任务标识无效"); return id; }
-function rememberBrowserReference(view: View, name: string, result: unknown): void {
-  const receipt = record(result), details = record(receipt.details), tab = record(details.browserTab);
-  // Native browser receipts also identify a tab navigated in place, which is
-  // not necessarily in the session's opened-tab registry. Mirror upstream UI's
-  // referencedTabs contract; never derive identities from prompts/page text.
-  if (clawToolCall(name, {}).name !== "browser" || receipt.isError === true || details.isError === true || details.ok === false || details.status === "error" || tab.target !== "host" || tab.profile !== "openclaw" || tab.node !== undefined) return;
-  if (typeof tab.targetId !== "string" || !tab.targetId || tab.targetId.length > 128 || tab.targetId.trim() !== tab.targetId) return;
-  const reference: BrowserReference = { target: "host", profile: "openclaw", targetId: tab.targetId };
-  view.browserReferences = [...view.browserReferences.filter(ref => ref.targetId !== tab.targetId), reference].slice(-64);
-}
 export function clawTask(value: unknown): RemoteTask {
   const row = record(value), now = new Date().toISOString();
   return { id: text(row.key), title: text(row.label) || text(row.autoLabel) || text(row.displayName) || text(row.derivedTitle) || "新任务", status: taskStatus(row.status), createdAt: timestamp(row.createdAt) ?? timestamp(row.updatedAt) ?? now, updatedAt: timestamp(row.updatedAt) ?? now };
@@ -36,7 +24,6 @@ export class OpenClawTasks {
   private terminals = new Map<string, string>();
   private terminalSeq = new Map<string, number>();
   private retry?: ReturnType<typeof setTimeout>;
-  private hold?: { task: string; id: string; heartbeat: ReturnType<typeof setInterval> };
   constructor(readonly http: RemoteHttp, private readonly credentials: () => Promise<{ sessionApiKey: string; device?: OpenClawIdentity }>,
     private readonly emit: (snapshot: RemoteTaskSnapshot) => void, private readonly terminalEvent: (event: RemoteTerminalEvent) => void) {}
   private async gateway(): Promise<OpenClawConnection> {
@@ -70,7 +57,7 @@ export class OpenClawTasks {
     }
   }
   async create(): Promise<RemoteTask> {
-    this.assertNotControlled(); const id = randomUUID();
+    const id = randomUUID();
     const workspace = record(await this.request("selfme.workspace.prepare", { id }));
     const result = record(await this.request("sessions.create", { key: prefix + id, idempotencyKey: id, agentId: "main", displayName: "新任务", category: "selfme-lab", permissionMode: "guarded", cwd: workspace.root }));
     const entry = { ...record(result.entry), key: result.key ?? prefix + id };
@@ -80,7 +67,7 @@ export class OpenClawTasks {
     key(id); const ticket = Symbol(id); this.opening.set(id, ticket); await this.detach(id);
     const task = (await this.list()).find(task => task.id === id); if (!task) throw new Error("任务不存在或已删除");
     if (this.opening.get(id) !== ticket) throw new Error("任务视图已关闭");
-    const view: View = { snapshot: { task, items: [], connection: "connected" }, browserReferences: [], offset: 0, earlierItems: [], loadedEarlier: false }; this.views.set(id, view);
+    const view: View = { snapshot: { task, items: [], connection: "connected" }, offset: 0, earlierItems: [], loadedEarlier: false }; this.views.set(id, view);
     // Subscribe before the bounded durable tail to avoid a lost event window.
     await this.request("sessions.messages.subscribe", { key: id, includeApprovals: true });
     await this.refresh(id); await this.questions(id);
@@ -95,13 +82,6 @@ export class OpenClawTasks {
       const page = record(await this.request("chat.history", { sessionKey: id, limit: 100, maxBytes: 4_000_000, offset: earlier ? view.offset : 0 }));
       if (this.views.get(id) !== view) return;
       const messages = Array.isArray(page.messages) ? page.messages : [];
-      for (const value of messages) {
-        const wrapper = record(value), message = record(wrapper.message ?? value);
-        if (message.role === "toolResult") rememberBrowserReference(view, text(message.toolName), message);
-        for (const part of ["custom", "toolResult"].includes(text(message.role)) && Array.isArray(message.content) ? message.content.map(record) : []) {
-          if (part.type === "toolResult") rememberBrowserReference(view, text(part.toolName), part);
-        }
-      }
       const items = messages.flatMap((message, i) => this.messageItems(message, `history-${text(record(page).sessionId)}-${earlier ? view.offset : 0}-${i}`)).map(item => {
         const prior = view.snapshot.items.find(row => row.id === item.id);
         // chat.history intentionally strips raw provider errors. Keep a reason
@@ -191,7 +171,6 @@ export class OpenClawTasks {
       return result?.tool && item.tool ? { ...item, tool: { ...item.tool, output: result.tool.output, status: result.tool.status, endedAt: result.at } } : item;
     }).filter(item => (!item.id.startsWith("result:") || !view.snapshot.items.some(call => call.id === "live:" + item.id.slice(7))) && !(item.id.startsWith("live:") && nestedParents.has(item.id.slice(5))));
     if (view.snapshot.task.status === "running" && view.snapshot.items.some(item => item.approval || item.question)) view.snapshot.task.status = "waiting";
-    view.snapshot.humanControl = this.hold?.task === view.snapshot.task.id;
     this.emit(structuredClone(view.snapshot));
   }
   private schedule(id: string): void {
@@ -220,11 +199,18 @@ export class OpenClawTasks {
     } else if (event.event === "session.tool" || (event.event === "agent" && p.stream === "tool")) {
       const data = record(p.data), toolId = text(data.toolCallId); if (!toolId) return;
       const existing = view.snapshot.items.find(item => item.id === `live:${toolId}`), { name, args } = clawToolCall(text(data.name), record(data.args));
-      if (["result", "end"].includes(text(data.phase)) && !data.isError) rememberBrowserReference(view, name, { ...record(data.result), details: record(data.result).details ?? data.details });
       if (existing?.tool && existing.tool.status !== "running" && ["start", "update", "input_delta"].includes(text(data.phase))) return;
       const item: RemoteItem = { id: `live:${toolId}`, role: "tool", text: "", at: existing?.at ?? timestamp(p.ts), tool: { name, title: actionTitle(name, args), input: Object.keys(args).length ? toolInput(args) : existing?.tool?.input ?? "", output: contentText(record(data.result).content ?? data.result) || contentText(record(data.partialResult).content ?? data.partialResult) || existing?.tool?.output,
         status: data.phase === "result" || data.phase === "end" ? data.isError ? "failed" : "completed" : "running", diff: toolDiff(args) ?? (text(record(data.details).diff) || existing?.tool?.diff), path: text(args.path) || existing?.tool?.path, startedAt: existing?.tool?.startedAt ?? timestamp(p.ts), endedAt: data.phase === "result" || data.phase === "end" ? timestamp(p.ts) : undefined, parentCallId: text(data.parentToolCallId) || existing?.tool?.parentCallId } };
       view.snapshot.items = upsert(view.snapshot.items, item);
+    } else if (event.event === "agent" && p.stream === "command_output") {
+      const data = record(p.data), toolId = text(data.toolCallId);
+      if (!toolId || typeof data.output !== "string") return;
+      const existing = view.snapshot.items.find(item => item.id === `live:${toolId}`);
+      // Native command updates are cumulative and redacted, not append deltas.
+      if (existing?.tool && existing.tool.status === "running") {
+        view.snapshot.items = upsert(view.snapshot.items, { ...existing, tool: { ...existing.tool, output: data.output } });
+      }
     } else if (event.event === "chat") {
       const runId = text(p.runId), streamId = `stream:${runId}`;
       if (p.state === "delta") {
@@ -257,17 +243,16 @@ export class OpenClawTasks {
     if (!approval) throw new Error("审批已结束或不属于此任务"); if (decision === "always" && !approval.canAlways) throw new Error("此操作不支持始终允许");
     await this.request("approval.resolve", { id: requestId, kind: approval.kind, decision: decision === "reject" ? "deny" : decision === "always" ? "allow-always" : "allow-once" });
   }
-  private assertNotControlled(): void { if (this.hold) throw new Error("正在接管远端桌面，请先交还智能体"); }
   private async prepareScene(id: string): Promise<Record<string, unknown>> { key(id); return record(await this.request("selfme.scene.prepare", { task: remoteTaskId(id) })); }
   async send(id: string, prompt: string, files: RemoteUploadedFile[] = []): Promise<void> {
-    key(id); this.assertNotControlled(); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
+    key(id); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
     await this.prepareScene(id);
     const message = prompt + (files.length ? "\n\n上传文件（远端路径）：\n" + files.map(file => file.absolutePath).join("\n") : "");
     const view = this.views.get(id);
     // Steer targets an existing reply operation, including one still retiring
     // after cancellation. An idle/paused task must start a normal native turn.
     const active = view?.snapshot.task.status === "running" || view?.snapshot.task.status === "waiting";
-    await this.request("selfme.scene.send", { sessionKey: id, message, ...(active ? { queueMode: "steer" } : {}), idempotencyKey: randomUUID() });
+    await this.request("chat.send", { sessionKey: id, message, ...(active ? { queueMode: "steer" } : {}), idempotencyKey: randomUUID() });
     if (view) { view.snapshot.error = undefined; view.snapshot.failure = undefined; view.snapshot.task.status = "running"; this.publish(view); }
     this.schedule(id);
     if (view?.snapshot.task.title === "新任务") {
@@ -279,114 +264,24 @@ export class OpenClawTasks {
   }
   async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); if (action === "stop") await this.request("chat.abort", { sessionKey: id }); else await this.send(id, "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。"); this.schedule(id); }
   async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("selfme.terminal.dispose", { task: remoteTaskId(id) }); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
-  async desktop(id: string, control: boolean, force = false): Promise<RemoteDesktopGrant> {
-    if (control && this.hold && this.hold.task !== id) throw new Error("正在接管其他任务的远端现场");
-    let acquired = false;
-    await this.prepareScene(id); if (control && !this.hold) {
-      const lease = record(await this.request("selfme.control.acquire", { task: remoteTaskId(id) }));
-      const leaseId = text(lease.id);
-      if (!leaseId) throw new Error("服务未确认接管，请重新连接");
-      this.hold = { task: id, id: leaseId, heartbeat: setInterval(() => void this.request("selfme.control.renew", { id: leaseId }).catch(() => this.disconnected()), 15_000) };
-      acquired = true;
-      const view = this.views.get(id); if (view) this.publish(view);
-    }
-    if (force) {
-      if (!control || this.hold?.task !== id) throw new Error("请先申请接管当前任务");
-      await this.request("selfme.control.force", { id: this.hold.id });
-      for (const task of await this.list()) if (task.status === "running" || task.status === "waiting") await this.control(task.id, "stop");
-    }
-    try {
-      const result = record(await this.request("selfme.scene.observe", { task: remoteTaskId(id) }));
-      const base = new URL(await this.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-      const view = this.views.get(id); if (view) this.publish(view);
-      const scene = this.sceneState(result.scene);
-      if (view) { view.snapshot.scene = scene; this.publish(view); }
-      return { url: new URL(text(result.wsPath), base).toString(), password: text(result.vncPassword) || undefined, control: result.control === true, expiresAt: Number(result.expiresAtMs), scene };
-    } catch (error) {
-      // A failed preview refresh must not silently hand back an established
-      // lease. Only roll back this request's newly acquired lease.
-      if (acquired) await this.release().catch(() => this.disconnected());
-      throw error;
-    }
-  }
-  private sceneState(value: unknown): RemoteSceneAccess {
-    const row = record(value);
-    const fields = ["agentBusy", "humanControl", "inputAllowed", "browserBusy", "terminalBusy", "browserInputAllowed", "terminalInputAllowed"] as const;
-    if (fields.some(field => typeof row[field] !== "boolean") || !["none", "waiting", "stopping", "ready"].includes(String(row.takeover))) throw new Error("远端现场状态尚未就绪，请重新连接服务");
-    return row as unknown as RemoteSceneAccess;
-  }
-  async sceneAccess(id: string): Promise<RemoteSceneAccess> {
-    key(id); const scene = this.sceneState(await this.request("selfme.scene.status", { task: remoteTaskId(id) }));
-    const view = this.views.get(id);
-    if (view && JSON.stringify(view.snapshot.scene) !== JSON.stringify(scene)) { view.snapshot.scene = scene; this.publish(view); }
-    return scene;
-  }
-  async release(): Promise<void> {
-    const hold = this.hold; if (!hold) return;
-    await this.request("selfme.control.release", { id: hold.id });
-    if (this.hold === hold) this.hold = undefined;
-    clearInterval(hold.heartbeat);
-    const view = this.views.get(hold.task); if (view) this.publish(view);
-  }
-  private browserScope(id: string): { sessionKey: string; referencedTabs?: BrowserReference[] } {
-    const references = this.views.get(id)?.browserReferences;
-    return { sessionKey: id, ...(references?.length ? { referencedTabs: references } : {}) };
-  }
-  async browserTabs(id: string): Promise<RemoteBrowserTab[]> {
-    key(id);
-    const listing = record(await this.request("browser.request", { method: "GET", path: "/tabs", tabScope: this.browserScope(id) }));
-    return (Array.isArray(listing.tabs) ? listing.tabs.map(record) : []).map(tab => ({ targetId: text(tab.targetId), title: text(tab.title), url: text(tab.url) })).filter(tab => Boolean(tab.targetId));
-  }
-  async focusBrowser(id: string, targetId: string): Promise<void> {
-    key(id); this.assertBrowserTask(id);
-    if (typeof targetId !== "string" || !targetId || targetId.length > 256) throw new Error("浏览器页面标识无效");
+  async desktop(id: string): Promise<RemoteDesktopGrant> {
     await this.prepareScene(id);
-    if (!(await this.browserTabs(id)).some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
-    this.assertBrowserTask(id);
-    await this.request("browser.request", { method: "POST", path: "/tabs/focus", body: { targetId }, tabScope: this.browserScope(id) });
-  }
-  private assertBrowserTask(id: string): void { if (this.hold && this.hold.task !== id) throw new Error("正在接管其他任务的远端现场"); }
-  async browserInput(id: string, targetId: string, events: RemoteBrowserInput[]): Promise<void> {
-    key(id);
-    this.assertBrowserTask(id);
-    if (typeof targetId !== "string" || !targetId || targetId.length > 256 || !Array.isArray(events) || !events.length || events.length > 64 || JSON.stringify(events).length > 64 * 1024) throw new Error("浏览器输入无效");
-    await this.request("selfme.browser.input", { task: remoteTaskId(id), targetId, events, tabScope: this.browserScope(id) });
-  }
-  async browser(id: string, options: RemoteBrowserOptions = {}): Promise<RemoteBrowserGrant> {
-    key(id); this.assertBrowserTask(id);
-    if (!options || typeof options !== "object" || (options.targetId !== undefined && (typeof options.targetId !== "string" || options.targetId.length > 256)) || (options.url !== undefined && typeof options.url !== "string")) throw new Error("浏览器参数无效");
-    let address: string | undefined;
-    if (options.url !== undefined) {
-      if (options.url.length > 8192) throw new Error("页面地址过长");
-      const url = new URL(options.url);
-      if ((!['http:', 'https:'].includes(url.protocol) && url.href !== 'about:blank') || url.username || url.password) throw new Error("页面地址需要 HTTP(S)，不能包含登录凭据");
-      address = url.href;
-    }
-    await this.prepareScene(id);
-    let tabs = await this.browserTabs(id), targetId = options.targetId;
-    if (targetId && !tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
-    if (address) {
-      this.assertBrowserTask(id);
-      const opened = record(await this.request("selfme.browser.open", { task: remoteTaskId(id), url: address, tabScope: this.browserScope(id) }));
-      targetId = text(opened.targetId); tabs = await this.browserTabs(id);
-      // The server's admitted human navigation also focuses its native window.
-      // Observing an existing page still neither launches nor focuses Chrome.
-    }
-    // CDP enumeration is not chronological; never prefer a blank tab over a
-    // task's actual page merely because it happens to be last in the response.
-    targetId ||= (tabs.find(tab => tab.url && tab.url !== "about:blank") ?? tabs[0])?.targetId;
-    if (!targetId) throw new Error("当前任务没有打开浏览器页面，请先打开浏览器");
-    const result = record(await this.request("browser.request", { method: "POST", path: "/screencast", body: { targetId, maxWidth: 1600, maxHeight: 1000, quality: 85 }, tabScope: this.browserScope(id) }));
+    const result = record(await this.request("selfme.scene.observe", { task: remoteTaskId(id) }));
     const base = new URL(await this.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-    return { url: new URL(text(result.wsPath), base).toString(), pageUrl: text(result.url), expiresAt: Number(result.expiresAtMs), targetId, tabs };
+    return { url: new URL(text(result.wsPath), base).toString(), password: text(result.vncPassword) || undefined, control: result.control === true, expiresAt: Number(result.expiresAtMs) };
+  }
+  async terminalAccess(id: string): Promise<RemoteTerminalAccess> {
+    key(id); const state = record(await this.request("selfme.terminal.status", { task: remoteTaskId(id) }));
+    if (typeof state.busy !== "boolean" || typeof state.inputAllowed !== "boolean") throw new Error("终端状态尚未就绪，请重新连接");
+    return { busy: state.busy, inputAllowed: state.inputAllowed };
   }
   async terminal(id: string): Promise<RemoteTerminal> {
     const workspace = await this.prepareScene(id);
     const cwd = text(workspace.root), expected = `/home/node/.openclaw/workspace/selfme/${remoteTaskId(id)}`;
     if (cwd !== expected) throw new Error("远端任务工作区无效，未打开终端");
     // Attaching an external view prepares the shared shell, not its desktop
-    // window. Only the Dock or a new agent round opens that native window.
-    // This is a connection-owned *viewer*, not an agent-owned shell. Native
+    // window. Only an explicit desktop launcher opens that native window.
+    // This is a connection-owned attachment to the manual shell. Native
     // close kills this tmux attachment; the task's shared shell stays alive.
     const result = record(await this.request("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "selfme-lab-terminal", hostId: "gateway", threadId: remoteTaskId(id) } }));
     const terminalId = text(result.sessionId); this.terminals.set(terminalId, id);
@@ -403,7 +298,6 @@ export class OpenClawTasks {
   private assertTerminal(id: string, terminalId: string): void { key(id); if (this.terminals.get(terminalId) !== id) throw new Error("终端不属于此任务"); }
   async terminalInput(id: string, terminalId: string, data: string): Promise<void> {
     this.assertTerminal(id, terminalId);
-    if (this.hold && this.hold.task !== id && !isTerminalProtocolReply(data)) throw new Error("正在接管其他任务的远端现场");
     await this.request("selfme.terminal.input", { task: remoteTaskId(id), sessionId: terminalId, data });
   }
   async terminalResize(id: string, terminalId: string, cols: number, rows: number): Promise<void> { this.assertTerminal(id, terminalId); await this.request("terminal.resize", { sessionId: terminalId, cols, rows }); }
@@ -411,15 +305,13 @@ export class OpenClawTasks {
   async close(id: string): Promise<void> { this.opening.delete(id); await this.detach(id); }
   private async detach(id: string): Promise<void> {
     key(id); const view = this.views.get(id); if (!view) return; clearTimeout(view.timer); this.views.delete(id);
-    if (this.hold?.task === id) await this.release();
     for (const [terminalId, task] of this.terminals) if (task === id) await this.terminalClose(id, terminalId).catch(() => {});
     await this.connection?.request("sessions.messages.unsubscribe", { key: id }).catch(() => {});
   }
   private disconnected(): void {
     ++this.epoch; this.connecting = undefined;
-    if (this.hold) { clearInterval(this.hold.heartbeat); this.hold = undefined; }
     this.connection?.close(); this.connection = undefined;
-    for (const [terminalId, taskId] of this.terminals) this.terminalEvent({ engine: "openclaw", taskId, terminalId, exited: true, detail: "连接已断开，请重新打开终端" }); this.terminals.clear(); this.terminalSeq.clear();
+    for (const [terminalId, taskId] of this.terminals) this.terminalEvent({ engine: "openclaw", taskId, terminalId, exited: true, detail: "终端连接已断开，请重新连接" }); this.terminals.clear(); this.terminalSeq.clear();
     for (const view of this.views.values()) { view.snapshot.connection = "reconnecting"; this.publish(view); }
     clearTimeout(this.retry); if (this.views.size) this.retry = setTimeout(() => void this.reconnect(), 2000);
   }
@@ -427,5 +319,5 @@ export class OpenClawTasks {
     try { for (const id of this.views.keys()) { await this.request("sessions.messages.subscribe", { key: id, includeApprovals: true }); await this.refresh(id); await this.questions(id); } }
     catch { clearTimeout(this.retry); if (this.views.size) this.retry = setTimeout(() => void this.reconnect(), 3000); }
   }
-  shutdown(): void { ++this.epoch; this.connecting = undefined; this.opening.clear(); clearTimeout(this.retry); if (this.hold) clearInterval(this.hold.heartbeat); this.hold = undefined; for (const view of this.views.values()) clearTimeout(view.timer); this.views.clear(); this.connection?.close(); this.connection = undefined; this.terminals.clear(); this.terminalSeq.clear(); this.http.reset(); }
+  shutdown(): void { ++this.epoch; this.connecting = undefined; this.opening.clear(); clearTimeout(this.retry); for (const view of this.views.values()) clearTimeout(view.timer); this.views.clear(); this.connection?.close(); this.connection = undefined; this.terminals.clear(); this.terminalSeq.clear(); this.http.reset(); }
 }

@@ -154,7 +154,7 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
               </div>
               <RemoteModelImageCapability baseUrl={draft.baseUrl} model={draft.model} />
             </fieldset>
-            <p className="remote-panel__hint">ⓘ 观察画面不需要视觉模型；智能体识图操作需要模型支持图像输入。</p>
+            <p className="remote-panel__hint">ⓘ 查看远端画面不要求模型支持图像输入；让智能体根据截图判断界面则需要。</p>
             {loading && <p className="remote-panel__hint"><i className="remote-spinner" />正在读取服务端连接…</p>}
             {error && <p className="remote-error" role="alert">{error}</p>}
             {notice && <p className="remote-panel__notice" role="status">{notice}</p>}

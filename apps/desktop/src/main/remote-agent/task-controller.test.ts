@@ -17,13 +17,13 @@ beforeEach(async () => {
 afterEach(async () => { controller.shutdown(); vi.restoreAllMocks(); await rm(root, { recursive: true, force: true }); });
 
 describe("remote task files, native dialogs and scoped previews", () => {
-  it("does not pretend the desktop is still controlled if the continuation fails", async () => {
+  it("returns the native desktop grant without issuing a task instruction", async () => {
     const key = "agent:main:selfme:" + id;
-    const release = vi.spyOn(controller.claw, "release").mockResolvedValue();
-    vi.spyOn(controller.claw, "desktop").mockResolvedValue({ url: "ws://127.0.0.1/observe", control: false, expiresAt: Date.now() + 60_000 });
-    vi.spyOn(controller.claw, "send").mockRejectedValue(new Error("服务繁忙"));
-    const grant = await controller.returnDesktop("openclaw", key, "继续");
-    expect(release).toHaveBeenCalledOnce(); expect(grant.control).toBe(false); expect(grant.warning).toContain("已交还桌面"); expect(grant.warning).toContain("未获确认");
+    const native = { url: "ws://127.0.0.1/observe", control: true, expiresAt: Date.now() + 60_000 };
+    const desktop = vi.spyOn(controller.claw, "desktop").mockResolvedValue(native);
+    const send = vi.spyOn(controller.claw, "send");
+    expect(await controller.desktop("openclaw", key)).toEqual(native);
+    expect(desktop).toHaveBeenCalledWith(key); expect(send).not.toHaveBeenCalled();
   });
   it("validates the entire upload selection before sending a single file", async () => {
     const small = join(root, "small.txt"), large = join(root, "large.bin");

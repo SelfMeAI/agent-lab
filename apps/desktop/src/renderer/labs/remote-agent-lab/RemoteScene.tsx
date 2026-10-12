@@ -4,38 +4,32 @@ import type RFB from "@novnc/novnc";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import type { RemoteAgentId, RemoteBrowserOptions, RemoteBrowserTab, RemoteDesktopGrant, RemoteFilePage, RemoteFilePreview, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent } from "../../../../../../packages/contracts/src/remote-agent";
+import type { RemoteAgentId, RemoteDesktopGrant, RemoteFilePage, RemoteFilePreview, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalAccess, RemoteTerminalEvent } from "../../../../../../packages/contracts/src/remote-agent";
 import { remoteError } from "./service-presentation";
-import { browserFrame, browserObservationPresentation, browserReconnectOptions, desktopInputEnabled, followBrowserTab, observerLabel, remoteCommandItems, type BrowserObservationState } from "./scene-presentation";
+import { desktopInputEnabled, observerLabel, remoteSceneTabs } from "./scene-presentation";
 import { desktopInputBoundary } from "./desktop-input";
 import { isTerminalProtocolReply } from "../../../../../../packages/remote-agent/src/terminal-response";
-import { SceneControlDialog, SceneControlWaiting, sceneControlLabel, useSceneControl } from "./scene-control";
-import { BrowserInput } from "./BrowserInput";
 
 type Tab = "desktop" | "browser" | "terminal" | "files" | "preview";
-const tabLabels = { desktop: ["Desktop", "桌面"], browser: ["Browser", "浏览器"], terminal: ["Terminal", "终端"], files: ["Files", "文件"], preview: ["Preview", "产物"] };
+const tabLabels = { desktop: ["Desktop", "桌面"], browser: ["Browser", "浏览器"], terminal: ["Terminal", "人工终端"], files: ["Files", "文件"], preview: ["Preview", "产物"] };
 export function remoteFileSize(size: number): string { return size < 1024 ? size + " B" : size < 1024 * 1024 ? (size / 1024).toFixed(1) + " KB" : (size / 1024 / 1024).toFixed(1) + " MB"; }
-export function RemoteScene({ engine, taskId, snapshot, available, returning, onReturningChange }: { engine: RemoteAgentId; taskId: string; snapshot?: RemoteTaskSnapshot; available: boolean; returning: boolean; onReturningChange(value: boolean): void }): JSX.Element {
+export function RemoteScene({ engine, taskId, snapshot, available }: { engine: RemoteAgentId; taskId: string; snapshot?: RemoteTaskSnapshot; available: boolean }): JSX.Element {
   const bridge = window.selfmeLab!;
   const [tab, setTab] = useState<Tab>(engine === "openclaw" ? "desktop" : "browser"); const [expanded, setExpanded] = useState(false);
   const [preview, setPreview] = useState<{ path: string; value: RemoteFilePreview }>(); const [previewError, setPreviewError] = useState(""); const previewVersion = useRef(0); const [previewLoading, setPreviewLoading] = useState(false);
   const disabled = !taskId || !available;
-  const control = useSceneControl(taskId, engine === "openclaw" && !disabled, snapshot?.scene, returning, onReturningChange);
-  const inputEnabled = control.inputEnabled && snapshot?.connection === "connected";
-  const waiting = control.scene?.takeover === "waiting" || control.scene?.takeover === "stopping";
-  const tabs: Tab[] = engine === "openclaw" ? ["desktop", "browser", "terminal", "files", "preview"] : ["browser", "terminal", "files", "preview"];
+  const tabs = remoteSceneTabs(engine);
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); }; window.addEventListener("keydown", escape); return () => window.removeEventListener("keydown", escape); }, []);
   useEffect(() => () => { ++previewVersion.current; }, [engine, taskId]);
   async function openPreview(path: string): Promise<void> { const version = ++previewVersion.current; setPreviewError(""); setPreview(undefined); setPreviewLoading(true); setTab("preview"); try { const value = await bridge.previewRemoteTaskFile(engine, taskId, path); if (version === previewVersion.current) setPreview({ path, value }); } catch (error) { if (version === previewVersion.current) setPreviewError(remoteError(error)); } finally { if (version === previewVersion.current) setPreviewLoading(false); } }
-  return <section className={`remote-scene${expanded ? " is-expanded" : ""}`} aria-label="远端执行现场"><header className="remote-scene__heading"><h2>远端现场</h2>{engine === "openclaw" && !disabled && !waiting && <><span className="remote-scene__control-label">{sceneControlLabel(control.scene)}</span><button type="button" className={`remote-button remote-control-return${control.scene?.humanControl ? " remote-button--danger" : ""}`} disabled={control.busy || !control.scene || snapshot?.connection !== "connected"} title={control.scene?.humanControl ? "交还智能体控制权" : "等待当前操作结束后保留人工控制权；不会默认中止任务"} onClick={() => control.scene?.humanControl ? onReturningChange(true) : void control.observe(true)}>{control.scene?.humanControl ? "交还控制" : "手动接管"}</button></>}<button type="button" className="remote-icon-button" aria-label={expanded ? "退出展开" : "展开执行现场"} title={expanded ? "退出展开 · Esc" : "展开执行现场"} onClick={() => setExpanded(!expanded)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={expanded ? "M8 3v5H3m18 0h-5V3M3 16h5v5m8 0v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} /></svg></button></header>
-    {engine === "openclaw" && waiting && <SceneControlWaiting stopping={control.scene?.takeover === "stopping"} busy={control.busy} retry={!!control.error} onForce={() => void control.observe(true, true)} />}
+  return <section className={`remote-scene${expanded ? " is-expanded" : ""}`} aria-label="远端执行现场"><header className="remote-scene__heading"><h2>远端现场</h2><button type="button" className="remote-icon-button" aria-label={expanded ? "退出展开" : "展开执行现场"} title={expanded ? "退出展开 · Esc" : "展开执行现场"} onClick={() => setExpanded(!expanded)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={expanded ? "M8 3v5H3m18 0h-5V3M3 16h5v5m8 0v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} /></svg></button></header>
     <nav className="remote-scene__tabs" role="tablist" aria-label="执行现场视图">{tabs.map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{tabLabels[id][0]}<span> · {tabLabels[id][1]}</span></button>)}</nav>
     <div className="remote-scene__content">
       {disabled ? <div className="remote-scene-empty"><span>◈</span><p>{taskId ? "连接远端服务后查看执行现场" : "选择或新建任务，观察远端执行现场"}</p></div> : <>
-        {/* Keep one framebuffer/lease across views, but never retain hidden input. */}
-        {engine === "openclaw" && <div className={`remote-scene-view${tab !== "desktop" ? " is-hidden" : ""}`}><RemoteDesktop engine={engine} taskId={taskId} humanControl={control.scene?.humanControl ?? false} editable={control.scene?.inputAllowed ?? false} grant={control.grant} busy={control.busy} error={control.error} inputAllowed={inputEnabled && tab === "desktop"} onReconnect={() => void control.observe(false)} /></div>}
-        {tab === "browser" && (engine === "openhands" ? <RemoteDesktop engine={engine} taskId={taskId} humanControl={false} /> : <RemoteBrowser taskId={taskId} running={control.scene?.agentBusy} controlled={control.scene?.humanControl ?? false} inputAllowed={control.browserInputEnabled && snapshot?.connection === "connected"} onDesktop={() => setTab("desktop")} />)}
-        {tab === "terminal" && <RemoteTerminalPanel engine={engine} taskId={taskId} snapshot={snapshot} inputAllowed={control.terminalInputEnabled && snapshot?.connection === "connected"} />}
+        {/* Keep one desktop connection across views, without accepting hidden input. */}
+        {engine === "openclaw" && <div className={`remote-scene-view${tab !== "desktop" ? " is-hidden" : ""}`}><RemoteDesktop engine={engine} taskId={taskId} active={tab === "desktop" && snapshot?.connection === "connected"} /></div>}
+        {engine === "openhands" && tab === "browser" && <RemoteDesktop engine={engine} taskId={taskId} />}
+        {engine === "openclaw" && tab === "terminal" && <AdminTerminal taskId={taskId} />}
         {tab === "files" && <RemoteFiles engine={engine} taskId={taskId} running={snapshot?.task.status === "running"} onPreview={path => void openPreview(path)} />}
         {tab === "preview" && <div className="remote-preview">
           {previewError && <p className="remote-error">{previewError}</p>}
@@ -43,28 +37,28 @@ export function RemoteScene({ engine, taskId, snapshot, available, returning, on
             <header title={preview.path}><strong>{preview.path.split("/").pop()}</strong><button type="button" className="remote-button" onClick={() => void bridge.downloadRemoteTaskFile(engine, taskId, preview.path).catch(error => setPreviewError(remoteError(error)))}>下载</button><button type="button" className="remote-icon-button" aria-label="刷新产物预览" title="刷新预览" onClick={() => void openPreview(preview.path)}>↻</button></header>
             {preview.value.kind === "text" ? <pre>{preview.value.text}</pre> : preview.value.kind === "image" ? <div className="remote-preview__image"><img src={preview.value.url} alt={preview.path} /></div> : preview.value.kind === "html" || preview.value.kind === "pdf" ? <iframe key={preview.value.url} src={preview.value.url} title={`产物预览：${preview.path}`} sandbox={preview.value.kind === "pdf" ? undefined : "allow-scripts"} referrerPolicy="no-referrer" /> : <div className="remote-scene-empty"><p>此文件无法直接预览，下载后可以使用本地应用打开</p></div>}
             {preview.value.truncated && <small className="remote-scene-note">仅预览前 1 MB，下载可获得完整内容</small>}
-          </> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择图片、网页或文档</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
+          </> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择图片、HTML 或文档{engine === "openclaw" && <><br />运行中的网页请在桌面 Chrome 中打开</>}</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
         </div>}
       </>}
-    </div>{control.error && tab !== "desktop" && <p className="remote-error remote-scene-control-error" role="alert">{control.error}</p>}{engine === "openclaw" && returning && <SceneControlDialog busy={control.busy} followUp={control.followUp} onFollowUp={control.setFollowUp} onCancel={() => onReturningChange(false)} onReturn={() => void control.handBack()} />}<footer className="remote-scene__footer"><span>ⓘ</span>远端执行 · 文件通过上传和下载交换</footer>
+    </div><footer className="remote-scene__footer"><span>ⓘ</span>远端执行 · 文件通过上传和下载交换</footer>
   </section>;
 }
-function RemoteDesktop({ engine, taskId, humanControl, editable = false, grant: sharedGrant, busy = false, error: controlError = "", inputAllowed = false, onReconnect }: { engine: RemoteAgentId; taskId: string; humanControl: boolean; editable?: boolean; grant?: RemoteDesktopGrant; busy?: boolean; error?: string; inputAllowed?: boolean; onReconnect?(): void }): JSX.Element {
+function RemoteDesktop({ engine, taskId, active = false }: { engine: RemoteAgentId; taskId: string; active?: boolean }): JSX.Element {
   const bridge = window.selfmeLab!; const host = useRef<HTMLDivElement>(null); const framebuffer = useRef<RFB | undefined>(undefined);
-  const [ownGrant, setOwnGrant] = useState<RemoteDesktopGrant>(); const grant = engine === "openclaw" ? sharedGrant : ownGrant;
+  const [grant, setGrant] = useState<RemoteDesktopGrant>();
   const [state, setState] = useState<"loading" | "connected" | "error">("loading"); const [error, setError] = useState("");
   const alive = useRef(true); const [size, setSize] = useState("");
   const inputBoundary = useRef<ReturnType<typeof desktopInputBoundary> | undefined>(undefined);
-  const inputEnabled = desktopInputEnabled(engine === "openclaw" && inputAllowed, grant?.control === true, state, busy, false);
+  const inputEnabled = desktopInputEnabled(engine === "openclaw" && active, grant?.control === true, state);
   const connectInput = useRef(false);
-  connectInput.current = desktopInputEnabled(engine === "openclaw" && inputAllowed, grant?.control === true, "connected", busy, false);
+  connectInput.current = desktopInputEnabled(engine === "openclaw" && active, grant?.control === true, "connected");
   useEffect(() => {
     if (!host.current) return;
     const boundary = desktopInputBoundary(host.current); inputBoundary.current = boundary;
     return () => { boundary.dispose(); if (inputBoundary.current === boundary) inputBoundary.current = undefined; };
   }, [engine, taskId]);
-  async function observe(): Promise<void> { setState("loading"); setError(""); try { const value = await bridge.observeRemoteDesktop(engine, taskId, false); if (alive.current) setOwnGrant(value); } catch (cause) { if (alive.current) { setState("error"); setError(remoteError(cause)); } } }
-  useEffect(() => { alive.current = true; if (engine === "openhands") void observe(); return () => { alive.current = false; inputBoundary.current?.release(); framebuffer.current?.disconnect(); }; }, [engine, taskId]);
+  async function observe(): Promise<void> { setState("loading"); setError(""); try { const value = await bridge.observeRemoteDesktop(engine, taskId); if (alive.current) setGrant(value); } catch (cause) { if (alive.current) { setState("error"); setError(remoteError(cause)); } } }
+  useEffect(() => { alive.current = true; void observe(); return () => { alive.current = false; inputBoundary.current?.release(); framebuffer.current?.disconnect(); }; }, [engine, taskId]);
   useEffect(() => {
     if (!inputEnabled) inputBoundary.current?.release();
     if (framebuffer.current) framebuffer.current.viewOnly = !inputEnabled;
@@ -76,7 +70,7 @@ function RemoteDesktop({ engine, taskId, humanControl, editable = false, grant: 
     const timeout = setTimeout(() => { if (!cancelled) { setState("error"); setError("远端画面连接超时，请重新连接；任务不会因此丢失。"); rfb?.disconnect(); } }, 20_000);
     // A fast replacement connection can leave React's state at "connected".
     // Apply permission to this new RFB instance, not only in a state effect.
-    const connected = () => { clearTimeout(timeout); if (rfb) rfb.viewOnly = !connectInput.current; setState("connected"); }, disconnected = () => { clearTimeout(timeout); inputBoundary.current?.release(); setState("error"); setError("观察连接已断开，可以重新连接；任务仍在远端。" ); };
+    const connected = () => { clearTimeout(timeout); if (rfb) rfb.viewOnly = !connectInput.current; setState("connected"); }, disconnected = () => { clearTimeout(timeout); inputBoundary.current?.release(); setState("error"); setError("远端画面连接已断开，可以重新连接；任务仍在远端。" ); };
     const security = (event: Event) => { setState("error"); setError((event as CustomEvent).detail?.reason || "远端画面认证失败"); };
     void import("@novnc/novnc").then(({ default: Framebuffer }) => {
       if (cancelled || !host.current) return;
@@ -88,151 +82,48 @@ function RemoteDesktop({ engine, taskId, humanControl, editable = false, grant: 
     }).catch(error => { if (!cancelled) { setState("error"); setError(remoteError(error)); } });
     return () => { cancelled = true; clearTimeout(timeout); dimensions?.disconnect(); inputBoundary.current?.release(); if (rfb) { rfb.removeEventListener("connect", connected); rfb.removeEventListener("disconnect", disconnected); rfb.removeEventListener("securityfailure", security); rfb.disconnect(); if (framebuffer.current === rfb) framebuffer.current = undefined; } };
   }, [grant]);
-  const controlled = humanControl;
   return <div className="remote-desktop">
     <div className="remote-observer-bar">
-      <span className={`remote-observer-status is-${state}`}>{state === "loading" ? <i className="remote-spinner" /> : <i />}{observerLabel(state, false, controlled, editable)}</span>
+      <span className={`remote-observer-status is-${state}`}>{state === "loading" ? <i className="remote-spinner" /> : <i />}{observerLabel(state, inputEnabled)}</span>
     </div>
     <div className="remote-rfb-stage">
       <div ref={host} className={`remote-rfb${inputEnabled ? "" : " is-view-only"}`} title={inputEnabled ? "控制远端桌面" : "只读观察 · 鼠标与键盘不会操作远端"} />
-      {state !== "connected" && <div className="remote-rfb-overlay">{state === "loading" && !controlError ? <><span className="remote-spinner" /><p>正在连接远端画面…</p></> : <><p>{controlError || error}</p><button type="button" className="remote-button" onClick={() => onReconnect ? onReconnect() : void observe()} disabled={busy}>重新连接</button></>}</div>}
+      {state !== "connected" && <div className="remote-rfb-overlay">{state === "loading" ? <><span className="remote-spinner" /><p>正在连接远端画面…</p></> : <><p>{error}</p><button type="button" className="remote-button" onClick={() => void observe()}>重新连接</button></>}</div>}
     </div>
     {size && <small className="remote-frame-size">{size} · 可展开查看</small>}
-    {(controlError || error) && state === "connected" && <p className="remote-error">{controlError || error}</p>}
-    <small className="remote-scene-note">{engine === "openhands" ? "引擎共享浏览器画面 · 智能体打开网页后在此显示 · 只读观察" : controlled ? "智能体工具操作已阻止 · 鼠标与键盘控制远端容器，不操作你的电脑" : "引擎共享桌面 · 浏览器和桌面应用在此显示 · 命令与文件另见对应页签"}</small>
-    {grant?.warning && <p className="remote-error" role="alert">{grant.warning}</p>}
-  </div>;
-}
-function RemoteBrowser({ taskId, running, controlled, inputAllowed, onDesktop }: { taskId: string; running?: boolean; controlled: boolean; inputAllowed: boolean; onDesktop(): void }): JSX.Element {
-  const bridge = window.selfmeLab!, socket = useRef<WebSocket | undefined>(undefined);
-  const alive = useRef(true), latest = useRef(""), connecting = useRef(false), generation = useRef(0), attempts = useRef(0);
-  const frameTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined); const target = useRef(""); const seenTabs = useRef(new Set<string>());
-  const observedTask = useRef(taskId);
-  const [image, setImage] = useState(""); const [url, setUrl] = useState(""); const [address, setAddress] = useState("");
-  const [status, setStatus] = useState("正在连接任务页面…"); const [state, setState] = useState<BrowserObservationState>("connecting");
-  const [tabs, setTabs] = useState<RemoteBrowserTab[]>([]); const [size, setSize] = useState("");
-  const [viewport, setViewport] = useState<{ width: number; height: number }>();
-  const [focusing, setFocusing] = useState(false); const [focusError, setFocusError] = useState("");
-  const view = browserObservationPresentation(state, controlled, inputAllowed);
-  const busy = view.loading, connected = state === "live";
-  function disconnect(): void {
-    clearTimeout(frameTimeout.current); const old = socket.current; socket.current = undefined; old?.close();
-    if (latest.current) URL.revokeObjectURL(latest.current); latest.current = "";
-  }
-  function empty(): void {
-    ++generation.current; connecting.current = false; disconnect(); target.current = ""; seenTabs.current = new Set();
-    setTabs([]); setUrl(""); setImage(""); setSize(""); setState("empty");
-    setStatus("此任务尚未打开浏览器页面。智能体打开网页后，会自动显示在这里。");
-  }
-  async function showDesktop(): Promise<void> {
-    if (busy || focusing || !target.current) return;
-    const version = generation.current; setFocusing(true); setFocusError("");
-    try {
-      await bridge.focusRemoteBrowser("openclaw", taskId, target.current);
-      if (alive.current && version === generation.current) onDesktop();
-    } catch (error) { if (alive.current && version === generation.current) setFocusError(remoteError(error)); }
-    finally { if (alive.current && version === generation.current) setFocusing(false); }
-  }
-  async function connect(options: RemoteBrowserOptions = {}): Promise<void> {
-    if (!alive.current || connecting.current) return;
-    connecting.current = true; const version = ++generation.current;
-    setState(attempts.current ? "retrying" : "connecting"); setStatus("正在连接任务页面…"); setFocusError("");
-    disconnect(); setImage(""); setSize(""); setViewport(undefined);
-    const active = () => alive.current && version === generation.current;
-    const failed = (message: string) => { if (active()) { clearTimeout(frameTimeout.current); setStatus(message); setState(attempts.current < 3 ? "retrying" : "error"); } };
-    try {
-      if (!options.url && !options.targetId) {
-        const currentTabs = await bridge.listRemoteBrowserTabs("openclaw", taskId);
-        if (!active()) return;
-        const next = browserReconnectOptions(currentTabs, target.current);
-        if (!next) { empty(); return; }
-        options = next;
-      }
-      const grant = await bridge.observeRemoteBrowser("openclaw", taskId, options);
-      if (!active()) return;
-      target.current = grant.targetId; seenTabs.current = new Set(grant.tabs.map(tab => tab.targetId));
-      setTabs(grant.tabs); setUrl(grant.pageUrl); setAddress(grant.pageUrl === "about:blank" ? "" : grant.pageUrl);
-      const ws = new WebSocket(grant.url); socket.current = ws; ws.binaryType = "arraybuffer";
-      const current = () => active() && socket.current === ws;
-      let failureMessage = "";
-      frameTimeout.current = setTimeout(() => { if (current()) { failureMessage = "浏览器未传回画面"; failed(failureMessage); ws.close(); } }, 20_000);
-      ws.onmessage = event => {
-        if (!current()) return;
-        try {
-          if (typeof event.data === "string") {
-            const packet = JSON.parse(event.data);
-            if (packet.type === "ready" || packet.type === "meta") { if (typeof packet.url === "string") setUrl(packet.url); }
-            if (packet.type === "error") throw new Error(packet.message || "浏览器观察失败");
-            return;
-          }
-          const frame = browserFrame(event.data as ArrayBuffer);
-          setViewport(frame.viewport);
-          if (frame.url) setUrl(frame.url);
-          const src = URL.createObjectURL(new Blob([Uint8Array.from(frame.jpeg).buffer], { type: "image/jpeg" }));
-          if (latest.current) URL.revokeObjectURL(latest.current); latest.current = src;
-          clearTimeout(frameTimeout.current); attempts.current = 0; setImage(src); setState("live"); setStatus("LIVE · 只读观察");
-        } catch (error) { failureMessage = remoteError(error); failed(failureMessage); ws.close(); }
-      };
-      ws.onclose = () => { if (current()) failed(failureMessage || "浏览器观察连接已断开"); };
-      ws.onerror = () => { if (current()) { failureMessage = "浏览器画面连接失败"; failed(failureMessage); ws.close(); } };
-    } catch (error) { failed(remoteError(error)); }
-    finally { if (version === generation.current) connecting.current = false; }
-  }
-  useEffect(() => {
-    alive.current = true; connecting.current = false; attempts.current = 0; setFocusing(false); setFocusError("");
-    if (observedTask.current !== taskId) { observedTask.current = taskId; target.current = ""; seenTabs.current = new Set(); setTabs([]); setUrl(""); setAddress(""); }
-    void connect();
-    return () => { alive.current = false; ++generation.current; connecting.current = false; disconnect(); };
-  }, [taskId]);
-  useEffect(() => {
-    if (state !== "retrying" || attempts.current >= 3 || connecting.current) return;
-    const retry = setTimeout(() => { ++attempts.current; void connect(); }, 2500 * (attempts.current + 1));
-    return () => clearTimeout(retry);
-  }, [taskId, state, status]);
-  useEffect(() => {
-    if (focusing) return;
-    let current = true, querying = false;
-    const query = () => {
-      if (querying || connecting.current) return; querying = true;
-      void bridge.listRemoteBrowserTabs("openclaw", taskId).then(value => {
-        if (!current) return; setTabs(value); const newest = followBrowserTab(seenTabs.current, value, target.current);
-        seenTabs.current = new Set(value.map(tab => tab.targetId));
-        if (newest && newest !== target.current) { attempts.current = 0; void connect({ targetId: newest }); }
-        else if (!value.length && target.current && !connecting.current) empty();
-      }).catch(() => {}).finally(() => { querying = false; });
-    };
-    // Also synchronize on completion: a short final tool can open a page and
-    // finish before the next interval tick.
-    query(); const timer = setInterval(query, 3000);
-    return () => { current = false; clearInterval(timer); };
-  }, [taskId, running, controlled, focusing]);
-  return <div className="remote-browser">
-    <div className="remote-observer-bar"><span className={`remote-observer-status is-${view.tone}`}>{view.loading ? <i className="remote-spinner" /> : <i />}{view.label}</span><button type="button" className="remote-button" title="切换到桌面并显示当前浏览器窗口" disabled={!connected || busy || focusing} onClick={() => void showDesktop()}>{focusing ? "正在定位…" : "桌面中显示"}</button></div>
-    {focusError && <p className="remote-error">{focusError}</p>}
-    <form className="remote-browser-address" onSubmit={event => { event.preventDefault(); if (address.trim() && !busy && !focusing && inputAllowed) { attempts.current = 0; void connect({ url: address.trim() }); } }}><input aria-label="远端浏览器地址" type="url" placeholder={inputAllowed ? "https://… 在远端浏览器打开" : "浏览器暂时只读 · 仍可实时查看"} title={inputAllowed ? "在远端浏览器打开网页" : "智能体操作浏览器或等待接管时，人工输入暂不可用"} value={address} disabled={busy || focusing || !inputAllowed} onChange={event => setAddress(event.target.value)} /><button type="submit" className="remote-button" disabled={busy || focusing || !inputAllowed || !address.trim()}>打开</button></form>
-    {tabs.length > 1 && <select className="remote-browser-tab-select" aria-label="选择任务浏览器页面" value={target.current} disabled={busy || focusing} onChange={event => void connect({ targetId: event.target.value })}>{tabs.map(tab => <option key={tab.targetId} value={tab.targetId}>{tab.title || tab.url || "新页面"}</option>)}</select>}
-    {url && <div className="remote-browser-url" title={url}>{url}</div>}
-    <div className="remote-browser-screen">{image && <BrowserInput taskId={taskId} targetId={target.current} image={image} viewport={viewport} allowed={inputAllowed && connected && !!viewport && !focusing} onError={setFocusError} onSize={setSize} />}{!connected && <div className="remote-rfb-overlay">{view.loading && <span className="remote-spinner" />}<p>{view.loading ? view.label : status}</p>{view.reconnect && <button type="button" className="remote-button" onClick={() => { attempts.current = 0; void connect(); }}>重新连接</button>}{view.open && <button type="button" className="remote-button" disabled={!inputAllowed} onClick={() => { attempts.current = 0; void connect({ url: "about:blank" }); }}>打开浏览器</button>}</div>}</div>
-    {size && <small className="remote-frame-size">{size} · 可展开查看</small>}<small className="remote-scene-note">只展示当前任务的网页 · 与远端桌面使用同一浏览器 · 不操作你的电脑</small>
+    {error && state === "connected" && <p className="remote-error">{error}</p>}
+    <small className="remote-scene-note">{engine === "openhands" ? "引擎共享浏览器画面 · 智能体打开网页后在此显示 · 只读观察" : "操作的是远端环境，不是你的电脑 · 网页在桌面 Chrome 中查看"}</small>
   </div>;
 }
 function RemoteFiles({ engine, taskId, running, onPreview }: { engine: RemoteAgentId; taskId: string; running?: boolean; onPreview(path: string): void }): JSX.Element {
   const [directory, setDirectory] = useState(""); const [page, setPage] = useState<RemoteFilePage>(); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const generation = useRef(0);
   async function refresh(showBusy = true): Promise<void> { const version = ++generation.current; if (showBusy) setBusy(true); try { const result = await window.selfmeLab!.listRemoteTaskFiles(engine, taskId, directory); if (version === generation.current) { setPage(result); setError(""); } } catch (error) { if (version === generation.current) setError(remoteError(error)); } finally { if (version === generation.current) setBusy(false); } }
   useEffect(() => { void refresh(); const timer = running ? setInterval(() => void refresh(false), 3000) : undefined; return () => { ++generation.current; clearInterval(timer); }; }, [engine, taskId, directory, running]);
-  return <div className="remote-files"><header><button type="button" className="remote-icon-button" disabled={!directory} aria-label="返回上层远端目录" title="上层目录" onClick={() => setDirectory(directory.split("/").slice(0, -1).join("/"))}>↑</button><span title={directory}>/{directory || "任务文件"}</span><button type="button" className="remote-icon-button" aria-label="刷新远端文件" title="刷新文件" onClick={() => void refresh()} disabled={busy}>↻</button></header>{error && <p className="remote-error">{error}</p>}<div className="remote-files__list">{busy && !page ? <div className="remote-scene-empty"><span className="remote-spinner" /></div> : page?.files.length ? [...page.files].sort((a, b) => Number(b.directory) - Number(a.directory) || a.name.localeCompare(b.name)).map(file => <div key={file.path} className="remote-file-row"><button type="button" className="remote-file-name" title={file.name} onClick={() => file.directory ? setDirectory(file.path) : onPreview(file.path)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={file.directory ? "M2 6h8l2 2h10v12H2z" : "M5 2h9l5 5v15H5zM14 2v6h5M8 12h8m-8 4h8"} /></svg><span>{file.name}<small>{file.directory ? "目录" : remoteFileSize(file.size)}</small></span></button>{!file.directory && <button type="button" className="remote-icon-button" aria-label={`下载：${file.name}`} title="下载文件" onClick={() => void window.selfmeLab!.downloadRemoteTaskFile(engine, taskId, file.path).catch(error => setError(remoteError(error)))}>↓</button>}</div>) : <div className="remote-scene-empty"><span>▤</span><p>任务还没有生成文件</p></div>}</div>{page?.truncated && <small className="remote-scene-note">此目录仅显示前 500 项，请进入子目录查看</small>}</div>;
+  return <div className="remote-files"><header><button type="button" className="remote-icon-button" disabled={!directory} aria-label="返回上层远端目录" title="上层目录" onClick={() => setDirectory(directory.split("/").slice(0, -1).join("/"))}>↑</button><span title={directory}>/{directory || "任务文件"}</span><button type="button" className="remote-icon-button" aria-label="刷新远端文件" title="刷新文件" onClick={() => void refresh()} disabled={busy}>↻</button></header>{error && <p className="remote-error">{error}</p>}<div className="remote-files__list">{busy && !page ? <div className="remote-scene-empty"><span className="remote-spinner" /></div> : page?.files.length ? [...page.files].sort((a, b) => Number(b.directory) - Number(a.directory) || a.name.localeCompare(b.name)).map(file => <div key={file.path} className="remote-file-row"><button type="button" className="remote-file-name" title={file.name} onClick={() => file.directory ? setDirectory(file.path) : onPreview(file.path)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={file.directory ? "M2 6h8l2 2h10v12H2z" : "M5 2h9l5 5v15H5zM14 2v6h5M8 12h8m-8 4h8"} /></svg><span>{file.name}<small>{file.directory ? "目录" : remoteFileSize(file.size)}</small></span></button>{!file.directory && <button type="button" className="remote-icon-button" aria-label={`下载：${file.name}`} title="下载文件" onClick={() => void window.selfmeLab!.downloadRemoteTaskFile(engine, taskId, file.path).catch(error => setError(remoteError(error)))}>↓</button>}</div>) : <div className="remote-scene-empty"><span>▤</span><p>此目录暂无文件</p></div>}</div>{page?.truncated && <small className="remote-scene-note">此目录仅显示前 500 项，请进入子目录查看</small>}</div>;
 }
-function RemoteTerminalPanel({ engine, taskId, snapshot, inputAllowed }: { engine: RemoteAgentId; taskId: string; snapshot?: RemoteTaskSnapshot; inputAllowed: boolean }): JSX.Element {
-  const [administration, setAdministration] = useState(false);
-  const tools = remoteCommandItems(snapshot?.items ?? []);
-  return <div className="remote-terminal-panel"><div className="remote-terminal-tabs"><button type="button" aria-pressed={!administration} onClick={() => setAdministration(false)}>智能体输出{tools.length ? ` · ${tools.length}` : ""}</button>{engine === "openclaw" && <button type="button" aria-pressed={administration} onClick={() => setAdministration(true)}>人工终端</button>}</div>{administration ? <AdminTerminal taskId={taskId} controlled={inputAllowed} humanControl={snapshot?.scene?.humanControl ?? false} /> : <div className="remote-agent-console">{tools.length ? tools.map(item => <div key={item.id}><header><span className={item.tool!.status === "running" ? "remote-spinner" : ""}>{item.tool!.status === "completed" ? "✓" : item.tool!.status === "failed" ? "!" : ""}</span>{item.tool!.title}<span className="remote-console-state">{item.tool!.status === "running" ? "执行中" : item.tool!.status === "completed" ? "已完成" : "未完成"}</span></header>{item.tool!.input && <pre className="remote-command">$ {item.tool!.name === "ls" ? "ls " : ""}{item.tool!.input}</pre>}{item.tool!.output ? <pre>{item.tool!.output.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")}</pre> : <p className="remote-console-pending">{item.tool!.status === "running" ? "等待远端命令输出…" : "此命令没有文本输出"}</p>}</div>) : <div className="remote-scene-empty"><span>›_</span><p>此任务还没有执行终端命令<br />执行记录会随智能体操作更新，不是连接故障</p>{engine === "openclaw" && <button type="button" className="remote-button" onClick={() => setAdministration(true)}>打开人工终端</button>}</div>}</div>}</div>;
-}
-function AdminTerminal({ taskId, controlled, humanControl }: { taskId: string; controlled: boolean; humanControl: boolean }): JSX.Element {
+function AdminTerminal({ taskId }: { taskId: string }): JSX.Element {
   const bridge = window.selfmeLab!; const host = useRef<HTMLDivElement>(null); const terminal = useRef<Terminal | undefined>(undefined); const current = useRef<RemoteTerminal | undefined>(undefined); const alive = useRef(true);
   const opening = useRef(false), generation = useRef(0), pending = useRef<RemoteTerminalEvent[]>([]); const fitTerminal = useRef<(() => void) | undefined>(undefined);
   const [info, setInfo] = useState<RemoteTerminal>(); const [error, setError] = useState(""); const [busy, setBusy] = useState(true); const [ended, setEnded] = useState(false);
-  const inputAllowed = useRef(controlled); inputAllowed.current = controlled;
-  useEffect(() => { if (terminal.current) { terminal.current.options.disableStdin = !controlled; terminal.current.options.cursorBlink = controlled; } }, [controlled]);
+  const [access, setAccess] = useState<RemoteTerminalAccess>();
+  const [accessError, setAccessError] = useState("");
+  const writable = access?.inputAllowed === true && !!info && !busy && !ended;
+  const inputAllowed = useRef(writable); inputAllowed.current = writable;
+  useEffect(() => {
+    let active = true, querying = false;
+    setAccess(undefined); setAccessError("");
+    async function refresh(): Promise<void> {
+      if (querying) return; querying = true;
+      try {
+        const state = await bridge.getRemoteTerminalAccess("openclaw", taskId);
+        if (active) { setAccess(state); setAccessError(""); }
+      } catch (cause) { if (active) { setAccess(undefined); setAccessError(remoteError(cause)); } }
+      finally { querying = false; }
+    }
+    void refresh(); const timer = setInterval(() => void refresh(), 1000);
+    return () => { active = false; clearInterval(timer); };
+  }, [taskId]);
+  useEffect(() => { if (terminal.current) { terminal.current.options.disableStdin = !writable; terminal.current.options.cursorBlink = writable; } }, [writable]);
   useEffect(() => { alive.current = true; setInfo(undefined); setEnded(false); setError(""); const term = new Terminal({ fontSize: 12, fontFamily: "Menlo, monospace", disableStdin: !inputAllowed.current, cursorBlink: inputAllowed.current, scrollback: 5000, theme: { background: "#060b0f", foreground: "#c4d1d9", cursor: "#f28b7b", selectionBackground: "#f28b7b35" } }); const fit = new FitAddon(); term.loadAddon(fit); term.open(host.current!); terminal.current = term;
     const size = () => { if (!host.current?.clientHeight) return; fit.fit(); if (current.current) void bridge.resizeRemoteTerminal("openclaw", taskId, current.current.id, term.cols, term.rows).catch(error => { if (alive.current) setError(remoteError(error)); }); };
     fitTerminal.current = size;
@@ -245,7 +136,7 @@ function AdminTerminal({ taskId, controlled, humanControl }: { taskId: string; c
       if (opening.current && !current.current) { pending.current = [...pending.current.slice(-255), event]; return; }
       if (event.terminalId !== current.current?.id) return;
       if (event.data) term.write(event.data);
-      if (event.exited) { current.current = undefined; setEnded(true); term.writeln("\r\n[终端观察连接已断开]"); if (event.detail) setError(event.detail); }
+      if (event.exited) { current.current = undefined; setEnded(true); term.writeln("\r\n[终端连接已断开，重新连接后可恢复仍在运行的会话]"); if (event.detail) setError(event.detail); }
     });
     void open();
     return () => { alive.current = false; ++generation.current; opening.current = false; pending.current = []; cancelAnimationFrame(initialFit); observer.disconnect(); input.dispose(); unsubscribe(); if (current.current) void bridge.closeRemoteTerminal("openclaw", taskId, current.current.id).catch(() => {}); current.current = undefined; terminal.current = undefined; fitTerminal.current = undefined; term.dispose(); };
@@ -263,5 +154,5 @@ function AdminTerminal({ taskId, controlled, humanControl }: { taskId: string; c
     } catch (error) { if (alive.current && version === generation.current) setError(remoteError(error)); }
     finally { if (alive.current && version === generation.current) { opening.current = false; setBusy(false); } }
   }
-  return <div className={`remote-admin-terminal${controlled ? " is-controlled" : " is-readonly"}`}><div className="remote-terminal-bar"><span title={info?.cwd}>{info && !ended ? info.cwd : "当前任务的远端终端"}</span>{busy ? <span className="remote-observer-status is-loading"><i className="remote-spinner" />连接中…</span> : (ended || (!info && error)) && <button type="button" className="remote-button" onClick={() => void open()}>重新连接</button>}</div><div className="remote-terminal-access"><span><i />{humanControl ? "CONTROL · 已接管 · 可操作" : controlled ? "LIVE · 可输入命令" : "LIVE · 只读观察"}</span></div><small className="remote-scene-note">与桌面里的人工终端相通 · 智能体执行终端操作时，人工输入暂不可用</small>{error && <p className="remote-error">{error}</p>}<div ref={host} className="remote-xterm" />{busy && <div className="remote-terminal-intro"><span className="remote-spinner" /><p>正在连接当前任务的终端…</p></div>}</div>;
+  return <div className={`remote-admin-terminal${writable ? " is-writable" : " is-readonly"}`}><div className="remote-terminal-bar"><span title={info?.cwd}>{info && !ended ? info.cwd : "当前任务的远端终端"}</span>{busy ? <span className="remote-observer-status is-loading"><i className="remote-spinner" />连接中…</span> : (ended || (!info && error)) && <button type="button" className="remote-button" onClick={() => void open()}>重新连接</button>}</div><div className="remote-terminal-access"><span><i />{busy ? "正在连接…" : ended || !info ? "连接已断开" : accessError ? "输入状态暂不可用" : !access ? "正在同步输入状态…" : writable ? "可输入命令" : "智能体正在调用终端工具 · 暂不可输入"}</span></div><small className="remote-scene-note">与桌面终端共用会话 · 此处操作不会打开或切换桌面窗口</small>{(error || accessError) && <p className="remote-error">{error || accessError}</p>}<div ref={host} className="remote-xterm" />{busy && <div className="remote-terminal-intro"><span className="remote-spinner" /><p>正在连接当前任务的终端…</p></div>}</div>;
 }

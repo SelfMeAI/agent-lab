@@ -5,10 +5,8 @@ import { createReadStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { discoverConnectedModels, type ProviderModelsInput } from "./provider-models";
 import { isTerminalProtocolReply } from "./terminal-response";
-import { disposeTerminal, inputTerminal, prepareTerminal, setDesktopTask, setTerminalControl, showBrowser, showTerminal, terminalArgv } from "../desktop/session.mjs";
-import { ExecutionObserver, type NativeExecutionEvent } from "../desktop/execution.mjs";
-import { BrowserInputChannel, browserInputCommands, browserInputEndpoint } from "./browser-input";
-import { activeBrowserAction, SceneActivity, sceneAccess, toolIdentity, toolResource, type SceneResource } from "./scene-access";
+import { disposeTerminal, inputTerminal, prepareTerminal, setDesktopTask, setTerminalAccess, showBrowser, terminalArgv } from "../desktop/session.mjs";
+import { activeBrowserAction, TerminalActivity, isTerminalTool, toolIdentity, type NativeAgentEvent } from "./terminal-access";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -75,49 +73,27 @@ type HostDesktopService = {
   observe(options: { control: boolean; requester: { connId: string; signal: AbortSignal; isCurrent(): boolean } }): Promise<{ wsPath: string; control: boolean; expiresAtMs: number; vncPassword?: string }>;
 };
 type PluginApi = {
-  agent: { events: { registerAgentEventSubscription(subscription: { id: string; streams: string[]; handle(event: NativeExecutionEvent): void }): void } };
+  agent: { events: { registerAgentEventSubscription(subscription: { id: string; streams: string[]; handle(event: NativeAgentEvent): void }): void } };
   lifecycle: { registerRuntimeLifecycle(registration: { id: string; dispose(): Promise<void> }): void };
   registerSessionCatalog(provider: { id: string; label: string; audience: "gateway-operators"; supportsProcessHomeIsolation: true; list(): Promise<[]>; read(): Promise<never>; openTerminal(request: { hostId: string; threadId: string }): Promise<{ kind: "local"; argv: string[]; cwd: string; title: string }> }): void;
-  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService; chatAbortControllers: Map<string, unknown>; isTerminalEnabled(): boolean; terminalSessions?: { list(): { sessionId: string; cwd: string }[]; write(owner: string, id: string, data: string): boolean }; getRuntimeConfig(): { models?: { providers?: Record<string, { baseUrl?: string; api?: string; apiKey?: unknown }> } } }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
+  registerGatewayMethod(name: string, handler: (request: { params: Record<string, unknown>; context: { hostDesktopService?: HostDesktopService; isTerminalEnabled(): boolean; terminalSessions?: { list(): { sessionId: string; cwd: string }[]; write(owner: string, id: string, data: string): boolean }; getRuntimeConfig(): { models?: { providers?: Record<string, { baseUrl?: string; api?: string; apiKey?: unknown }> } } }; client?: { connId?: string; connectionSignal?: AbortSignal }; respond(ok: boolean, value?: unknown, error?: { code: string; message: string }): void }) => Promise<void>, options: { scope: string }): void;
   registerHttpRoute(route: { path: string; auth: "gateway"; match: "exact"; handler: typeof http }): void;
   on(name: "before_tool_call", handler: (event: { toolName: string; params: Record<string, unknown>; runId?: string; toolCallId?: string; toolKind?: string }, context: { sessionKey?: string; runId?: string; toolCallId?: string; abortSignal?: AbortSignal }) => Promise<void>, options?: { priority: number; timeoutMs?: number }): void;
   on(name: "after_tool_call", handler: (event: { toolName: string; params: Record<string, unknown>; error?: string; runId?: string; toolCallId?: string }, context: { sessionKey?: string; runId?: string; toolCallId?: string }) => Promise<void>): void;
 };
-let controlLease: { id: string; owner: string; task: string; ready: boolean; stopping?: boolean } | undefined;
-const activity = new SceneActivity(() => { void syncTerminalAccess().catch(() => {}); });
-let nativeRuns = () => 0, desktopTask = "";
+const activity = new TerminalActivity(() => { void syncTerminalAccess().catch(() => {}); });
+let desktopTask = "";
 let accessUpdate = Promise.resolve(), accessSignature = "", accessWrittenAt = 0;
-function updateControlReady(): void {
-  if (controlLease && !controlLease.ready && !activity.pending && (!controlLease.stopping || !activity.busy(nativeRuns()))) controlLease.ready = true;
-}
-function access(owner: string, task: string) {
-  updateControlReady();
-  return sceneAccess(activity.busy(nativeRuns()), controlLease, owner, task, activity.occupied("browser"), activity.occupied("terminal"));
-}
-function assertInput(owner: string, task: string, resource: SceneResource, signal?: AbortSignal, admitted = false): void {
-  if (!owner || signal?.aborted) throw new Error("现场连接已断开");
-  // Finish an already authenticated/admitted gesture before the tool starts.
-  // New gestures still pass the resource fence below; task/target custody is
-  // rechecked independently throughout the operation.
-  if (admitted) return;
-  const state = access(owner, task);
-  if (!owner || signal?.aborted || !(resource === "browser" ? state.browserInputAllowed : state.terminalInputAllowed)) throw new Error(resource === "browser" ? "智能体正在操作浏览器或现场等待接管；当前仅支持观察" : "智能体正在执行终端操作或现场等待接管；当前仅支持观察");
-}
 function syncTerminalAccess(): Promise<void> {
   accessUpdate = accessUpdate.catch(() => {}).then(async () => {
-    updateControlReady();
-    const task = controlLease?.task ?? desktopTask;
-    const ready = task && (controlLease ? controlLease.ready : !activity.occupied("terminal"));
-    const humanControl = !!controlLease?.ready;
-    const signature = JSON.stringify({ task, ready, humanControl });
+    const ready = !!desktopTask && !activity.busy;
+    const signature = JSON.stringify({ task: desktopTask, ready });
     if (signature === accessSignature && Date.now() - accessWrittenAt < 15_000) return;
-    await setTerminalControl(task ? { task, ready: !!ready, humanControl, expiresAt: Date.now() + 45_000 } : undefined);
+    await setTerminalAccess(desktopTask ? { task: desktopTask, ready, expiresAt: Date.now() + 45_000 } : undefined);
     accessSignature = signature; accessWrittenAt = Date.now();
   });
   return accessUpdate;
 }
-const browserChannels = new Map<string, BrowserInputChannel>();
-function closeBrowserInput(): void { for (const channel of browserChannels.values()) channel.close(); browserChannels.clear(); }
 let desktopLease: DesktopLease | undefined;
 let preparingDesktop: Promise<void> | undefined;
 // The container has one native managed desktop. Its allocated display and
@@ -145,14 +121,13 @@ async function prepareDesktop(service: HostDesktopService): Promise<void> {
   preparingDesktop = pending; return pending;
 }
 export default {
-  id: "selfme-lab", name: "SelfMe Lab Remote Files",
+  id: "selfme-lab", name: "SelfMe Lab Remote Workspace",
   register(api: PluginApi): void {
-    const observer = new ExecutionObserver({ onError: error => console.error("[selfme] Terminal observer:", error instanceof Error ? error.message : "unavailable") });
-    api.agent.events.registerAgentEventSubscription({ id: "terminal-observer", streams: ["lifecycle", "tool", "command_output", "approval"], handle: event => {
-      activity.observe(event);
-      observer.observe(event);
-    } });
-    api.lifecycle.registerRuntimeLifecycle({ id: "terminal-observer", dispose: async () => { controlLease = undefined; activity.dispose(); closeBrowserInput(); await setTerminalControl(); await observer.dispose(); } });
+    api.agent.events.registerAgentEventSubscription({ id: "terminal-access", streams: ["lifecycle", "tool"], handle: event => activity.observe(event) });
+    // Keep the desktop terminal usable even when its external view is closed.
+    // The short-lived access record fails closed if the Gateway stops.
+    const renewal = setInterval(() => void syncTerminalAccess().catch(() => {}), 15_000); renewal.unref();
+    api.lifecycle.registerRuntimeLifecycle({ id: "terminal-access", dispose: async () => { clearInterval(renewal); desktopTask = ""; activity.dispose(); await syncTerminalAccess(); } });
     // Let the native PTY manager retain admission, custody and flow control.
     // Its catalog launch extension attaches the same tmux shell as the desktop.
     api.registerSessionCatalog({
@@ -164,15 +139,11 @@ export default {
         return { kind: "local", argv: terminalArgv(identity.task), cwd: identity.cwd, title: "Terminal · " + identity.task.slice(0, 8) };
       },
     });
-    for (const operation of ["prepare", "dispose"] as const) api.registerGatewayMethod(`selfme.terminal.${operation}`, async ({ params, respond }) => {
+    api.registerGatewayMethod("selfme.terminal.dispose", async ({ params, respond }) => {
       try {
-        const id = taskId(params.task); await root(id);
-        if (operation === "prepare") {
-          if (!desktopLease?.isCurrent()) throw new Error("请先连接远端桌面");
-          await showTerminal(id);
-        } else { await observer.forget(id); await disposeTerminal(id); }
+        const id = taskId(params.task); await root(id); await disposeTerminal(id);
         respond(true, { ok: true });
-      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "任务终端连接失败" }); }
+      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "任务终端清理失败" }); }
     }, { scope: "operator.admin" });
     api.registerGatewayMethod("selfme.models.list", async ({ params, context, respond }) => {
       try {
@@ -187,160 +158,40 @@ export default {
         const workspace = await root(taskId(params.task));
         if (!context.hostDesktopService) throw new Error("原生桌面服务不可用");
         await prepareDesktop(context.hostDesktopService);
-        nativeRuns = () => context.chatAbortControllers.size;
         desktopTask = taskId(params.task); await setDesktopTask(desktopTask); await syncTerminalAccess();
         respond(true, { root: workspace, display: desktopLease?.env.DISPLAY });
       } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "现场准备失败" }); }
     }, { scope: "operator.write" });
-    api.registerGatewayMethod("selfme.scene.status", async ({ params, context, client, respond }) => {
+    api.registerGatewayMethod("selfme.terminal.status", async ({ params, client, respond }) => {
       try {
-        const task = taskId(params.task), owner = client?.connId;
-        if (!owner || client?.connectionSignal?.aborted) throw new Error("现场连接已断开");
-        nativeRuns = () => context.chatAbortControllers.size;
-        await root(task); await syncTerminalAccess();
-        respond(true, access(owner, task));
-      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "现场状态不可用" }); }
+        if (!client?.connId || client.connectionSignal?.aborted) throw new Error("终端连接已断开");
+        await root(taskId(params.task)); await syncTerminalAccess();
+        respond(true, { busy: activity.busy, inputAllowed: !activity.busy });
+      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "终端状态不可用" }); }
     }, { scope: "operator.admin" });
     api.registerGatewayMethod("selfme.scene.observe", async ({ params, context, client, respond }) => {
       try {
         const task = taskId(params.task), owner = client?.connId, signal = client?.connectionSignal;
-        if (!owner || !signal || signal.aborted || !context.hostDesktopService) throw new Error("现场连接不可用");
-        await root(task); nativeRuns = () => context.chatAbortControllers.size;
-        const state = access(owner, task), permission = state.inputAllowed ? activity.grant() : undefined;
-        const lifetime = permission ? AbortSignal.any([signal, permission.signal]) : signal;
-        const result = await context.hostDesktopService.observe({ control: state.inputAllowed, requester: { connId: owner, signal: lifetime, isCurrent: () => !lifetime.aborted && (!state.inputAllowed || access(owner, task).inputAllowed) } });
-        respond(true, { ...result, scene: state });
-      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "远端画面不可用" }); }
+        if (!owner || !signal || signal.aborted || !context.hostDesktopService) throw new Error("远端桌面连接不可用");
+        await root(task);
+        const result = await context.hostDesktopService.observe({ control: true, requester: { connId: owner, signal, isCurrent: () => !signal.aborted } });
+        respond(true, result);
+      } catch (error) { respond(false, undefined, { code: "UNAVAILABLE", message: error instanceof Error ? error.message : "远端桌面不可用" }); }
     }, { scope: "operator.admin" });
-    api.registerGatewayMethod("selfme.scene.send", async ({ params, context, client, respond }) => {
-      try {
-        const session = params.sessionKey;
-        if (typeof session !== "string" || !session.startsWith("agent:main:selfme:")) throw new Error("任务标识无效");
-        await root(taskId(session.slice("agent:main:selfme:".length)));
-        if (!client?.connId || client.connectionSignal?.aborted) throw new Error("现场连接已断开");
-        if (controlLease) throw new Error("正在人工接管，请先交还控制");
-        nativeRuns = () => context.chatAbortControllers.size;
-        const { dispatchGatewayMethod } = await import("openclaw/plugin-sdk/gateway-method-runtime");
-        if (controlLease || client.connectionSignal?.aborted) throw new Error("现场控制状态已改变，消息尚未提交");
-        const result = await dispatchGatewayMethod("chat.send", params);
-        if (!result.ok) throw new Error(result.error?.message || "消息未获确认");
-        respond(true, result.payload);
-      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "消息未提交" }); }
-      finally { await syncTerminalAccess().catch(() => {}); }
-    }, { scope: "operator.write" });
-    // The hold lives on the authenticated Gateway, not in a renderer flag.
-    // RFB grants and this lease are both revoked when their owner disconnects.
     api.on("before_tool_call", async (event, context) => {
       if (!context.sessionKey?.startsWith("agent:main:selfme:")) return;
-      // Keep this exact native call pending; never turn a human pause into a
-      // denied-tool result or an automatically resubmitted task. The native
-      // run deadline remains in force, and its cancellation wakes this wait.
-      while (controlLease) await activity.waitUntil(() => !controlLease, context.abortSignal);
-      context.abortSignal?.throwIfAborted();
-      // Code-mode is an outer orchestration call. Its nested tool hooks own
-      // admission; counting both would deadlock a paused inner call against
-      // the outer call waiting for it to finish.
-      if (event.toolKind === "code_mode_exec") return;
-      const id = toolIdentity(event, context), resource = toolResource(event.toolName, event.toolKind);
-      activity.beginTool(id, context.runId ?? event.runId, resource);
+      const terminal = isTerminalTool(event.toolName, event.toolKind);
+      const id = toolIdentity(event, context);
+      if (terminal) activity.beginTool(id, context.runId ?? event.runId);
       try {
-        if (resource) await activity.drain(resource);
-        context.abortSignal?.throwIfAborted();
-        await syncTerminalAccess();
-        if (!desktopLease?.isCurrent()) return;
-        if (resource === "terminal" && event.toolName !== "process") await showTerminal(taskId(context.sessionKey.slice("agent:main:selfme:".length)), true, 'agent');
-        else if (activeBrowserAction(event.toolName, event.params)) await showBrowser();
+        if (terminal) { await activity.drain(); context.abortSignal?.throwIfAborted(); await syncTerminalAccess(); }
+        if (desktopLease?.isCurrent() && activeBrowserAction(event.toolName, event.params)) await showBrowser();
       } catch (error) { activity.endTool(id); throw error; }
-    }, { priority: 10000, timeoutMs: 3_600_000 });
+    }, { priority: 10000 });
     api.on("after_tool_call", async (event, context) => {
       activity.endTool(toolIdentity(event, context));
-      if (!event.error && !controlLease && desktopLease?.isCurrent() && activeBrowserAction(event.toolName, event.params)) await showBrowser();
+      if (!event.error && desktopLease?.isCurrent() && activeBrowserAction(event.toolName, event.params)) await showBrowser();
     });
-    for (const operation of ["acquire", "force", "ready", "renew", "release"] as const) api.registerGatewayMethod(`selfme.control.${operation}`, async ({ params, context, client, respond }) => {
-      try {
-        const owner = client?.connId;
-        if (!owner || !client?.connectionSignal || client.connectionSignal.aborted) throw new Error("接管需要持续的已认证连接");
-        nativeRuns = () => context.chatAbortControllers.size;
-        if (operation === "acquire") {
-          if (controlLease) throw new Error("桌面已有接管者，请先交还控制");
-          const lease = { id: randomUUID(), owner, task: taskId(params.task), ready: false }; await root(lease.task);
-          if (controlLease) throw new Error("桌面已有接管者，请先交还控制");
-          if (client.connectionSignal.aborted) throw new Error("接管连接已断开"); controlLease = lease;
-          client.connectionSignal.addEventListener("abort", () => { if (controlLease === lease) { controlLease = undefined; activity.revoke(); closeBrowserInput(); activity.changed(); } }, { once: true });
-          activity.revoke(); activity.changed();
-          await syncTerminalAccess();
-          if (client.connectionSignal.aborted || controlLease !== lease) throw new Error("接管连接已断开");
-          respond(true, { id: lease.id }); return;
-        }
-        if (!controlLease || controlLease.owner !== owner || controlLease.id !== params.id) throw new Error("接管已结束或不属于此连接");
-        if (operation === "force") { controlLease.ready = false; controlLease.stopping = true; activity.revoke(); }
-        if (operation === "ready") {
-          updateControlReady();
-          if (!controlLease.ready) throw new Error("当前操作尚未结束，仍在等待接管");
-        }
-        if (operation === "release") { controlLease = undefined; activity.revoke(); closeBrowserInput(); activity.changed(); }
-        await syncTerminalAccess();
-        respond(true, { ok: true });
-      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "接管失败" }); }
-    }, { scope: "operator.admin" });
-    const browserQueues = new Map<string, Promise<void>>();
-    for (const operation of ["input", "open"] as const) api.registerGatewayMethod(`selfme.browser.${operation}`, async ({ params, context, client, respond }) => {
-      try {
-        const task = taskId(params.task); nativeRuns = () => context.chatAbortControllers.size;
-        assertInput(client?.connId ?? "", task, "browser", client?.connectionSignal);
-        const authorize = () => assertInput(client?.connId ?? "", task, "browser", client?.connectionSignal, true);
-        authorize();
-        const scope = params.tabScope as { sessionKey?: string } | undefined;
-        if (scope?.sessionKey !== `agent:main:selfme:${task}`) throw new Error("浏览器页面不属于当前任务");
-        // Public SDK dispatch keeps native authentication, target ownership and
-        // navigation policy. No direct import or fork of harness internals.
-        const { dispatchGatewayMethod } = await import("openclaw/plugin-sdk/gateway-method-runtime");
-        const request = async (args: Record<string, unknown>) => {
-          authorize(); const result = await dispatchGatewayMethod("browser.request", { ...args, tabScope: scope }); authorize();
-          if (!result.ok) throw new Error(result.error?.message || "远端浏览器请求失败");
-          return result.payload as Record<string, unknown>;
-        };
-        if (operation === "open") {
-          if (typeof params.url !== "string" || params.url.length > 8192) throw new Error("浏览器地址无效");
-          const url = new URL(params.url);
-          if ((!['http:', 'https:'].includes(url.protocol) && url.href !== 'about:blank') || url.username || url.password) throw new Error("页面地址需要 HTTP(S)，不能包含登录凭据");
-          const opened = await activity.track((async () => {
-            const opened = await request({ method: "POST", path: "/tabs/open", body: { url: url.href } });
-            await request({ method: "POST", path: "/tabs/focus", body: { targetId: opened.targetId } });
-            return opened;
-          })(), "browser");
-          respond(true, opened); return;
-        }
-        const targetId = params.targetId;
-        if (typeof targetId !== "string" || !targetId || targetId.length > 256) throw new Error("浏览器页面标识无效");
-        const commands = browserInputCommands(params.events);
-        const pending = (browserQueues.get(task) ?? Promise.resolve()).catch(() => {}).then(async () => {
-          authorize();
-          const listing = await request({ method: "GET", path: "/tabs" });
-          if (!Array.isArray(listing.tabs) || !listing.tabs.some(tab => tab.targetId === targetId)) throw new Error("此页面不属于当前任务，或已经关闭");
-          let channel = browserChannels.get(targetId);
-          if (!channel || channel.closed) {
-            const status = await request({ method: "GET", path: "/" });
-            const base = new URL(String(status.cdpUrl));
-            if (base.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(base.hostname) || base.username || base.password) throw new Error("输入仅限当前容器的浏览器");
-            const response = await fetch(new URL("/json/list", base), { redirect: "error", signal: AbortSignal.any([client!.connectionSignal!, AbortSignal.timeout(5000)]) });
-            if (!response.ok) throw new Error("远端浏览器输入连接失败");
-            const targets = await response.json(); authorize();
-            if (!Array.isArray(targets)) throw new Error("远端浏览器页面列表无效");
-            const target = targets.find(tab => tab.id === targetId);
-            if (!target) throw new Error("此浏览器页面已经关闭");
-            const endpoint = browserInputEndpoint(base.href, targetId, target);
-            if (browserChannels.size >= 8) { const first = browserChannels.keys().next().value!; browserChannels.get(first)?.close(); browserChannels.delete(first); }
-            channel = new BrowserInputChannel(endpoint); browserChannels.set(targetId, channel);
-          }
-          if ((params.events as Array<{ kind: string; type?: string }>).some(event => event.kind === "text" || event.kind === "key" && event.type === "down" || event.kind === "mouse" && ['down', 'wheel'].includes(event.type ?? ''))) await request({ method: "POST", path: "/tabs/focus", body: { targetId } });
-          await channel.input(commands, authorize);
-        });
-        browserQueues.set(task, pending);
-        try { await activity.track(pending, "browser"); } finally { if (browserQueues.get(task) === pending) browserQueues.delete(task); }
-        respond(true, { ok: true });
-      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "浏览器输入失败" }); }
-    }, { scope: "operator.admin" });
     const inputQueues = new Map<string, Promise<void>>();
     api.registerGatewayMethod("selfme.terminal.input", async ({ params, context, client, respond }) => {
       try {
@@ -353,7 +204,7 @@ export default {
           // DA/theme negotiation belongs to this read-only tmux client, not
           // the task shell. It is allowed during observation, never as input.
           assertCustody();
-          if (!context.terminalSessions!.write(owner, id, data)) throw new Error("终端观察连接已关闭");
+          if (!context.terminalSessions!.write(owner, id, data)) throw new Error("终端连接已关闭");
           respond(true, { ok: true }); return;
         }
         const assertInput = (admitted = false) => {
@@ -361,17 +212,16 @@ export default {
           assertCustody();
         };
         const assertInputPermission = () => {
-          if (!access(owner, task).terminalInputAllowed) throw new Error("智能体正在执行终端操作或现场等待接管；当前仅支持观察");
+          if (activity.busy) throw new Error("智能体正在调用终端工具，人工终端暂不可输入；仍可查看输出");
         };
-        nativeRuns = () => context.chatAbortControllers.size;
         assertInputPermission();
         assertInput();
         // Keep the operator PTY itself read-only, including native terminal.input.
         // Authorized input reaches the exact shared shell only through this RPC;
         // native PTY custody and output/resize/close remain in OpenClaw's manager.
-        const pending = (inputQueues.get(task) ?? Promise.resolve()).catch(() => {}).then(async () => { assertInput(true); await showTerminal(task, false, 'manual'); assertInput(true); await inputTerminal(task, data, () => assertInput(true)); });
+        const pending = (inputQueues.get(task) ?? Promise.resolve()).catch(() => {}).then(async () => { assertInput(true); await inputTerminal(task, data, () => assertInput(true)); });
         inputQueues.set(task, pending);
-        try { await activity.track(pending, "terminal"); } finally { if (inputQueues.get(task) === pending) inputQueues.delete(task); }
+        try { await activity.track(pending); } finally { if (inputQueues.get(task) === pending) inputQueues.delete(task); }
         respond(true, { ok: true });
       } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "终端输入失败" }); }
     }, { scope: "operator.admin" });

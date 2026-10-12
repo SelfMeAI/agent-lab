@@ -8,7 +8,7 @@ export const remoteAgentLab: LabModule = {
   accent: "#39dce3",
   symbol: "≋",
   Page: RemoteAgentPage,
-  purpose: "体验自部署的远端智能体，观察执行现场、预览产物，并按各自能力进行人工接管。",
+  purpose: "体验自部署的远端智能体，查看任务过程、远端现场与文件产物。",
   views: [
     { id: "openhands", label: "OpenHands", designId: "remote.openhands.workspace", designStatus: "approved" },
     { id: "openclaw", label: "OpenClaw", designId: "remote.openclaw.workspace", designStatus: "approved" },

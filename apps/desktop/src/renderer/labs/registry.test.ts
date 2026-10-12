@@ -43,13 +43,19 @@ describe("lab modules and approved designs", () => {
     }
   });
 
-  it("uses the confirmed remote workspaces and removes the retired design", () => {
+  it("uses the confirmed remote workspaces without retired takeover or execution-terminal designs", () => {
     const remote = labs.find(lab => lab.id === "remote-agent-lab")!;
     expect(remote.views.map(view => view.id)).toEqual(["openhands", "openclaw"]);
     expect(remote.views.every(view => view.designStatus === "approved")).toBe(true);
     expect(catalog.screens.find(screen => screen.id === "remote.openhands.run")).toBeUndefined();
     expect(existsSync(new URL("screens/remote-agent-lab/openhands/run.png", designRoot))).toBe(false);
-    expect(catalog.screens.filter(screen => screen.id.startsWith("remote."))).toHaveLength(7);
+    expect(catalog.screens.filter(screen => screen.id.startsWith("remote.")).map(screen => screen.id)).toEqual([
+      "remote.index", "remote.openhands.workspace", "remote.openclaw.workspace", "remote.service-panel", "remote.interaction-states",
+    ]);
+    for (const retired of ["takeover", "terminal"]) {
+      expect(existsSync(new URL(`screens/remote-agent-lab/openclaw/${retired}.png`, designRoot))).toBe(false);
+      expect(existsSync(new URL(`screens/remote-agent-lab/openclaw/${retired}.prompt.txt`, designRoot))).toBe(false);
+    }
   });
 
   it("resolves valid routes and rejects unknown modules", () => {

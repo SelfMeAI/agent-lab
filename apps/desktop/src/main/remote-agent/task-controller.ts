@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
 import { basename, dirname, extname, join } from "node:path";
 import { readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
-import type { RemoteAgentId, RemoteDesktopGrant, RemoteFilePreview, RemoteTaskSnapshot, RemoteTaskUpdate, RemoteTerminalEvent, RemoteUploadedFile } from "../../../../../packages/contracts/src/remote-agent";
+import type { RemoteAgentId, RemoteFilePreview, RemoteTaskSnapshot, RemoteTaskUpdate, RemoteTerminalEvent, RemoteUploadedFile } from "../../../../../packages/contracts/src/remote-agent";
 import { RemoteHttp, remoteFilePath, remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
 import { OpenHandsTasks } from "../../../../../packages/remote-agent/src/openhands/client";
 import { OpenClawTasks } from "../../../../../packages/remote-agent/src/openclaw/client";
@@ -110,21 +110,11 @@ export class RemoteTaskController {
     });
     return this.proxyOrigin;
   }
-  async desktop(engine: RemoteAgentId, id: string, control: boolean, force = false) {
-    remoteTaskId(id); if (engine === "openclaw") return this.claw.desktop(id, control, force);
-    if (control) throw new Error("OpenHands 浏览器仅支持观察，不提供桌面接管");
+  async desktop(engine: RemoteAgentId, id: string) {
+    remoteTaskId(id); if (engine === "openclaw") return this.claw.desktop(id);
     const result = await this.hands.http.json<{ wsPath: string; expiresAt: number; control: boolean }>("/api/selfme/observer", "POST", { task: id });
     const base = new URL(await this.hands.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     return { url: new URL(result.wsPath, base).toString(), expiresAt: result.expiresAt, control: false };
-  }
-  async returnDesktop(engine: RemoteAgentId, id: string, followUp?: string): Promise<RemoteDesktopGrant> {
-    if (engine !== "openclaw") throw new Error("此引擎不支持接管"); await this.claw.release();
-    const grant = await this.claw.desktop(id, false);
-    if (followUp?.trim()) {
-      try { await this.claw.send(id, `人工接管已结束。先重新观察远端现场并核对文件，不要使用接管前的画面或重复已完成操作。\n${followUp}`); }
-      catch (error) { return { ...grant, warning: `已交还桌面，但继续指令未获确认。请检查对话记录后再决定是否重发。${error instanceof Error ? " " + error.message : ""}` }; }
-    }
-    return grant;
   }
   reset(engine?: RemoteAgentId): void {
     if (!engine || engine === "openhands") { this.hands.shutdown(); this.revoke("openhands"); }

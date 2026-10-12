@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "visual-reference",
-  "notes": "Mockups guide implementation; sample numbers and transcripts are not product data.",
+  "notes": "设计稿用于风格与布局参考；功能入口以当前实现为准，示例数据不作为产品数据。",
   "screens": [
     { "id": "home.index", "legacyNumber": 1, "file": "screens/home/index.png" },
     { "id": "agent.index", "legacyNumber": 2, "file": "screens/agent-lab/index.png" },
@@ -16,8 +16,6 @@
     { "id": "remote.openclaw.workspace", "file": "screens/remote-agent-lab/openclaw/workspace.png" },
     { "id": "remote.service-panel", "file": "screens/remote-agent-lab/service-panel.png", "role": "supporting" },
     { "id": "remote.interaction-states", "file": "screens/remote-agent-lab/interaction-states.png", "role": "supporting" },
-    { "id": "remote.openclaw.terminal", "file": "screens/remote-agent-lab/openclaw/terminal.png", "role": "supporting" },
-    { "id": "remote.openclaw.takeover", "file": "screens/remote-agent-lab/openclaw/takeover.png", "role": "supporting" },
     { "id": "local-model.ollama.playground", "legacyNumber": 10, "file": "screens/local-model-lab/ollama/playground.png" },
     { "id": "local-model.ollama.compare", "legacyNumber": 11, "file": "screens/local-model-lab/ollama/compare.png" },
     { "id": "jev.xiangqi.workspace", "legacyNumber": 12, "file": "screens/jev-lab/xiangqi/workspace.png" },

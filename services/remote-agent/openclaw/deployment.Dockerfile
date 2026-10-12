@@ -15,20 +15,6 @@ WORKDIR /panel-source/xfce4-panel-4.18.2
 RUN ./configure --prefix=/usr --libdir=/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) --disable-debug --disable-gtk-doc --disable-introspection --disable-vala \
     && make -j2 && make DESTDIR=/panel-root install
 
-FROM panel-build AS terminal-build
-# Same native terminal release as Debian; suppress initial focus only for the
-# automatic observer marker. Manual launches and later clicks remain unchanged.
-RUN apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 install -y --no-install-recommends libvte-2.91-dev
-WORKDIR /terminal-source
-RUN curl --fail --location --retry 2 --max-time 120 https://archive.xfce.org/src/apps/xfce4-terminal/1.0/xfce4-terminal-1.0.4.tar.bz2 -o terminal.tar.bz2 \
-    && echo '78e55957af7c6fc1f283e90be33988661593a4da98383da1b0b54fdf6554baf4  terminal.tar.bz2' | sha256sum -c - \
-    && tar -xjf terminal.tar.bz2
-COPY desktop/terminal-focus.mjs /terminal-source/terminal-focus.mjs
-RUN node terminal-focus.mjs /terminal-source/xfce4-terminal-1.0.4
-WORKDIR /terminal-source/xfce4-terminal-1.0.4
-RUN ./configure --prefix=/usr --disable-debug \
-    && make -j2 && make DESTDIR=/terminal-root install
-
 FROM ${SOURCE_IMAGE}
 USER root
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
@@ -45,7 +31,5 @@ COPY desktop /opt/selfme/desktop
 COPY --from=panel-build /panel-root/usr/bin/xfce4-panel /usr/bin/xfce4-panel
 COPY --from=panel-build /panel-root/usr/lib/ /usr/lib/
 COPY --from=panel-build /panel-source/xfce4-panel-4.18.2/COPYING /opt/selfme/desktop/LICENSE.xfce4-panel
-COPY --from=terminal-build /terminal-root/usr/bin/xfce4-terminal /usr/bin/xfce4-terminal
-COPY --from=terminal-build /terminal-source/xfce4-terminal-1.0.4/COPYING /opt/selfme/desktop/LICENSE.xfce4-terminal
 RUN chown -R node:node /opt/selfme
 USER node

@@ -1,19 +1,19 @@
 import { spawn, execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import { checkedTask, controlPath, tmuxArgv } from './session.mjs';
+import { checkedTask, accessPath, tmuxArgv } from './session.mjs';
 const run = promisify(execFile), task = process.argv[2], desktop = process.argv[3] === 'desktop';
 await checkedTask(task);
 // Attachments start read-only. The desktop view unlocks when the Gateway
-// admits idle input or a stopped, explicit human takeover. Operator PTYs
+// is not invoking a terminal tool. Operator PTYs
 // always remain read-only; their real input uses the authenticated RPC.
 const child = spawn('tmux', [...tmuxArgv(), 'attach-session', '-r', '-t', 'selfme-' + task], { stdio: 'inherit' });
 let busy = false, writable = false;
 async function checkAccess() {
   if (!desktop || busy || !child.pid) return; busy = true;
   try {
-    let lease; try { lease = JSON.parse(await readFile(controlPath, 'utf8')); } catch {}
-    const allowed = lease?.task === task && lease.ready === true && lease.expiresAt > Date.now();
+    let access; try { access = JSON.parse(await readFile(accessPath, 'utf8')); } catch {}
+    const allowed = access?.task === task && access.ready === true && access.expiresAt > Date.now();
     if (!allowed && !writable) return;
     const { stdout } = await run('tmux', [...tmuxArgv(), 'list-clients', '-F', '#{client_pid} #{client_tty} #{client_flags}']);
     const [, tty, flags] = stdout.split('\n').find(line => line.startsWith(child.pid + ' '))?.split(' ') ?? [];

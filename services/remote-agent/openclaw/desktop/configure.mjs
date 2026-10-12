@@ -1,11 +1,11 @@
 import { mkdir, copyFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { setTerminalControl } from './session.mjs';
+import { setTerminalAccess } from './session.mjs';
 const assets = fileURLToPath(new URL('./', import.meta.url));
 /** Configure only the disposable desktop shell, never native task/provider data. */
 export async function configureDesktop(home = '/home/node') {
-  if (home === '/home/node') await setTerminalControl();
+  if (home === '/home/node') await setTerminalAccess();
   const config = join(home, '.config/xfce4');
   const channels = join(config, 'xfconf/xfce-perchannel-xml');
   await mkdir(channels, { recursive: true });
