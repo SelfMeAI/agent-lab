@@ -20,6 +20,8 @@ describe("remote scene presentation", () => {
         expect(empty).toContain('aria-label="远端工作区视图"');
         expect(empty).toContain("选择或新建任务，打开远端工作区");
         expect(empty).not.toMatch(/远端现场|执行现场/);
+        expect(empty).toContain("Preview<span> · 预览</span>");
+        expect(empty).not.toContain(" · 产物");
         const disconnected = renderToStaticMarkup(createElement(RemoteScene, { engine, taskId: "current-task", available: false }));
         expect(disconnected).toContain("连接远端服务后查看工作区");
         for (const label of engine === "openclaw" ? ["Desktop", "Terminal", "Files", "Preview"] : ["Browser", "Files", "Preview"]) expect(empty).toContain(label);
