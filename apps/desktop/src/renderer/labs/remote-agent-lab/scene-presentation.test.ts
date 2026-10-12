@@ -8,8 +8,8 @@ describe("remote scene presentation", () => {
   });
   it("describes connection and actual input permission without a takeover state", () => {
     expect(observerLabel("loading", false)).toContain("正在连接");
-    expect(observerLabel("connected", true)).toBe("LIVE · 可操作");
-    expect(observerLabel("connected", false)).toBe("LIVE · 只读观察");
+    expect(observerLabel("connected", true)).toBe("可操作");
+    expect(observerLabel("connected", false)).toBe("只读观察");
     expect(observerLabel("error", true)).toBe("画面连接已断开");
   });
   it("accepts desktop input only in the active, connected, authorized view", () => {
