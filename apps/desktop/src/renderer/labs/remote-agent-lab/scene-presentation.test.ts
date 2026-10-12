@@ -1,10 +1,30 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { desktopInputEnabled, observerLabel, remoteSceneTabs, sceneTabDescription, terminalConnectionNotice } from "./scene-presentation";
 
 describe("remote scene presentation", () => {
   it("keeps only the agreed views for each engine", () => {
     expect(remoteSceneTabs("openclaw")).toEqual(["desktop", "terminal", "files", "preview"]);
     expect(remoteSceneTabs("openhands")).toEqual(["browser", "files", "preview"]);
+  });
+  it("uses workspace wording for both engines without changing their views", async () => {
+    vi.stubGlobal("window", { selfmeLab: {} });
+    vi.stubGlobal("self", globalThis);
+    try {
+      const { RemoteScene } = await import("./RemoteScene");
+      for (const engine of ["openclaw", "openhands"] as const) {
+        const empty = renderToStaticMarkup(createElement(RemoteScene, { engine, taskId: "", available: true }));
+        expect(empty).toContain("<h2>远端工作区</h2>");
+        expect(empty).toContain('aria-label="远端工作区"');
+        expect(empty).toContain('aria-label="远端工作区视图"');
+        expect(empty).toContain("选择或新建任务，打开远端工作区");
+        expect(empty).not.toMatch(/远端现场|执行现场/);
+        const disconnected = renderToStaticMarkup(createElement(RemoteScene, { engine, taskId: "current-task", available: false }));
+        expect(disconnected).toContain("连接远端服务后查看工作区");
+        for (const label of engine === "openclaw" ? ["Desktop", "Terminal", "Files", "Preview"] : ["Browser", "Files", "Preview"]) expect(empty).toContain(label);
+      }
+    } finally { vi.unstubAllGlobals(); }
   });
   it("describes connection and actual input permission without a takeover state", () => {
     expect(observerLabel("loading", false)).toContain("正在连接");
