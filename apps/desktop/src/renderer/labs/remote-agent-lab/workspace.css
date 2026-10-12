@@ -141,8 +141,6 @@
 .remote-scene__tabs button[aria-selected="true"] { color: #d2e2ea; border-bottom-color: var(--remote-accent); background: #10242e55; }
 .remote-scene__tabs button:hover { color: #cce0ea; }
 .remote-scene__content { flex: 1; min-height: 0; min-width: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
-.remote-scene__footer { display: flex; gap: 8px; color: #597c8d; font-size: 10px; padding: 10px 12px; border-top: 1px solid #31505a55; flex-shrink: 0; }
-.remote-scene__footer > span { font-size: 13px; }
 .remote-scene-empty { flex: 1; min-height: 150px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 25px; text-align: center; color: #7896a6; }
 .remote-scene-empty > span { color: #456c7f; font-size: 32px; }
 .remote-scene-empty p { margin: 0; line-height: 1.8; font-size: 12px; max-width: 380px; }

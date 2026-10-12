@@ -40,7 +40,7 @@ export function RemoteScene({ engine, taskId, snapshot, available }: { engine: R
           </> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择图片、HTML 或文档{engine === "openclaw" && <><br />运行中的网页请在桌面 Chrome 中打开</>}</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
         </div>}
       </>}
-    </div><footer className="remote-scene__footer"><span>ⓘ</span>远端执行 · 文件通过上传和下载交换</footer>
+    </div>
   </section>;
 }
 function RemoteDesktop({ engine, taskId, active = false }: { engine: RemoteAgentId; taskId: string; active?: boolean }): JSX.Element {
