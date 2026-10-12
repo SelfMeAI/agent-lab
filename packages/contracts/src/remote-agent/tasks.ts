@@ -13,8 +13,9 @@ export interface RemoteTool {
 }
 export interface RemoteApproval {
   id: string; title: string; detail: string; canAlways: boolean;
-  kind?: "exec" | "plugin";
-  choices?: Array<{ id: string; label: string }>;
+  kind?: "exec" | "plugin" | "system-agent";
+  /** When supplied by the engine, only these decisions may be offered or sent. */
+  allowedDecisions?: Array<"once" | "always" | "reject">;
 }
 export interface RemoteQuestion {
   id: string; questions: Array<{ id: string; title: string; prompt: string; options: Array<{ label: string; description?: string }>; multiple: boolean; other: boolean; secret: boolean }>;

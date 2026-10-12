@@ -266,15 +266,15 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "approvals.allow-once", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-10",
-    evidence: ["packages/remote-agent/src/openhands/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.tsx"],
-    note: "转发原生审批，不自造 risk engine。OpenHands 真实文件和浏览器任务已逐项确认；OpenClaw 在真实任务收到读取目录和启动已落盘 Node 脚本的审批，允许一次后继续执行。严格匹配当前任务待决审批与 exec / plugin kind，不接受旧请求或其他任务的审批。原生拒绝不稳定的串联/内联解释器命令时不绕过，也并非所有工具都会触发审批。",
+    state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-13",
+    evidence: ["packages/remote-agent/src/openhands/client.ts", "packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
+    note: "转发原生审批，不自造 risk engine。OpenHands 真实文件和浏览器任务已逐项确认；OpenClaw 按服务端 allowedDecisions 展示和校验每项审批，Python 内联命令只能单次批准时不展示或提交始终允许。固定源码服务验证了允许后实际写入文件、拒绝后不写入、不支持的选项在客户端被拦截且原生审批保持待决。严格匹配当前任务、待决请求及原生 exec / plugin / system-agent kind；不接受旧请求或其他任务的审批，不放宽原生权限，亦不保证所有串联命令可安全绑定或所有工具都会触发审批。",
   },
   {
     capabilityId: "approvals.allow-scope", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "integrated", upstream: "tested", passedChecks: [0], checkedAt: "2026-10-10",
-    evidence: ["packages/remote-agent/src/openhands/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.tsx"],
-    note: "OpenHands 的始终允许明确限于本任务，后续任务仍默认确认；OpenClaw 仅原生 exec 审批允许持续授权，插件审批不显示假按钮。未新增统一授权有效期、撤销面板或组织策略。",
+    state: "integrated", upstream: "tested", passedChecks: [0], checkedAt: "2026-10-13",
+    evidence: ["packages/remote-agent/src/openhands/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.tsx", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],
+    note: "OpenHands 的始终允许明确限于本任务，后续任务仍默认确认；OpenClaw 只有原生审批明确提供 allow-always 时才展示并提交持续授权，不从工具名称推测权限。固定源码服务验证支持持续授权的普通命令仍可执行，而一次性 Python 审批不会被错误提交为长期授权。未新增统一授权有效期、撤销面板或组织策略。",
   },
   {
     capabilityId: "composer.multiline", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

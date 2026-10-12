@@ -194,7 +194,21 @@ export class OpenClawTasks {
     if (event.event === "session.approval") {
       const approval = record(p.approval), presentation = record(approval.presentation), requestId = text(approval.id);
       view.snapshot.items = view.snapshot.items.filter(item => item.approval?.id !== requestId);
-      if (p.phase === "pending") { view.snapshot.items.push({ id: `approval:${requestId}`, role: "notice", text: "", approval: { id: requestId, title: text(presentation.title) || "允许远端操作？", detail: text(presentation.commandText) || text(presentation.summary) || text(presentation.description) || "智能体请求你的确认", canAlways: presentation.kind === "exec", kind: presentation.kind === "exec" ? "exec" : "plugin" } }); view.snapshot.task.status = "waiting"; }
+      if (p.phase === "pending") {
+        // Native decisions are command-specific. In particular, inline Python
+        // may allow only one execution: inventing allow-always makes the gateway
+        // fail closed with malformed-verdict, even when the user meant to allow.
+        const native = Array.isArray(presentation.allowedDecisions) ? presentation.allowedDecisions : [];
+        const allowedDecisions: Array<"once" | "always" | "reject"> = [
+          ...(native.includes("allow-once") ? ["once" as const] : []),
+          ...(native.includes("allow-always") ? ["always" as const] : []),
+          "reject",
+        ];
+        const kind = presentation.kind === "exec" || presentation.kind === "plugin" || presentation.kind === "system-agent" ? presentation.kind : undefined;
+        if (!kind || !requestId) return;
+        view.snapshot.items.push({ id: `approval:${requestId}`, role: "notice", text: "", approval: { id: requestId, title: text(presentation.title) || "允许远端操作？", detail: text(presentation.commandText) || text(presentation.summary) || text(presentation.detail) || text(presentation.description) || "智能体请求你的确认", canAlways: allowedDecisions.includes("always"), kind, allowedDecisions } });
+        view.snapshot.task.status = "waiting";
+      }
       else this.schedule(id);
     } else if (event.event === "session.tool" || (event.event === "agent" && p.stream === "tool")) {
       const data = record(p.data), toolId = text(data.toolCallId); if (!toolId) return;
@@ -240,7 +254,8 @@ export class OpenClawTasks {
   }
   async approve(id: string, requestId: string, decision: "once" | "always" | "reject"): Promise<void> {
     key(id); const approval = this.view(id).snapshot.items.find(item => item.approval?.id === requestId)?.approval;
-    if (!approval) throw new Error("审批已结束或不属于此任务"); if (decision === "always" && !approval.canAlways) throw new Error("此操作不支持始终允许");
+    if (!approval) throw new Error("审批已结束或不属于此任务");
+    if (!approval.allowedDecisions?.includes(decision)) throw new Error(decision === "always" ? "此操作不支持始终允许" : "此审批不支持所选操作");
     await this.request("approval.resolve", { id: requestId, kind: approval.kind, decision: decision === "reject" ? "deny" : decision === "always" ? "allow-always" : "allow-once" });
   }
   private async prepareScene(id: string): Promise<Record<string, unknown>> { key(id); return record(await this.request("selfme.scene.prepare", { task: remoteTaskId(id) })); }

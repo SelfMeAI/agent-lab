@@ -16,6 +16,15 @@ describe("remote native user-facing trajectory", () => {
     const approval = renderToStaticMarkup(createElement(RemoteTranscriptItem, { item: { id: "approval", role: "notice", text: "", approval: { id: "request", title: "允许命令？", detail: "pwd", canAlways: true } }, engine: "openhands", busy: false, onApproval() {}, onAnswer() {} }));
     expect(approval).toContain("本任务始终允许"); expect(approval).toContain("允许一次"); expect(approval).toContain("拒绝");
   });
+  it("offers only native decisions, even if an old inferred canAlways flag is true", () => {
+    const render = (allowedDecisions: Array<"once" | "always" | "reject">) => renderToStaticMarkup(createElement(RemoteTranscriptItem, { item: { id: "approval", role: "notice", text: "", approval: { id: "python", title: "允许命令？", detail: "python3 -c 'print(1)'", canAlways: true, allowedDecisions } }, engine: "openclaw", busy: false, onApproval() {}, onAnswer() {} }));
+    const once = render(["once", "reject"]);
+    expect(once).toContain("允许一次"); expect(once).toContain("拒绝"); expect(once).not.toContain("始终允许");
+    const deny = render(["reject"]);
+    expect(deny).toContain("拒绝"); expect(deny).not.toContain("允许一次"); expect(deny).not.toContain("始终允许");
+    const all = render(["once", "always", "reject"]);
+    expect(all).toContain("允许一次"); expect(all).toContain("始终允许");
+  });
   it("keeps failed-turn reasons in history, offering actions only for the current interruption", () => {
     const props = { item: { id: "failure", role: "assistant" as const, text: "已创建文件", failure: { message: "Provider returned an incomplete or malformed tool call", at: "2026-10-10T04:17:39Z" } }, engine: "openclaw" as const, busy: false, onApproval() {}, onAnswer() {} };
     const historical = renderToStaticMarkup(createElement(RemoteTranscriptItem, props));

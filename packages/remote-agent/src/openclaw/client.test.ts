@@ -142,8 +142,38 @@ describe("OpenClaw native task projections and custody", () => {
   it("resolves only a live native approval belonging to the selected task", async () => {
     const { client, request, event } = fixture(); await client.open(id);
     await expect(client.approve(id, "unknown", "always")).rejects.toThrow("审批");
-    event({ event: "session.approval", payload: { sessionKey: id, phase: "pending", approval: { id: "approval", presentation: { kind: "exec", commandText: "pwd" } } } });
+    event({ event: "session.approval", payload: { sessionKey: id, phase: "pending", approval: { id: "approval", presentation: { kind: "exec", commandText: "pwd", allowedDecisions: ["allow-once", "allow-always", "deny"] } } } });
     await client.approve(id, "approval", "always"); expect(request).toHaveBeenCalledWith("approval.resolve", { id: "approval", kind: "exec", decision: "allow-always" }); client.shutdown();
+  });
+  it("honors once-only Python approvals and never submits an unavailable always verdict", async () => {
+    const { client, request, updates, event } = fixture(); await client.open(id);
+    const pending: GatewayEvent = { event: "session.approval", payload: { sessionKey: id, phase: "pending", approval: { id: "python", presentation: { kind: "exec", commandText: "python3 -c \"import docx,openpyxl,pptx,reportlab\"", allowedDecisions: ["allow-once", "deny"] } } } };
+    event(pending); event(pending); // Native replay must preserve the same restrictions.
+    expect(updates.at(-1)?.items.filter(item => item.approval)).toHaveLength(1);
+    expect(updates.at(-1)?.items.find(item => item.approval)?.approval).toMatchObject({ canAlways: false, allowedDecisions: ["once", "reject"] });
+    await expect(client.approve(id, "python", "always")).rejects.toThrow("不支持始终允许");
+    expect(request).not.toHaveBeenCalledWith("approval.resolve", expect.anything());
+    await client.approve(id, "python", "once");
+    expect(request).toHaveBeenCalledWith("approval.resolve", { id: "python", kind: "exec", decision: "allow-once" });
+    event({ event: "session.approval", payload: { sessionKey: id, phase: "terminal", approval: { id: "python", status: "allowed" } } });
+    await expect(client.approve(id, "python", "once")).rejects.toThrow("审批已结束"); client.shutdown();
+  });
+  it.each([undefined, [], ["allow-future", "deny"], ["deny"]])("fails closed when native allow decisions are absent or unsupported: %j", async allowedDecisions => {
+    const { client, request, updates, event } = fixture(); await client.open(id);
+    event({ event: "session.approval", payload: { sessionKey: id, phase: "pending", approval: { id: "restricted", presentation: { kind: "exec", commandText: "python3 -c 'print(1)'", allowedDecisions } } } });
+    expect(updates.at(-1)?.items.find(item => item.approval)?.approval).toMatchObject({ canAlways: false, allowedDecisions: ["reject"] });
+    await expect(client.approve(id, "restricted", "once")).rejects.toThrow("不支持所选操作");
+    await expect(client.approve(id, "restricted", "always")).rejects.toThrow("不支持始终允许");
+    expect(request).not.toHaveBeenCalledWith("approval.resolve", expect.anything());
+    await client.approve(id, "restricted", "reject");
+    expect(request).toHaveBeenCalledWith("approval.resolve", { id: "restricted", kind: "exec", decision: "deny" }); client.shutdown();
+  });
+  it.each(["plugin", "system-agent"])("preserves the native %s approval owner and its available decisions", async kind => {
+    const { client, request, updates, event } = fixture(); await client.open(id);
+    event({ event: "session.approval", payload: { sessionKey: id, phase: "pending", approval: { id: "native-change", presentation: { kind, title: "确认变更", description: "变更说明", allowedDecisions: ["allow-once", "deny"] } } } });
+    expect(updates.at(-1)?.items.find(item => item.approval)?.approval).toMatchObject({ kind, canAlways: false, allowedDecisions: ["once", "reject"] });
+    await client.approve(id, "native-change", "once");
+    expect(request).toHaveBeenCalledWith("approval.resolve", { id: "native-change", kind, decision: "allow-once" }); client.shutdown();
   });
   it("stops the native session without withdrawing an unrelated queued input run", async () => {
     const { client, request } = fixture(); await client.control(id, "stop");

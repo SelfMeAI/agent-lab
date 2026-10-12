@@ -152,7 +152,8 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           const commandText = () => snapshot()?.items.filter(item => item.tool).map(item => item.tool!.output ?? "").join("\n") ?? "";
           await tasks.claw.send(native.id, "EXEC_TEST");
           await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
-          await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
+          expect(snapshot()!.items.find(item => item.approval)!.approval).toMatchObject({ canAlways: true, allowedDecisions: ["once", "always", "reject"] });
+          await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "always");
           await expect.poll(commandText, { timeout: 10_000 }).toContain("NATIVE_EXEC_BEGIN");
           expect((await tasks.claw.terminalAccess(native.id)).busy).toBe(true);
           expect(await sharedTerminalStatus(container.name, remoteTaskId(native.id))).toBe("on");
@@ -162,6 +163,26 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(commandText()).toContain("NATIVE_EXEC_END");
           await expect.poll(() => sharedTerminalStatus(container.name, remoteTaskId(native.id)), { timeout: 5000 }).toBe("off");
           expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
+          // Python inline evaluation has no native standing grant. Verify both
+          // the real decision limit and execution/file receipt after allow-once.
+          await tasks.claw.send(native.id, "INLINE_EXEC_TEST");
+          await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
+          const inline = snapshot()!.items.find(item => item.approval)!.approval!;
+          expect(inline).toMatchObject({ canAlways: false, allowedDecisions: ["once", "reject"] });
+          await expect(tasks.claw.approve(native.id, inline.id, "always")).rejects.toThrow("不支持始终允许");
+          const pending = await tasks.claw.request<{ approval: { status: string } }>("approval.get", { id: inline.id });
+          expect(pending.approval.status).toBe("pending");
+          await tasks.claw.approve(native.id, inline.id, "once");
+          await expect.poll(() => snapshot()?.task.status, { timeout: 20_000 }).toBe("completed");
+          expect(await (await files.download(native.id, "inline-approval-proof.txt")).text()).toBe("NATIVE_INLINE_FILE_OK");
+          expect((await tasks.claw.request<{ approval: { status: string; reason: string; decision: string } }>("approval.get", { id: inline.id })).approval).toMatchObject({ status: "allowed", reason: "user", decision: "allow-once" });
+          await tasks.claw.send(native.id, "INLINE_DENY_TEST");
+          await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
+          const denied = snapshot()!.items.find(item => item.approval)!.approval!;
+          await tasks.claw.approve(native.id, denied.id, "reject");
+          await expect.poll(() => snapshot()?.task.status, { timeout: 20_000 }).toBe("completed");
+          expect((await files.listFiles(native.id)).files.some(file => file.name === "denied-proof.txt")).toBe(false);
+          expect((await tasks.claw.request<{ approval: { status: string; reason: string; decision: string } }>("approval.get", { id: denied.id })).approval).toMatchObject({ status: "denied", reason: "user", decision: "deny" });
           await tasks.claw.send(native.id, "STOP_TEST");
           await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
           await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
