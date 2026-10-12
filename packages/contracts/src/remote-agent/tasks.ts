@@ -26,9 +26,18 @@ export interface RemoteItem {
   id: string; role: "user" | "assistant" | "tool" | "notice"; text: string; at?: string;
   reasoning?: string; streaming?: boolean; tool?: RemoteTool; approval?: RemoteApproval; question?: RemoteQuestion; failure?: RemoteFailure;
 }
+export type RemoteInputMode = "queue" | "steer";
+export interface RemotePendingInput {
+  id: string; text: string; at: string; files: Array<{ name: string; path: string }>;
+  state: "queued" | "sending"; error?: string;
+}
+export interface RemoteInputQueue {
+  mode: RemoteInputMode; paused: boolean; revision: number; items: RemotePendingInput[];
+}
+export interface RemoteSendOptions { mode: RemoteInputMode; requestId: string }
 export interface RemoteTaskSnapshot {
   task: RemoteTask; items: RemoteItem[]; connection: "connected" | "reconnecting" | "disconnected";
-  error?: string; failure?: RemoteFailure; hasEarlier?: boolean;
+  error?: string; failure?: RemoteFailure; hasEarlier?: boolean; queue?: RemoteInputQueue;
 }
 export interface RemoteTaskUpdate { engine: RemoteAgentId; taskId: string; snapshot: RemoteTaskSnapshot }
 export interface RemoteWorkspaceFile { path: string; name: string; size: number; directory: boolean; modifiedAt?: string }
@@ -47,7 +56,11 @@ export interface RemoteTaskBridge {
   openRemoteTask(engine: RemoteAgentId, id: string): Promise<RemoteTaskSnapshot>;
   loadEarlierRemoteTask(engine: RemoteAgentId, id: string): Promise<RemoteTaskSnapshot>;
   closeRemoteTask(engine: RemoteAgentId, id: string): Promise<void>;
-  sendRemoteTaskMessage(engine: RemoteAgentId, id: string, text: string, files?: RemoteUploadedFile[]): Promise<void>;
+  sendRemoteTaskMessage(engine: RemoteAgentId, id: string, text: string, files?: RemoteUploadedFile[], options?: RemoteSendOptions): Promise<void>;
+  getRemoteInputQueue(engine: RemoteAgentId, id: string): Promise<RemoteInputQueue>;
+  setRemoteInputMode(engine: RemoteAgentId, id: string, mode: RemoteInputMode): Promise<RemoteInputQueue>;
+  removeRemoteQueuedMessage(engine: RemoteAgentId, id: string, messageId: string): Promise<RemoteInputQueue>;
+  steerRemoteQueuedMessage(engine: RemoteAgentId, id: string, messageId: string): Promise<RemoteInputQueue>;
   controlRemoteTask(engine: RemoteAgentId, id: string, action: "stop" | "resume"): Promise<void>;
   deleteRemoteTask(engine: RemoteAgentId, id: string): Promise<void>;
   respondRemoteApproval(engine: RemoteAgentId, id: string, requestId: string, decision: "once" | "always" | "reject", answer?: string): Promise<void>;

@@ -4,16 +4,18 @@ import { RemoteMark, remoteEngines } from "./RemoteAgentPage";
 import { RemoteFailureCard, RemoteTranscriptItem, type RemoteRecoveryActions } from "./RemoteTranscript";
 import { RemoteScene } from "./RemoteScene";
 import { RemoteExecutionControl, RemoteExecutionStatus } from "./RemoteExecutionControls";
+import { RemotePendingInputs } from "./RemotePendingInputs";
 import { remoteError } from "./service-presentation";
 import { calendarDayKey, dateDividerLabel, exactTime, sessionTimeLabel } from "../agent-lab/conversation-time";
 import { observeTranscriptLayout } from "../agent-lab/transcript-layout";
-import { activeRemoteFailure, continueRemoteTaskPrompt, remoteTaskLabels } from "./task-presentation";
+import { activeRemoteFailure, remoteTaskLabels } from "./task-presentation";
 import { mergeRemoteTaskCatalog, upsertRemoteTask } from "../../../../../../packages/remote-agent/src/task-order";
 import "./workspace.css";
 
 const selectedTasks = new Map<RemoteAgentId, string>();
 const drafts = new Map<string, string>();
 const attachments = new Map<string, RemoteUploadedFile[]>();
+const inputTickets = new Map<string, { signature: string; id: string }>();
 export function RemoteWorkspace({ engine, available, revision }: { engine: RemoteAgentId; available: boolean; revision: number }): JSX.Element {
   const bridge = window.selfmeLab!;
   const [tasks, setTasks] = useState<RemoteTask[]>([]); const [snapshot, setSnapshot] = useState<RemoteTaskSnapshot>();
@@ -23,6 +25,8 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
   const submissionLock = useRef(false);
   const catalogVersion = useRef(0);
   const busy = snapshot?.task.status === "running" || snapshot?.task.status === "waiting";
+  const inputMode = snapshot?.queue?.mode ?? "queue";
+  const queuedSend = inputMode === "queue" && (busy || !!snapshot?.queue?.items.length);
   const failure = activeRemoteFailure(snapshot);
   const connectionLost = snapshot && snapshot.connection !== "connected";
   const recovery: RemoteRecoveryActions = {
@@ -53,6 +57,18 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     active.current = ""; setSelected(""); setSnapshot(undefined); void poll();
     return () => { alive.current = false; ++version.current; ++catalogVersion.current; clearTimeout(timer); unsubscribe(); if (active.current) void bridge.closeRemoteTask(engine, active.current).catch(() => {}); active.current = ""; };
   }, [engine, available, revision]);
+  useEffect(() => {
+    if (!selected || opening || !available) return;
+    let closed = false, timer: ReturnType<typeof setTimeout>;
+    const id = selected;
+    async function pollInputs(): Promise<void> {
+      try { await bridge.getRemoteInputQueue(engine, id); }
+      catch (cause) { if (!closed && active.current === id) setError(remoteError(cause)); }
+      if (!closed) timer = setTimeout(() => void pollInputs(), 2000);
+    }
+    void pollInputs();
+    return () => { closed = true; clearTimeout(timer); };
+  }, [engine, selected, opening, available]);
   useLayoutEffect(() => { if (output.current) return observeTranscriptLayout(output.current, follow, setAtBottom); }, [selected, opening]);
   useLayoutEffect(() => { const area = input.current; if (!area) return; area.style.height = "0px"; area.style.height = Math.min(132, Math.max(42, area.scrollHeight)) + "px"; area.style.overflowY = area.scrollHeight > 132 ? "auto" : "hidden"; }, [prompt, selected]);
   useLayoutEffect(() => { if (output.current && follow.current) output.current.scrollTop = output.current.scrollHeight; }, [snapshot?.items]);
@@ -64,10 +80,18 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
   async function send(continuing = false): Promise<void> {
     if (submissionLock.current || acting || opening || !available || !snapshot || !selected) return;
     if (continuing ? snapshot.task.status !== "error" || snapshot.connection !== "connected" || !!prompt.trim() || !!files.length : !prompt.trim() && !files.length) return;
-    const id = selected, value = continuing ? continueRemoteTaskPrompt : prompt, uploaded = continuing ? [] : files;
+    const id = selected, value = continuing ? "" : prompt, uploaded = continuing ? [] : files;
     submissionLock.current = true; setSubmitting(true); setError(""); follow.current = true;
     try {
-      await bridge.sendRemoteTaskMessage(engine, id, value, uploaded);
+      if (continuing) await bridge.controlRemoteTask(engine, id, "resume");
+      else {
+        const signature = JSON.stringify([value, uploaded.map(file => file.path)]);
+        const prior = inputTickets.get(slot(id));
+        const ticket = prior?.signature === signature ? prior : { signature, id: crypto.randomUUID() };
+        inputTickets.set(slot(id), ticket);
+        await bridge.sendRemoteTaskMessage(engine, id, value, uploaded, { mode: inputMode, requestId: ticket.id });
+        if (inputTickets.get(slot(id)) === ticket) inputTickets.delete(slot(id));
+      }
       // A slow submission must not erase text or files added while it was in flight.
       const unchanged = !continuing && (drafts.get(slot(id)) ?? "") === value;
       if (unchanged) drafts.delete(slot(id));
@@ -79,7 +103,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     catch (cause) { if (active.current === id) setError(remoteError(cause)); }
     finally { submissionLock.current = false; if (alive.current) setSubmitting(false); }
   }
-  async function remove(id: string): Promise<void> { await run(async () => { ++catalogVersion.current; await bridge.deleteRemoteTask(engine, id); const rows = await bridge.listRemoteTasks(engine); ++catalogVersion.current; setTasks(previous => mergeRemoteTaskCatalog(previous, rows)); if (rows.some(task => task.id === id)) return; drafts.delete(slot(id)); attachments.delete(slot(id)); if (active.current === id) { active.current = ""; setSelected(""); setSnapshot(undefined); selectedTasks.delete(engine); if (rows[0]) await select(rows[0].id); } }); }
+  async function remove(id: string): Promise<void> { await run(async () => { ++catalogVersion.current; await bridge.deleteRemoteTask(engine, id); const rows = await bridge.listRemoteTasks(engine); ++catalogVersion.current; setTasks(previous => mergeRemoteTaskCatalog(previous, rows)); if (rows.some(task => task.id === id)) return; drafts.delete(slot(id)); attachments.delete(slot(id)); inputTickets.delete(slot(id)); if (active.current === id) { active.current = ""; setSelected(""); setSnapshot(undefined); selectedTasks.delete(engine); if (rows[0]) await select(rows[0].id); } }); }
   function draft(value: string): void { setPrompt(value); drafts.set(slot(selected), value); }
   let lastDay: string | null = null;
   return <div className="remote-workspace" style={{ "--remote-accent": remoteEngines[engine].color } as CSSProperties}>
@@ -95,17 +119,20 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
       {!atBottom && <div className="remote-jump-anchor"><button type="button" className="remote-jump-latest" onClick={() => { follow.current = true; if (output.current) output.current.scrollTop = output.current.scrollHeight; setAtBottom(true); }}>回到最新 ↓</button></div>}
       {(error || snapshot?.error || connectionLost) && <div className="remote-conversation__error" role="alert">{error || snapshot?.error || "连接暂时中断，正在重新同步远端状态。"}{selected && (!snapshot || connectionLost) && <button type="button" onClick={() => void select(selected)} disabled={opening || acting || submitting}>重新连接</button>}</div>}
       <form className="remote-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
-        <RemoteExecutionStatus status={snapshot?.task.status} opening={opening} />
+        <div className="remote-composer__status-row"><RemoteExecutionStatus status={snapshot?.task.status} opening={opening} />
+          {snapshot && <select className="remote-input-mode" aria-label="工作中发送方式" title={snapshot.queue?.items.length ? "先处理待发消息，再切换默认发送方式" : "只决定工作中发送的消息如何处理"} value={inputMode} disabled={opening || acting || submitting || !available || !snapshot.queue || !!snapshot.queue.items.length} onChange={event => void run(() => bridge.setRemoteInputMode(engine, selected, event.target.value as "queue" | "steer"))}><option value="queue">Queue · 排队发送</option><option value="steer">Steer · 补充本轮</option></select>}
+        </div>
+        {snapshot?.queue && <RemotePendingInputs queue={snapshot.queue} running={busy} disabled={acting || opening || submitting || !available || !!connectionLost} onRemove={id => void run(() => bridge.removeRemoteQueuedMessage(engine, selected, id))} onSteer={id => void run(() => bridge.steerRemoteQueuedMessage(engine, selected, id))} />}
         {!!files.length && <div className="remote-attachments">{files.map(file => <span key={file.path} title={file.name}>▤ {file.name}<button type="button" title="不附加到消息（已上传文件保留在远端）" aria-label={`移除附件：${file.name}`} onClick={() => { const remaining = files.filter(row => row.path !== file.path); setFiles(remaining); attachments.set(slot(selected), remaining); }}>×</button></span>)}</div>}
         <div className="remote-composer__row">
           <button type="button" className="remote-icon-button" aria-label="上传文件" title={files.length >= 10 ? "每条消息最多附加 10 个文件" : "上传文件 · 单个最多 20 MB"} disabled={!snapshot || opening || acting || !available || files.length >= 10} onClick={() => void run(async () => { const id = selected; const added = await bridge.uploadRemoteTaskFiles(engine, id, 10 - files.length); const all = [...(attachments.get(slot(id)) ?? []), ...added]; attachments.set(slot(id), all); if (active.current === id) setFiles(all); })}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 12v5a4 4 0 0 0 8 0V7a3 3 0 0 0-6 0v10a1 1 0 0 0 2 0V8" /></svg>
           </button>
-          <textarea ref={input} value={prompt} placeholder={busy ? "补充当前工作…" : failure ? "发送新要求，继续这个任务…" : "发送消息，或描述你想完成的事…"} aria-label="远端任务消息" rows={1} disabled={!snapshot || opening || !available} onChange={event => draft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
-          <RemoteExecutionControl status={snapshot?.task.status} disabled={acting} onControl={action => void run(() => bridge.controlRemoteTask(engine, selected, action))} />
-          <button className="remote-send" type="submit" aria-label={busy ? "补充工作" : "发送消息"} title="Enter 发送 · Shift+Enter 换行" disabled={!snapshot || opening || acting || submitting || !available || (!prompt.trim() && !files.length)}>{submitting ? <span className="remote-spinner" /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="m3 10 18-7-7 18-3-8-8-3Z" /><path d="m11 13 10-10" /></svg>}</button>
+          <textarea ref={input} value={prompt} placeholder={queuedSend ? "添加待发消息…" : busy ? "补充当前工作…" : failure ? "发送新要求，继续这个任务…" : "发送消息，或描述你想完成的事…"} aria-label="远端任务消息" rows={1} disabled={!snapshot || opening || !available} onChange={event => draft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+          <RemoteExecutionControl status={snapshot?.task.status} queuePaused={!!snapshot?.queue?.paused} disabled={acting || opening || submitting || !available || !!connectionLost} onControl={action => void run(() => bridge.controlRemoteTask(engine, selected, action))} />
+          <button className="remote-send" type="submit" aria-label={queuedSend ? "Queue · 排队发送" : busy ? "Steer · 补充本轮" : "发送消息"} title={queuedSend ? "添加到待发区 · Enter 发送 · Shift+Enter 换行" : busy ? "补充当前轮 · Enter 发送 · Shift+Enter 换行" : "Enter 发送 · Shift+Enter 换行"} disabled={!snapshot || opening || acting || submitting || !available || (!prompt.trim() && !files.length)}>{submitting ? <span className="remote-spinner" /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="m3 10 18-7-7 18-3-8-8-3Z" /><path d="m11 13 10-10" /></svg>}</button>
         </div>
-        <small className={`remote-composer__hint${failure && !connectionLost ? " is-interrupted" : ""}`}>{connectionLost ? "正在同步远端状态" : failure ? "本轮已中断 · 可以直接发送消息继续" : "任务在远端执行 · 关闭应用不停止远端服务"}</small>
+        <small className={`remote-composer__hint${failure && !connectionLost ? " is-interrupted" : ""}`}>{connectionLost ? "正在同步远端状态" : snapshot?.queue?.paused && snapshot.queue.items.length ? "待发消息已保留 · 点击继续后发送" : failure ? "本轮已中断 · 可以发送新要求或继续任务" : snapshot?.queue?.paused ? "可以发送新要求，或继续当前任务" : "任务在远端执行 · 关闭应用不停止远端服务"}</small>
       </form>
     </section>
     <RemoteScene key={selected || "empty"} engine={engine} taskId={selected} snapshot={snapshot} available={available && !opening} />

@@ -18,12 +18,12 @@ describe("private remote development deployment", () => {
       .toBe("[已隐藏] [已隐藏] token=[已隐藏] api_key: [已隐藏] normal log");
   });
   it("keeps the previous desktop deployment eligible for a volume-preserving upgrade", () => {
-    expect(remoteDeployments.openclaw.image).toBe("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab27");
+    expect(remoteDeployments.openclaw.image).toBe("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30");
     expect(remoteDeployments.openclaw.legacyImages).toContain("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab26");
     expect(remoteDeployments.openclaw.legacyImages).toContain("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab25");
     expect(remoteDeployments.openclaw.legacyImages).toContain("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab24");
     expect(remoteDeployments.openclaw.legacyImages).toContain("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab23");
-    expect(remoteDeployments.openhands.image).toBe("selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab7");
+    expect(remoteDeployments.openhands.image).toBe("selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab9");
     expect(remoteDeployments.openhands.legacyImages).toContain("selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab6");
     expect(remoteDeployments.openhands.legacyImages).toContain("selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab5");
     expect(remoteDeployments.openclaw.legacyImages).toContain("selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab22");

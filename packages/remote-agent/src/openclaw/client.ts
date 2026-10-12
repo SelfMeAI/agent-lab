@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { RemoteDesktopGrant, RemoteItem, RemoteTerminalAccess, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import type { RemoteDesktopGrant, RemoteInputMode, RemoteInputQueue, RemoteItem, RemoteSendOptions, RemoteTerminalAccess, RemoteTask, RemoteTaskSnapshot, RemoteTerminal, RemoteTerminalEvent, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import { mergeRemoteInputQueue, remoteInputQueue, remoteSendOptions } from "../input-queue";
 import { actionTitle, clawToolCall, contentText, executionFailure, openClawMessage, record, taskStatus, text, timestamp, toolDiff, toolInput } from "../transcript";
 import { RemoteHttp, remoteTaskId } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
@@ -69,8 +70,11 @@ export class OpenClawTasks {
     if (this.opening.get(id) !== ticket) throw new Error("任务视图已关闭");
     const view: View = { snapshot: { task, items: [], connection: "connected" }, offset: 0, earlierItems: [], loadedEarlier: false }; this.views.set(id, view);
     // Subscribe before the bounded durable tail to avoid a lost event window.
+    // Background outbox turns originate from the service connection, not this
+    // window. The native session subscription carries their live tool updates.
+    await this.request("sessions.subscribe", { group: "selfme-lab", limit: 100, sortBy: "updatedAt" });
     await this.request("sessions.messages.subscribe", { key: id, includeApprovals: true });
-    await this.refresh(id); await this.questions(id);
+    await this.refresh(id); await this.questions(id); await this.inputQueue(id);
     return structuredClone(view.snapshot);
   }
   async earlier(id: string): Promise<RemoteTaskSnapshot> { key(id); await this.refresh(id, true); return structuredClone(this.view(id).snapshot); }
@@ -227,6 +231,7 @@ export class OpenClawTasks {
       }
     } else if (event.event === "chat") {
       const runId = text(p.runId), streamId = `stream:${runId}`;
+      if (["delta", "status"].includes(text(p.state)) && runId && runId !== view.snapshot.failure?.runId) view.snapshot.failure = undefined;
       if (p.state === "delta") {
         const old = view.snapshot.items.find(item => item.id === streamId); const delta = text(p.deltaText);
         const item: RemoteItem = { id: streamId, role: "assistant", text: p.replace ? delta : delta ? (old?.text ?? "") + delta : contentText(record(p.message).content), streaming: true };
@@ -259,16 +264,21 @@ export class OpenClawTasks {
     await this.request("approval.resolve", { id: requestId, kind: approval.kind, decision: decision === "reject" ? "deny" : decision === "always" ? "allow-always" : "allow-once" });
   }
   private async prepareScene(id: string): Promise<Record<string, unknown>> { key(id); return record(await this.request("selfme.scene.prepare", { task: remoteTaskId(id) })); }
-  async send(id: string, prompt: string, files: RemoteUploadedFile[] = []): Promise<void> {
+  private applyQueue(id: string, value: unknown): RemoteInputQueue {
+    const next = remoteInputQueue(value), view = this.views.get(id);
+    if (view) { view.snapshot.queue = mergeRemoteInputQueue(view.snapshot.queue, next); this.publish(view); }
+    return next;
+  }
+  async inputQueue(id: string): Promise<RemoteInputQueue> { key(id); return this.applyQueue(id, await this.request("selfme.inputs.state", { task: remoteTaskId(id) })); }
+  async inputMode(id: string, mode: RemoteInputMode): Promise<RemoteInputQueue> { key(id); return this.applyQueue(id, await this.request("selfme.inputs.mode", { task: remoteTaskId(id), mode })); }
+  async inputAction(id: string, messageId: string, action: "remove" | "steer"): Promise<RemoteInputQueue> { key(id); return this.applyQueue(id, await this.request(`selfme.inputs.${action}`, { task: remoteTaskId(id), messageId })); }
+  async send(id: string, prompt: string, files: RemoteUploadedFile[] = [], options?: RemoteSendOptions): Promise<void> {
     key(id); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
     await this.prepareScene(id);
-    const message = prompt + (files.length ? "\n\n上传文件（远端路径）：\n" + files.map(file => file.absolutePath).join("\n") : "");
     const view = this.views.get(id);
-    // Steer targets an existing reply operation, including one still retiring
-    // after cancellation. An idle/paused task must start a normal native turn.
-    const active = view?.snapshot.task.status === "running" || view?.snapshot.task.status === "waiting";
-    await this.request("chat.send", { sessionKey: id, message, ...(active ? { queueMode: "steer" } : {}), idempotencyKey: randomUUID() });
-    if (view) { view.snapshot.error = undefined; view.snapshot.failure = undefined; view.snapshot.task.status = "running"; this.publish(view); }
+    const input = remoteSendOptions(options ?? { mode: view?.snapshot.queue?.mode ?? "queue", requestId: randomUUID() });
+    this.applyQueue(id, await this.request("selfme.inputs.send", { task: remoteTaskId(id), text: prompt, files, ...input }));
+    if (view) { view.snapshot.error = undefined; this.publish(view); }
     this.schedule(id);
     if (view?.snapshot.task.title === "新任务") {
       const title = prompt.trim().slice(0, 36) || files[0]?.name || "文件任务";
@@ -277,8 +287,8 @@ export class OpenClawTasks {
       void this.request("sessions.patch", { key: id, autoLabel: title }).then(() => { view.snapshot.task.title = title; this.publish(view); }).catch(() => {});
     }
   }
-  async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); if (action === "stop") await this.request("chat.abort", { sessionKey: id }); else await this.send(id, "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。"); this.schedule(id); }
-  async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("selfme.terminal.dispose", { task: remoteTaskId(id) }); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
+  async control(id: string, action: "stop" | "resume"): Promise<void> { key(id); this.applyQueue(id, await this.request("selfme.inputs.control", { task: remoteTaskId(id), action })); this.schedule(id); }
+  async delete(id: string): Promise<void> { key(id); await this.control(id, "stop"); await this.request("selfme.inputs.clear", { task: remoteTaskId(id) }); await this.request("selfme.terminal.dispose", { task: remoteTaskId(id) }); await this.request("sessions.delete", { key: id, deleteTranscript: true }); await this.close(id); }
   async desktop(id: string): Promise<RemoteDesktopGrant> {
     await this.prepareScene(id);
     const result = record(await this.request("selfme.scene.observe", { task: remoteTaskId(id) }));

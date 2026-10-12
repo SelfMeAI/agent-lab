@@ -201,10 +201,14 @@ void app.whenReady().then(async () => {
   ipcMain.handle("selfme:remote-task-close", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.close(engine, id); });
   ipcMain.handle("selfme:remote-task-delete", async (event, engine, id) => {
     taskClient(event, engine, id);
-    const result = await dialog.showMessageBox(mainWindow!, { type: "warning", title: "删除远端任务", message: "删除此任务及其对话记录？", detail: "这会删除服务端任务历史。已生成文件仍留在服务卷中，工作中的任务将先停止。", buttons: ["取消", "删除任务"], defaultId: 0, cancelId: 0 });
+    const result = await dialog.showMessageBox(mainWindow!, { type: "warning", title: "删除远端任务", message: "删除此任务及其对话记录？", detail: "这会删除服务端任务历史和待发消息。已生成文件仍留在服务卷中，工作中的任务将先停止。", buttons: ["取消", "删除任务"], defaultId: 0, cancelId: 0 });
     if (result.response === 1) await remoteTasks!.delete(engine, id);
   });
-  ipcMain.handle("selfme:remote-task-send", (event, engine, id, prompt, files) => { taskClient(event, engine, id); return remoteTasks!.send(engine, id, prompt, files); });
+  ipcMain.handle("selfme:remote-task-send", (event, engine, id, prompt, files, options) => { taskClient(event, engine, id); return remoteTasks!.send(engine, id, prompt, files, options); });
+  ipcMain.handle("selfme:remote-inputs-state", (event, engine, id) => taskClient(event, engine, id).inputQueue(id));
+  ipcMain.handle("selfme:remote-inputs-mode", (event, engine, id, mode) => { if (mode !== "queue" && mode !== "steer") throw new Error("发送方式无效"); return taskClient(event, engine, id).inputMode(id, mode); });
+  ipcMain.handle("selfme:remote-inputs-remove", (event, engine, id, messageId) => { if (typeof messageId !== "string") throw new Error("消息标识无效"); return taskClient(event, engine, id).inputAction(id, messageId, "remove"); });
+  ipcMain.handle("selfme:remote-inputs-steer", (event, engine, id, messageId) => { if (typeof messageId !== "string") throw new Error("消息标识无效"); return taskClient(event, engine, id).inputAction(id, messageId, "steer"); });
   ipcMain.handle("selfme:remote-task-control", (event, engine, id, action) => { const client = taskClient(event, engine, id); if (action !== "stop" && action !== "resume") throw new Error("未知任务操作"); return client.control(id, action); });
   ipcMain.handle("selfme:remote-task-approval", (event, engine, id, requestId, decision) => {
     taskClient(event, engine, id); if (typeof requestId !== "string" || !["once", "always", "reject"].includes(decision)) throw new Error("审批无效");

@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
 import { basename, dirname, extname, join } from "node:path";
 import { readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
-import type { RemoteAgentId, RemoteFilePreview, RemoteTaskSnapshot, RemoteTaskUpdate, RemoteTerminalEvent, RemoteUploadedFile } from "../../../../../packages/contracts/src/remote-agent";
+import type { RemoteAgentId, RemoteFilePreview, RemoteSendOptions, RemoteTaskSnapshot, RemoteTaskUpdate, RemoteTerminalEvent, RemoteUploadedFile } from "../../../../../packages/contracts/src/remote-agent";
 import { RemoteHttp, remoteFilePath, remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
 import { OpenHandsTasks } from "../../../../../packages/remote-agent/src/openhands/client";
 import { OpenClawTasks } from "../../../../../packages/remote-agent/src/openclaw/client";
@@ -39,11 +39,11 @@ export class RemoteTaskController {
   async close(engine: RemoteAgentId, id: string): Promise<void> { this.revoke(engine, id); await this.client(engine).close(id); }
   async delete(engine: RemoteAgentId, id: string): Promise<void> { await this.client(engine).delete(id); this.uploads.delete(this.slot(engine, id)); this.revoke(engine, id); }
   earlier(engine: RemoteAgentId, id: string): Promise<RemoteTaskSnapshot> { if (engine === "openhands") return this.hands.open(id); return this.claw.earlier(id); }
-  async send(engine: RemoteAgentId, id: string, prompt: string, files: RemoteUploadedFile[] = []): Promise<void> {
+  async send(engine: RemoteAgentId, id: string, prompt: string, files: RemoteUploadedFile[] = [], options?: RemoteSendOptions): Promise<void> {
     if (typeof prompt !== "string" || prompt.length > 100_000 || !Array.isArray(files) || files.length > 10) throw new Error("消息或附件无效");
     const known = this.uploads.get(this.slot(engine, id)) ?? [];
     const verified = files.map(file => { const original = known.find(candidate => candidate.path === file.path && candidate.absolutePath === file.absolutePath); if (!original) throw new Error("附件不属于此任务，请重新上传"); return original; });
-    await this.client(engine).send(id, prompt, verified);
+    await this.client(engine).send(id, prompt, verified, options);
   }
   async upload(engine: RemoteAgentId, id: string, remaining = 10): Promise<RemoteUploadedFile[]> {
     remoteTaskId(id); if (!Number.isInteger(remaining) || remaining < 1 || remaining > 10) throw new Error("每条消息最多附加 10 个文件");

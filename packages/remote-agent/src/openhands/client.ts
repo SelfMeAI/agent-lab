@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { RemoteTask, RemoteTaskSnapshot, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
+import type { RemoteInputMode, RemoteInputQueue, RemoteSendOptions, RemoteTask, RemoteTaskSnapshot, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { applyOpenHandsEvent, contentText, executionFailure, record, taskStatus, text, timestamp } from "../transcript";
-import { RemoteHttp, RemoteHttpError, remoteTaskId } from "../transport/http";
+import { RemoteHttp, remoteTaskId } from "../transport/http";
+import { mergeRemoteInputQueue, remoteInputQueue, remoteSendOptions } from "../input-queue";
 import { knownRemoteVision, remoteCanonicalModel } from "../model-capabilities";
 import { latestTaskTime, sortRemoteTasks, unknownTaskTime } from "../task-order";
 
@@ -50,7 +51,7 @@ export class OpenHandsTasks {
     if (this.opening.get(id) !== ticket) throw new Error("任务视图已关闭");
     const snapshot: RemoteTaskSnapshot = { task, items: [], connection: "reconnecting" };
     const view: View = { snapshot, seq: -1, closed: false, slots: new Map() }; this.views.set(id, view);
-    await this.stream(id, view); return structuredClone(view.snapshot);
+    await this.stream(id, view); await this.inputQueue(id); return structuredClone(view.snapshot);
   }
   private async stream(id: string, view: View): Promise<void> {
     if (view.closed) return;
@@ -129,39 +130,50 @@ export class OpenHandsTasks {
     } else if (frame.type === "item_aborted") { if (view.slots.get(text(frame.item_id))?.attempt !== Number(frame.attempt ?? 1)) return; view.slots.delete(text(frame.item_id)); snapshot.items = snapshot.items.filter(item => item.id !== frame.item_id || !item.streaming); }
     else if (frame.type === "error") snapshot.error = text(frame.detail) || "会话连接发生错误";
   }
-  async send(id: string, prompt: string, files: RemoteUploadedFile[] = []): Promise<void> {
-    remoteTaskId(id); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
-    const full = [prompt, files.length ? "\n上传文件（远端路径）：\n" + files.map(file => file.absolutePath).join("\n") : ""].join("");
-    // A mid-run message is accepted by the native event service, not a fake new local turn.
-    let paused = false;
-    try { await this.http.json(`/api/conversations/${id}/events`, "POST", { role: "user", content: [{ type: "text", text: full }], run: true }); }
-    catch (error) {
-      if (!(error instanceof RemoteHttpError) || error.status !== 429) throw error;
-      paused = true;
-      const view = this.views.get(id); if (view) { view.snapshot.error = "消息已保存，服务暂时繁忙。稍后点击继续，不要重复发送。"; view.snapshot.task.status = "paused"; this.emit(structuredClone(view.snapshot)); }
-    }
-    const view = this.views.get(id); if (view && !paused) { view.snapshot.task.status = "running"; view.snapshot.error = undefined; view.snapshot.failure = undefined; view.snapshot.task.updatedAt = new Date().toISOString(); this.emit(structuredClone(view.snapshot)); }
-    // The SDK's agent callback does not reliably broadcast user events live.
-    // Read the accepted canonical user event; do not invent/persist a client row.
-    if (view) {
-      // The pinned native kind filter expects a Python-qualified class name,
-      // despite its HTTP documentation's short-name example. Filter the role
-      // server-side and the event kind here instead of relying on that detail.
+  private applyQueue(id: string, value: unknown): RemoteInputQueue {
+    const next = remoteInputQueue(value), view = this.views.get(id);
+    if (view) { view.snapshot.queue = mergeRemoteInputQueue(view.snapshot.queue, next); this.emit(structuredClone(view.snapshot)); }
+    return next;
+  }
+  async inputQueue(id: string): Promise<RemoteInputQueue> {
+    remoteTaskId(id); const view = this.views.get(id), revision = view?.snapshot.queue?.revision;
+    const next = this.applyQueue(id, await this.http.json(`/api/selfme/inputs?task=${id}`));
+    // User events are canonical native history, even when their live callback
+    // was omitted. Never invent a submitted row for a still-pending input.
+    if (view && revision !== undefined && revision !== next.revision) await this.inputHistory(id, view);
+    return next;
+  }
+  private async inputHistory(id: string, view: View): Promise<void> {
       const page = await this.http.json<{ items: unknown[] }>(`/api/conversations/${id}/events/search?source=user&sort_order=TIMESTAMP_DESC&limit=10`).catch(() => null);
-      const accepted = page?.items.find(event => record(event).kind === "MessageEvent");
-      if (accepted) {
-        const firstUser = !view.snapshot.items.some(item => item.role === "user");
-        view.snapshot.items = applyOpenHandsEvent(view.snapshot.items, accepted);
-        if (firstUser) { const eventId = text(record(accepted).id), item = view.snapshot.items.find(item => item.id === eventId); if (item) view.snapshot.items = [item, ...view.snapshot.items.filter(item => item.id !== eventId)]; }
+      if (this.views.get(id) === view) {
+        for (const event of [...(page?.items ?? [])].reverse()) if (record(event).kind === "MessageEvent") {
+          const before = view.snapshot.items;
+          view.snapshot.items = applyOpenHandsEvent(before, event);
+          const added = view.snapshot.items.find(item => item.id === record(event).id);
+          if (added && !before.some(item => item.id === added.id) && added.at) {
+            const remaining = view.snapshot.items.filter(item => item !== added);
+            const index = remaining.findIndex(item => item.at && Date.parse(item.at) > Date.parse(added.at!));
+            if (index >= 0) { remaining.splice(index, 0, added); view.snapshot.items = remaining; }
+          }
+        }
         this.emit(structuredClone(view.snapshot));
       }
-    }
+  }
+  async inputMode(id: string, mode: RemoteInputMode): Promise<RemoteInputQueue> { remoteTaskId(id); return this.applyQueue(id, await this.http.json("/api/selfme/inputs/mode", "POST", { task: id, mode })); }
+  async inputAction(id: string, messageId: string, action: "remove" | "steer"): Promise<RemoteInputQueue> { remoteTaskId(id); return this.applyQueue(id, await this.http.json(`/api/selfme/inputs/${action}`, "POST", { task: id, messageId })); }
+  async send(id: string, prompt: string, files: RemoteUploadedFile[] = [], options?: RemoteSendOptions): Promise<void> {
+    remoteTaskId(id); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
+    const view = this.views.get(id);
+    const input = remoteSendOptions(options ?? { mode: view?.snapshot.queue?.mode ?? "queue", requestId: randomUUID() });
+    this.applyQueue(id, await this.http.json("/api/selfme/inputs/send", "POST", { task: id, text: prompt, files, ...input }));
+    if (view && !view.snapshot.queue?.items.some(item => item.id === input.requestId)) await this.inputHistory(id, view);
+    if (view) { view.snapshot.error = undefined; this.emit(structuredClone(view.snapshot)); }
     // Naming failure must not turn an accepted message into a duplicate retry.
     void this.http.json(`/api/conversations/${id}`).then(async result => {
       if (handsTask(result).title === "新任务") { const title = prompt.trim().slice(0, 36) || files[0]?.name || "文件任务"; await this.http.json(`/api/conversations/${id}`, "PATCH", { title }); if (view) { view.snapshot.task.title = title; this.emit(structuredClone(view.snapshot)); } }
     }).catch(() => {});
   }
-  async control(id: string, action: "stop" | "resume"): Promise<void> { remoteTaskId(id); await this.http.json(`/api/conversations/${id}/${action === "stop" ? "interrupt" : "run"}`, "POST"); }
+  async control(id: string, action: "stop" | "resume"): Promise<void> { remoteTaskId(id); this.applyQueue(id, await this.http.json("/api/selfme/inputs/control", "POST", { task: id, action })); }
   async approve(id: string, requestId: string, decision: "once" | "always" | "reject"): Promise<void> {
     remoteTaskId(id);
     const view = this.views.get(id);
@@ -169,7 +181,7 @@ export class OpenHandsTasks {
     if (decision === "always") await this.http.json(`/api/conversations/${id}/confirmation_policy`, "POST", { policy: { kind: "NeverConfirm" } });
     await this.http.json(`/api/conversations/${id}/events/respond_to_confirmation`, "POST", { accept: decision !== "reject", reason: "用户拒绝此操作" });
   }
-  async delete(id: string): Promise<void> { remoteTaskId(id); await this.http.json(`/api/conversations/${id}`, "DELETE"); this.close(id); }
+  async delete(id: string): Promise<void> { remoteTaskId(id); await this.control(id, "stop"); await this.http.json("/api/selfme/inputs/clear", "POST", { task: id }); await this.http.json(`/api/conversations/${id}`, "DELETE"); this.close(id); }
   close(id: string): void { this.opening.delete(id); const view = this.views.get(id); if (!view) return; view.closed = true; clearTimeout(view.retry); view.socket?.close(); this.views.delete(id); }
   shutdown(): void { this.opening.clear(); for (const id of this.views.keys()) this.close(id); this.http.reset(); }
 }

@@ -27,6 +27,9 @@ RUN sed -i 's|URIs: http://deb.debian.org/|URIs: https://deb.debian.org/|g' /etc
 COPY plugin /opt/selfme/plugin
 COPY --from=model-discovery /provider-models.ts /opt/selfme/plugin/provider-models.ts
 COPY --from=model-discovery /terminal-response.ts /opt/selfme/plugin/terminal-response.ts
+COPY --from=model-discovery /openclaw/connection.ts /opt/selfme/plugin/native/openclaw/connection.ts
+COPY --from=model-discovery /openclaw/gateway.ts /opt/selfme/plugin/native/openclaw/gateway.ts
+COPY --from=model-discovery /transport/endpoint.ts /opt/selfme/plugin/native/transport/endpoint.ts
 COPY bootstrap /opt/selfme/bootstrap
 COPY --from=document-preview /office-preview.mjs /opt/document-preview/office-preview.mjs
 COPY desktop /opt/selfme/desktop

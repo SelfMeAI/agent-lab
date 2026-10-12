@@ -190,7 +190,19 @@ export const coverageRecords: readonly CoverageRecord[] = [
     capabilityId: "agent-loop.cancellation", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-10",
     evidence: ["packages/remote-agent/src/openclaw/client.test.ts", "packages/remote-agent/src/openhands/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx"],
-    note: "停止转交各自原生 interrupt / chat.abort，停止后可以发送新要求。空闲或已暂停任务发起新一轮，不错误 steer 到正在退出的旧运行；操作提交期间防止停止与新发送竞态。未把原生停止接口等同于已审计所有子进程的清理。",
+    note: "停止转交各自原生 interrupt / chat.abort，并保留服务端待发消息，显式继续后恢复投递。OpenHands 等待审批时停止会取消未授权操作；继续或补充文字不代替审批。停止与迟到投递有代际保护，原生停止未完成时不假装已经恢复。未把原生停止接口等同于已审计所有子进程的清理。",
+  },
+  {
+    capabilityId: "sessions.queue-steer", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-13",
+    evidence: ["services/remote-agent/openclaw/plugin/input-queue.ts", "services/remote-agent/openhands/extension/input_queue.py", "packages/remote-agent/src/input-outbox.test.ts", "services/remote-agent/openhands/tests/input_queue_test.py", "apps/desktop/src/main/remote-agent/remote-inputs.integration.test.ts"],
+    note: "Queue 在整轮结束后按顺序合并待发消息，不在每个工具结束时自动投递；Steer 经各自原生接口接入当前轮，不用中断重跑假冒补充。服务卷 SQLite 保存每个引擎和任务的模式、消息及投递标识，新任务默认 Queue，最多 20 条且合计小于 100,000 字符。停止、错误或服务重启保留待发内容，显式继续后恢复；关闭客户端不阻止正常投递。原生回执与持久标识核对防止重试重复，无法确认时保留并提示，而非盲目重发。两套固定源码容器与可控模型验证了中途生效、整轮合并、去重、关闭客户端、服务重启及审批边界；不实现队列编辑、重排或独立暂停。",
+  },
+  {
+    capabilityId: "live-experience.steering", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
+    state: "usable", upstream: "tested", passedChecks: [0, 1, 2], checkedAt: "2026-10-13",
+    evidence: ["apps/desktop/src/renderer/labs/remote-agent-lab/RemoteWorkspace.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemotePendingInputs.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemotePendingInputs.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/workspace.css", "apps/desktop/src/main/remote-agent/remote-inputs.integration.test.ts"],
+    note: "发送方式对称显示 Queue · 排队发送 / Steer · 补充本轮，按远端任务保存，有待发消息时锁定默认方式切换。输入框上方独立限高待发区，每条只提供 Steer 和删除；正在提交的消息不能重复操作。停止与错误后的保留状态提供继续入口，任务状态仍以原生事件为准，不将接受消息伪装为开始或完成。原生接入不保证模型遵从补充要求。",
   },
   {
     capabilityId: "sessions.create", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

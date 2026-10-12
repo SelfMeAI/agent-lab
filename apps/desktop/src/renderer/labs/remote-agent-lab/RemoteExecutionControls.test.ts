@@ -11,7 +11,7 @@ describe("remote execution controls", () => {
     const html = renderToStaticMarkup(control);
     expect(html).toContain('type="button"');
     expect(html).toContain('aria-label="停止执行"');
-    expect(html).toContain('title="停止当前执行；独立运行的服务可能继续运行"');
+    expect(html).toContain('title="停止当前执行；待发消息保留，独立运行的服务可能继续运行"');
     expect(html.replace(/<[^>]+>/gu, "")).toBe("");
     expect(html).not.toContain("停止任务");
     expect(html).not.toContain("disabled");
@@ -56,5 +56,9 @@ describe("remote execution controls", () => {
   });
   it("does not show a fictitious status when no task is selected", () => {
     expect(RemoteExecutionStatus({ opening: false })).toBeNull();
+  });
+  it("exposes Continue when the server retains inputs after a failed turn", () => {
+    const html = renderToStaticMarkup(createElement(RemoteExecutionControl, { status: "error", queuePaused: true, disabled: false, onControl() {} }));
+    expect(html).toContain('aria-label="继续任务"'); expect(html).toContain("恢复待发消息");
   });
 });

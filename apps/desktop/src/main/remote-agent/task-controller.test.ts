@@ -42,7 +42,7 @@ describe("remote task files, native dialogs and scoped previews", () => {
     vi.spyOn(controller.hands.http, "upload").mockImplementation(async (_, path, bytes) => ({ path, name: "remote.txt", size: bytes.length, directory: false, absolutePath: "/workspace/task/" + path }));
     const [uploaded] = await controller.upload("openhands", id), send = vi.spyOn(controller.hands, "send").mockResolvedValue();
     expect(uploaded.name).toBe("资料.txt"); expect(uploaded.path).toMatch(/^uploads\/[0-9a-f]{8}-资料\.txt$/);
-    await controller.send("openhands", id, "读取文件", [uploaded]); expect(send).toHaveBeenCalledWith(id, "读取文件", [uploaded]);
+    await controller.send("openhands", id, "读取文件", [uploaded]); expect(send).toHaveBeenCalledWith(id, "读取文件", [uploaded], undefined);
     await expect(controller.send("openhands", id, "", [{ ...uploaded, absolutePath: "/other-user/private" }])).rejects.toThrow("不属于");
     await expect(controller.send("openhands", id.replace("c0ec", "a0ec"), "", [uploaded])).rejects.toThrow("不属于");
     await expect(controller.send("openclaw", "agent:main:selfme:" + id, "", [uploaded])).rejects.toThrow("不属于");

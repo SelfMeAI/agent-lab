@@ -3,7 +3,7 @@
   "id": "openclaw",
   "name": "OpenClaw",
   "stage": "capability-validation",
-  "deployment": { "dockerfile": "deployment.Dockerfile", "image": "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab27" },
+  "deployment": { "dockerfile": "deployment.Dockerfile", "image": "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30" },
   "build": {
     "source": "gateway",
     "dockerfile": "Dockerfile",

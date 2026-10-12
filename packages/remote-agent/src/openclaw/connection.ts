@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { GatewayRequestError, openClawConnect, type OpenClawIdentity } from "./gateway";
+import { GatewayRequestError, openClawConnect, type OpenClawConnectOptions, type OpenClawIdentity } from "./gateway";
 import { remoteEndpoint } from "../transport/endpoint";
 
 export type GatewayEvent = { event: string; payload?: unknown; seq?: number };
@@ -13,7 +13,7 @@ export class OpenClawConnection {
   private disposed = false;
   private pending = new Map<string, Pending>();
   constructor(private readonly endpoint: string, private readonly token: string, private readonly identity: OpenClawIdentity,
-    private readonly receive: (event: GatewayEvent) => void, private readonly disconnected: (error: Error) => void) {}
+    private readonly receive: (event: GatewayEvent) => void, private readonly disconnected: (error: Error) => void, private readonly options: OpenClawConnectOptions = {}) {}
 
   connect(): Promise<void> {
     if (this.disposed) return Promise.reject(new Error("连接已关闭"));
@@ -36,11 +36,11 @@ export class OpenClawConnection {
               challenge = true;
               const { nonce, ts } = packet.payload ?? {};
               if (typeof nonce !== "string" || !nonce || !Number.isSafeInteger(ts)) { finish(new Error("认证挑战无效")); return; }
-              const params = openClawConnect(this.identity, this.token, nonce, ts);
+              const params = openClawConnect(this.identity, this.token, nonce, ts, this.options);
               // This persistent connection renders native exec/plugin approval
               // cards. Scopes alone do not declare an approval delivery surface.
               // Short-lived status/config RPCs intentionally advertise no caps.
-              params.caps = ["tool-events", "terminal-offset-seq", "approvals"];
+              params.caps = ["tool-events", "terminal-offset-seq", ...(this.options.approvals === false ? [] : ["approvals"])];
               void this.requestRaw("connect", params).then(() => finish(), error => finish(error));
             } else if (this.ready) this.receive(packet);
           } else if (packet.type === "res") {

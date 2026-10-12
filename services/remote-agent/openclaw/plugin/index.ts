@@ -8,6 +8,8 @@ import { isTerminalProtocolReply } from "./terminal-response";
 import { disposeTerminal, inputTerminal, prepareTerminal, setDesktopTask, setTerminalAccess, showBrowser, terminalArgv } from "../desktop/session.mjs";
 import { activeBrowserAction, TerminalActivity, isTerminalTool, toolIdentity, type NativeAgentEvent } from "./terminal-access";
 import { convertOffice, DocumentPreviewError } from "../../document-preview/office-preview.mjs";
+import { InputQueue, type InputFile, type InputMode } from "./input-queue";
+import { QueueNative } from "./queue-native";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -129,6 +131,47 @@ async function prepareDesktop(service: HostDesktopService): Promise<void> {
 export default {
   id: "selfme-lab", name: "SelfMe Lab Remote Workspace",
   register(api: PluginApi): void {
+    let inputs: InputQueue | undefined;
+    let inputDesktop: HostDesktopService | undefined;
+    const nativeInputs = new QueueNative("/home/node/.openclaw/.selfme-inputs", event => {
+      const payload = event.payload as { sessionKey?: string; state?: string } | undefined;
+      if (event.event === "chat" && payload?.state === "error" && /^agent:main:selfme:[0-9a-f-]{36}$/.test(payload.sessionKey ?? "")) inputs?.failed(payload!.sessionKey!.slice("agent:main:selfme:".length));
+    }, async task => {
+      await root(task);
+      if (!inputDesktop) throw new Error("远端桌面服务未就绪");
+      await prepareDesktop(inputDesktop);
+      desktopTask = task; await setDesktopTask(task); await syncTerminalAccess();
+    });
+    const inputQueue = () => inputs ??= new InputQueue("/home/node/.openclaw/.selfme-inputs/queue.sqlite", nativeInputs);
+    let ticking = false;
+    const inputTimer = setInterval(() => { if (inputs && !ticking) { ticking = true; void inputs.tick().finally(() => { ticking = false; }).catch(() => {}); } }, 1000); inputTimer.unref();
+    api.lifecycle.registerRuntimeLifecycle({ id: "input-queue", dispose: async () => { clearInterval(inputTimer); await inputs?.close(); nativeInputs.close(); } });
+    // Pause on canonical chat failure (above), not a retryable inner attempt's
+    // lifecycle error. Native persisted session state is also checked by tick.
+    for (const operation of ["state", "mode", "send", "remove", "steer", "control", "clear"] as const) api.registerGatewayMethod(`selfme.inputs.${operation}`, async ({ params, context, respond }) => {
+      try {
+        if (context.hostDesktopService) inputDesktop = context.hostDesktopService;
+        const task = taskId(params.task); await root(task); const inputs = inputQueue();
+        let state;
+        if (operation === "state") state = inputs.state(task);
+        else if (operation === "mode") state = inputs.mode(task, params.mode as InputMode);
+        else if (operation === "send") {
+          if (typeof params.text !== "string" || params.text.length > 100_000 || !Array.isArray(params.files) || params.files.length > 10) throw new Error("消息或附件无效");
+          const files: InputFile[] = [];
+          for (const value of params.files) {
+            const row = value as InputFile;
+            if (!row || typeof row.name !== "string" || typeof row.path !== "string" || typeof row.absolutePath !== "string" || !row.path.startsWith("uploads/") || await target(task, row.path) !== row.absolutePath) throw new Error("附件不属于此任务，请重新上传");
+            files.push({ name: row.name.slice(0, 160), path: row.path, absolutePath: row.absolutePath });
+          }
+          state = await inputs.send(task, String(params.requestId ?? ""), params.text, files, params.mode as InputMode);
+        } else if (operation === "remove" || operation === "steer") state = await inputs.action(task, String(params.messageId ?? ""), operation);
+        else if (operation === "control") {
+          if (params.action !== "stop" && params.action !== "resume") throw new Error("任务操作无效");
+          state = await inputs.control(task, params.action);
+        } else { await inputs.clear(task); state = { ok: true }; }
+        respond(true, state);
+      } catch (error) { respond(false, undefined, { code: "INVALID_REQUEST", message: error instanceof Error ? error.message : "待发操作失败，消息已保留" }); }
+    }, { scope: "operator.admin" });
     api.agent.events.registerAgentEventSubscription({ id: "terminal-access", streams: ["lifecycle", "tool"], handle: event => activity.observe(event) });
     // Keep the desktop terminal usable even when its external view is closed.
     // The short-lived access record fails closed if the Gateway stops.

@@ -16,12 +16,13 @@ export function validOpenClawIdentity(value: OpenClawIdentity): boolean {
 }
 
 /** Pinned OpenClaw protocol v4 / signed v3 device envelope. No browser/CDP access. */
-export function openClawConnect(identity: OpenClawIdentity, token: string, nonce: string, signedAt: number) {
-  const scopes = ["operator.admin", "operator.approvals", "operator.pairing"];
+export interface OpenClawConnectOptions { scopes?: string[]; displayName?: string; approvals?: boolean }
+export function openClawConnect(identity: OpenClawIdentity, token: string, nonce: string, signedAt: number, options: OpenClawConnectOptions = {}) {
+  const scopes = options.scopes ?? ["operator.admin", "operator.approvals", "operator.pairing"];
   const platform = process.platform;
   const payload = ["v3", identity.deviceId, "gateway-client", "backend", "operator", scopes.join(","), String(signedAt), token, nonce, platform, ""].join("|");
   return { minProtocol: 4, maxProtocol: 4,
-    client: { id: "gateway-client", displayName: "SelfMe Lab", version: "0.1.0", platform, mode: "backend" },
+    client: { id: "gateway-client", displayName: options.displayName ?? "SelfMe Lab", version: "0.1.0", platform, mode: "backend" },
     role: "operator", scopes, caps: [] as string[], auth: { token },
     device: { id: identity.deviceId, publicKey: identity.publicKey, nonce, signedAt,
       signature: sign(null, Buffer.from(payload), identity.privateKeyPem).toString("base64url") } };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RemoteTaskSnapshot } from "../../../../../../packages/contracts/src/remote-agent";
-import { activeRemoteFailure, continueRemoteTaskPrompt, remoteFailureSummary, remoteTaskLabels } from "./task-presentation";
+import { activeRemoteFailure, remoteFailureSummary, remoteTaskLabels } from "./task-presentation";
 
 const snapshot: RemoteTaskSnapshot = {
   task: { id: "task", title: "Task", status: "error", createdAt: "2026-10-10T03:00:00Z", updatedAt: "2026-10-10T04:00:00Z" }, connection: "connected",
@@ -10,7 +10,6 @@ const snapshot: RemoteTaskSnapshot = {
 describe("remote interrupted-turn presentation", () => {
   it("explains the last execution, not an unusable session", () => {
     expect(remoteTaskLabels.error).toBe("本轮中断");
-    expect(continueRemoteTaskPrompt).toContain("核对已有进度"); expect(continueRemoteTaskPrompt).toContain("不要重复");
   });
   it("only offers recovery on the latest native failure", () => {
     expect(activeRemoteFailure(snapshot)).toMatchObject({ itemId: "new-failure", failure: { message: "New" } });

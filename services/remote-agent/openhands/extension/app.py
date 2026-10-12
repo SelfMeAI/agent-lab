@@ -20,11 +20,81 @@ from openhands.agent_server._secrets_exposure import get_config
 from openhands.agent_server.persistence import get_settings_store
 from model_discovery import discover_models
 from task_browser import close_task_browsers, task_browser
+from input_queue import InputQueues
 
 app = create_app()
 router = APIRouter(prefix="/api/selfme", dependencies=[Depends(check_session_api_key)])
 tasks = Path("/workspace/selfme/tasks")
 tickets: dict[str, tuple[float, object, int]] = {}
+native_lifespan = app.router.lifespan_context
+
+
+@contextlib.asynccontextmanager
+async def queue_lifespan(application):
+    async with native_lifespan(application):
+        try:
+            yield
+        finally:
+            if queues := getattr(application.state, "selfme_inputs", None):
+                await queues.close()
+
+
+app.router.lifespan_context = queue_lifespan
+
+
+async def input_service(request, task):
+    task = identity(task)
+    task_root(task)
+    service = await get_conversation_service(request).get_event_service(UUID(task))
+    if service is None:
+        raise HTTPException(404, "任务不存在或已删除")
+    queues = getattr(app.state, "selfme_inputs", None)
+    if queues is None:
+        queues = app.state.selfme_inputs = InputQueues("/workspace/.selfme-inputs/queue.sqlite")
+    try:
+        queues.ensure(task)
+    except ValueError:
+        raise HTTPException(404, "任务不存在或已删除") from None
+    queues.bind(task, service)
+    return queues, task
+
+
+@router.get("/inputs")
+async def input_state(request: Request, task: str):
+    queues, task = await input_service(request, task)
+    queues.kick(task)
+    return queues.state(task)
+
+
+@router.post("/inputs/{operation}")
+async def input_action(request: Request, operation: str):
+    if len(await request.body()) > 600_000:
+        raise HTTPException(413, "消息请求过大")
+    try:
+        value = await request.json()
+        queues, task = await input_service(request, value.get("task", ""))
+        if operation == "mode":
+            return queues.mode(task, value.get("mode"))
+        if operation == "send":
+            files = value.get("files", [])
+            if not isinstance(files, list) or len(files) > 10:
+                raise ValueError("附件无效")
+            verified = []
+            for file in files:
+                if not isinstance(file, dict) or not isinstance(file.get("name"), str) or not isinstance(file.get("path"), str) or not file["path"].startswith("uploads/") or str(target(task, file["path"])) != file.get("absolutePath"):
+                    raise ValueError("附件不属于此任务，请重新上传")
+                verified.append({"name": file["name"][:160], "path": file["path"], "absolutePath": file["absolutePath"]})
+            return queues.send(task, value.get("requestId"), value.get("text"), verified, value.get("mode"))
+        if operation in ("remove", "steer"):
+            return await queues.action(task, value.get("messageId"), operation)
+        if operation == "control":
+            return await queues.control(task, value.get("action"))
+        if operation == "clear":
+            await queues.clear(task)
+            return {"ok": True}
+        raise ValueError("待发操作无效")
+    except (ValueError, TypeError, AttributeError) as error:
+        raise HTTPException(400, str(error)) from None
 
 
 @router.post("/models")
