@@ -28,7 +28,6 @@
 .remote-task-rail > footer { border-top: 1px solid #263c4666; padding: 11px 12px; font-size: 10px; color: #66818e; flex-shrink: 0; }
 .remote-conversation { position: relative; }
 .remote-conversation__heading h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.remote-conversation__heading .remote-button { min-height: 28px; padding: 4px 8px; font-size: 11px; }
 .remote-task-label { color: #8da6b3; display: inline-flex; gap: 6px; align-items: center; font-size: 10px; white-space: nowrap; }
 .remote-task-label.is-running { color: var(--remote-accent); }
 .remote-task-label.is-waiting { color: #e4b96c; }
@@ -108,7 +107,6 @@
 .remote-failure pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.7 Menlo, monospace; background: #07101566; border-radius: 3px; margin: 8px 0 0; padding: 8px; color: #a6b9c2; }
 .remote-failure > footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .remote-failure .remote-button { font-size: 11px; min-height: 28px; padding: 5px 10px; }
-.remote-working { display: flex; gap: 9px; align-items: center; font-size: 11px; color: #7b96a5; padding: 8px 0 12px 39px; }
 .remote-date-divider { display: flex; align-items: center; gap: 12px; color: #597886; font-size: 10px; margin-bottom: 18px; }
 .remote-date-divider::before, .remote-date-divider::after { content: ""; height: 1px; background: #1d384366; flex: 1; }
 .remote-history-button { display: block; border: 0; background: none; margin: 0 auto 14px; color: #8fb3c5; font-size: 11px; }
@@ -117,11 +115,17 @@
 .remote-conversation__error { flex-shrink: 0; max-height: 90px; overflow: auto; padding: 9px 13px; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; color: #e8ac9c; background: #54231633; border-top: 1px solid #87534455; }
 .remote-conversation__error button { margin-left: 8px; border: 0; color: #c0d4dd; background: none; text-decoration: underline; font-size: inherit; }
 .remote-composer { border-top: 1px solid #36556066; margin: 0; padding: 10px 11px 8px; background: #050e13bd; flex: 0 0 auto; }
+.remote-composer__status { display: flex; align-items: center; min-height: 18px; margin: 0 4px 7px; }
+.remote-composer__status .remote-task-label { font-size: 11px; }
 .remote-composer__row { display: flex; align-items: flex-end; gap: 4px; border: 1px solid color-mix(in srgb, var(--remote-accent) 65%, #35525f); border-radius: 5px; padding: 5px; background: #07131a80; }
 .remote-composer__row:focus-within { border-color: var(--remote-accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--remote-accent) 12%, transparent); }
 .remote-composer__row .remote-icon-button { width: 30px; height: 42px; }
 .remote-composer textarea { resize: none; width: 100%; min-width: 0; height: 42px; max-height: 132px; border: 0; outline: none; background: transparent; color: #d3e4ec; padding: 10px 6px; font: 13px/22px -apple-system, sans-serif; }
 .remote-composer textarea::placeholder { color: #668393; }
+.remote-button.remote-execution-control { width: 36px; height: 42px; min-height: 42px; flex: 0 0 36px; padding: 0; border: 0; background: transparent; color: #b5c7cf; }
+.remote-execution-control svg { width: 23px; height: 23px; }
+.remote-execution-control:hover:not(:disabled) { color: var(--remote-accent); background: color-mix(in srgb, var(--remote-accent) 8%, transparent); }
+.remote-execution-control.is-resume { color: var(--remote-accent); }
 .remote-send { width: 36px; height: 42px; border: 0; background: transparent; color: var(--remote-accent); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex: 0 0 36px; }
 .remote-send svg { width: 25px; height: 25px; }
 .remote-send:hover:not(:disabled) { background: color-mix(in srgb, var(--remote-accent) 8%, transparent); }
