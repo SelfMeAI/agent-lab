@@ -5,6 +5,7 @@ confirmation and ordered session sockets remain unchanged.
 """
 import asyncio
 import contextlib
+import json
 import os
 import secrets
 import time
@@ -12,7 +13,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from openhands.agent_server.api import create_app
 from openhands.agent_server.dependencies import check_session_api_key, get_conversation_service
 from openhands.agent_server._secrets_exposure import get_config
@@ -97,6 +98,29 @@ async def files(task: str, path: str = "", op: str = "get"):
         return {"path": path, "files": result, "truncated": len(entries) > 500}
     if not file.is_file() or file.stat().st_size > 64 * 1024 * 1024:
         raise HTTPException(400, "文件不存在，或超过 64 MB 下载上限")
+    if op == "preview":
+        # Separate document renderer. Never execute a conversation/tool/model,
+        # write back to the source, or pass native model keys to the helper.
+        environment = {key: os.environ[key] for key in ("PATH", "LANG", "SELFME_DOCUMENT_PREVIEW_URL") if key in os.environ}
+        process = await asyncio.create_subprocess_exec("node", "/opt/document-preview/office-preview-cli.mjs", str(file), env=environment, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        try:
+            output, error = await asyncio.wait_for(process.communicate(), timeout=75)
+        except (TimeoutError, asyncio.CancelledError):
+            if process.returncode is None:
+                process.kill()
+            await process.communicate()
+            raise HTTPException(503, "文档预览转换超时，请重试；也可以下载原文件。") from None
+        if process.returncode:
+            try:
+                detail = json.loads(error[:4096])
+                status = detail.get("status", 500)
+                message = detail.get("message", "暂时无法生成文档预览，可以下载原文件。")
+            except (ValueError, TypeError):
+                status, message = 500, "暂时无法生成文档预览，可以下载原文件。"
+            raise HTTPException(status if status in (400, 413, 422, 429, 500, 502, 503, 504) else 500, message)
+        if len(output) > 64 * 1024 * 1024 or not output.startswith(b"%PDF-"):
+            raise HTTPException(502, "生成的文档预览无效，可以下载原文件。")
+        return Response(output, media_type="application/pdf", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
     return FileResponse(file, media_type="application/octet-stream")
 
 

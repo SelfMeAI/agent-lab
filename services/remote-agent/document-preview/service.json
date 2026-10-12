@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "document-preview",
+  "image": "gotenberg/gotenberg:8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923",
+  "source": "https://github.com/gotenberg/gotenberg/tree/v8.34.0",
+  "port": 3000,
+  "command": [
+    "gotenberg",
+    "--api-timeout=60s",
+    "--api-body-limit=65MB",
+    "--api-disable-download-from=true",
+    "--chromium-disable-routes=true",
+    "--pdfengines-disable-routes=true",
+    "--webhook-disable=true",
+    "--libreoffice-max-queue-size=4",
+    "--libreoffice-deny-list=.*",
+    "--libreoffice-idle-shutdown-timeout=5m"
+  ]
+}

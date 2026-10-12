@@ -27,6 +27,7 @@ COPY plugin /opt/selfme/plugin
 COPY --from=model-discovery /provider-models.ts /opt/selfme/plugin/provider-models.ts
 COPY --from=model-discovery /terminal-response.ts /opt/selfme/plugin/terminal-response.ts
 COPY bootstrap /opt/selfme/bootstrap
+COPY --from=document-preview /office-preview.mjs /opt/document-preview/office-preview.mjs
 COPY desktop /opt/selfme/desktop
 COPY --from=panel-build /panel-root/usr/bin/xfce4-panel /usr/bin/xfce4-panel
 COPY --from=panel-build /panel-root/usr/lib/ /usr/lib/

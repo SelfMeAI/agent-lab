@@ -226,6 +226,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         const exec = promisify(execFile);
         await exec("docker", ["rm", container.name]);
         await exec("docker", ["volume", "rm", container.volume]);
+        await exec("docker", ["network", "rm", `selfme-lab-document-preview-${container.owner}-network`]);
         await rm(root, { recursive: true, force: true });
       }
       async function ready() {

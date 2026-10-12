@@ -5,12 +5,13 @@ import type { RemoteAgentId, RemoteServiceState } from "../../../../../packages/
 import { GatewayRequestError, openClawRpc } from "../../../../../packages/remote-agent/src/openclaw/gateway";
 import type { RemoteCredentials } from "./credentials";
 import { remoteDeployments, redactServiceOutput } from "./deployment";
+import { DocumentPreviewService } from "./document-preview-service";
 
 export const OPENHANDS_VERSION = remoteDeployments.openhands.version;
 export const OPENHANDS_IMAGE = remoteDeployments.openhands.image;
 const ownerLabel = "ai.selfme.lab.owner";
 const deploymentLabel = "ai.selfme.lab.deployment";
-type Container = { Config: { Image: string; Hostname?: string; Labels: Record<string, string> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null> } };
+type Container = { Config: { Image: string; Hostname?: string; Labels: Record<string, string> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null>; Networks?: Record<string, unknown> } };
 
 export function assertExclusiveServiceVolume(labels: Record<string, string> | null, owner: string, containers: string[], name: string): void {
   if (labels?.[ownerLabel] !== owner) throw new Error("同名服务卷不属于当前应用，未作修改");
@@ -40,12 +41,14 @@ export class RemoteAgentContainer {
   readonly name: string;
   readonly volume: string;
   readonly deploymentRevision: string;
+  private readonly documentPreview: DocumentPreviewService;
 
   constructor(root: string, private readonly credentials: () => Promise<RemoteCredentials>, readonly engine: RemoteAgentId = "openhands") {
     this.deployment = remoteDeployments[engine];
     this.owner = createHash("sha256").update(root).digest("hex").slice(0, 16);
     this.name = `selfme-lab-${engine}-${this.owner}`;
     this.volume = `${this.name}-data`;
+    this.documentPreview = new DocumentPreviewService(this.owner, (args, timeout) => this.command(args, undefined, timeout));
     this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command, ...(engine === "openclaw" ? { hostname: this.name } : {}) })).digest("hex").slice(0, 16);
   }
 
@@ -139,6 +142,7 @@ export class RemoteAgentContainer {
     const keys = await this.credentials();
     try { await this.checkImage(); }
     catch { throw new Error(`尚未构建固定源码服务镜像，请运行 npm run remote:build -- ${this.engine}`); }
+    await this.documentPreview.ensureNetwork();
     let previous = await this.inspect();
     if (previous) {
       this.endpoint(previous);
@@ -179,8 +183,14 @@ export class RemoteAgentContainer {
         ...(this.engine === "openclaw" ? ["--hostname", this.name] : []),
         "--publish", `127.0.0.1::${this.deployment.port}`, "--mount", `type=volume,src=${this.volume},dst=${this.deployment.mount}`,
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "1024", "--shm-size", "256m",
+        "--env", `SELFME_DOCUMENT_PREVIEW_URL=${this.documentPreview.url}`,
         ...envArgs.flatMap(value => ["--env", value]), this.deployment.image, ...this.deployment.command,
       ], env);
+    }
+    const attached = await this.inspect();
+    if (attached) {
+      this.endpoint(attached);
+      if (!attached.NetworkSettings.Networks?.[this.documentPreview.network]) await this.command(["network", "connect", this.documentPreview.network, this.name]);
     }
     const deadline = Date.now() + 90_000;
     let lastError: unknown; let paired = false;
@@ -210,6 +220,21 @@ export class RemoteAgentContainer {
   private async doStop(): Promise<void> {
     const container = await this.inspect();
     if (container) { this.endpoint(container); if (container.State.Running) await this.command(["stop", "--time", "20", this.name]); }
+    await this.documentPreview.stopIfUnused();
+  }
+  async ensureDocumentPreview(): Promise<void> {
+    await this.requireEndpoint();
+    const current = await this.inspect();
+    if (!current?.NetworkSettings.Networks?.[this.documentPreview.network]) throw new Error("办公文档预览需要更新远端服务，请空闲时重启；原文件仍可下载。");
+    await this.documentPreview.start();
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      try {
+        await this.command(["exec", this.name, "node", "--input-type=module", "-e", "const response=await fetch(process.argv[1]+'/health',{signal:AbortSignal.timeout(1500)});if(!response.ok)process.exit(1);", this.documentPreview.url], undefined, 4000);
+        return;
+      } catch { await new Promise(resolve => setTimeout(resolve, 300)); }
+    }
+    throw new Error("办公文档预览组件启动超时，请重试；原文件仍可下载。");
   }
   async requireEndpoint(): Promise<string> {
     if (this.operation) throw new Error("服务正在启动或停止，请稍后再试");

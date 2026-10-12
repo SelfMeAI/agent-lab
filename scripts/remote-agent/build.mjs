@@ -21,7 +21,7 @@ export function buildArguments(definition, source, directory) {
 export function deploymentArguments(definition, source, directory) {
   if (!definition.deployment) return undefined;
   if (definition.deployment.dockerfile !== "deployment.Dockerfile" || !/^selfme-lab\/[a-z0-9-]+:[a-zA-Z0-9_.-]+$/.test(definition.deployment.image)) throw new Error("部署层构建定义无效");
-  return ["build", "--progress=plain", ...(definition.id === "openclaw" ? ["--build-context", `model-discovery=${join(projectRoot, "packages/remote-agent/src")}`] : []), "--file", join(directory, "deployment.Dockerfile"),
+  return ["build", "--progress=plain", "--build-context", `document-preview=${join(projectRoot, "services/remote-agent/document-preview")}`, ...(definition.id === "openclaw" ? ["--build-context", `model-discovery=${join(projectRoot, "packages/remote-agent/src")}`] : []), "--file", join(directory, "deployment.Dockerfile"),
     "--tag", definition.deployment.image, "--build-arg", `SOURCE_IMAGE=${definition.build.image}`,
     "--label", `ai.selfme.lab.engine=${definition.id}`, "--label", `ai.selfme.lab.source.commit=${source.commit}`,
     "--label", "ai.selfme.lab.integration=1", directory];
@@ -42,6 +42,8 @@ export async function buildMain(args) {
   if (deployment) await access(deployment[deployment.indexOf("--file") + 1]);
   if (args.includes("--plan")) { console.log(JSON.stringify({ engine, commit: source.commit, commands: [build, ...(deployment ? [deployment] : [])].map(args => ({ command: "docker", args })) }, null, 2)); return; }
   await run("docker", ["info", "--format", "{{.ServerVersion}}"], projectRoot, { capture: true, timeout: 15_000 });
+  const preview = JSON.parse(await readFile(join(projectRoot, "services/remote-agent/document-preview/service.json"), "utf8"));
+  await run("docker", ["pull", "--quiet", preview.image], projectRoot, { timeout: 600_000 });
   await run("docker", build, projectRoot, { timeout: 3_600_000 });
   if (deployment) await run("docker", deployment, projectRoot, { timeout: 600_000 });
   const actual = await run("docker", ["image", "inspect", "--format", '{{index .Config.Labels "ai.selfme.lab.source.commit"}}', definition.build.image], projectRoot, { capture: true });

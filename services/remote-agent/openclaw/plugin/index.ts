@@ -7,6 +7,7 @@ import { discoverConnectedModels, type ProviderModelsInput } from "./provider-mo
 import { isTerminalProtocolReply } from "./terminal-response";
 import { disposeTerminal, inputTerminal, prepareTerminal, setDesktopTask, setTerminalAccess, showBrowser, terminalArgv } from "../desktop/session.mjs";
 import { activeBrowserAction, TerminalActivity, isTerminalTool, toolIdentity, type NativeAgentEvent } from "./terminal-access";
+import { convertOffice, DocumentPreviewError } from "../../document-preview/office-preview.mjs";
 
 const tasks = "/home/node/.openclaw/workspace/selfme";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -62,9 +63,14 @@ async function http(req: IncomingMessage, res: ServerResponse): Promise<boolean>
     if (req.method !== "GET") { reply(res, 405, { error: "不支持此操作" }); return true; }
     const file = await target(id, path); const info = await stat(file);
     if (!info.isFile() || info.size > 64 * 1024 * 1024) throw new Error("文件不存在，或超过 64 MB 下载上限");
+    if (url.searchParams.get("op") === "preview") {
+      const pdf = await convertOffice(file, process.env.SELFME_DOCUMENT_PREVIEW_URL);
+      res.writeHead(200, { "Content-Type": "application/pdf", "Content-Length": pdf.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+      res.end(pdf); return true;
+    }
     res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": info.size, "Cache-Control": "no-store" });
     const stream = createReadStream(file); stream.on("error", () => res.destroy()); res.on("close", () => stream.destroy()); stream.pipe(res); return true;
-  } catch (error) { if (!res.headersSent) reply(res, 400, { error: error instanceof Error ? error.message : "文件操作失败" }); else res.destroy(); return true; }
+  } catch (error) { if (!res.headersSent) reply(res, error instanceof DocumentPreviewError ? error.status : 400, { error: error instanceof Error ? error.message : "文件操作失败" }); else res.destroy(); return true; }
 }
 
 type DesktopLease = { env: NodeJS.ProcessEnv; isCurrent(): boolean; release(): void };

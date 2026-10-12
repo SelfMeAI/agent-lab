@@ -332,9 +332,9 @@ export const coverageRecords: readonly CoverageRecord[] = [
   },
   {
     capabilityId: "delivery-experience.preview", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
-    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-10",
-    evidence: ["apps/desktop/src/main/remote-agent/task-controller.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx"],
-    note: "已实际验证文本、SVG、交互 HTML 和 PDF 显示；文本最多预览 1 MB，完整文件仍可下载。HTML 在 opaque sandbox 内运行，本地任务代理限制同任务资源与网络，不暴露模型凭据或主进程接口；PDF 使用 Chromium 沙箱渲染。不支持的二进制明确提示下载。",
+    state: "usable", upstream: "tested", passedChecks: [0, 2], checkedAt: "2026-10-12",
+    evidence: ["apps/desktop/src/main/remote-agent/task-controller.test.ts", "apps/desktop/src/main/remote-agent/document-preview.integration.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteScene.tsx", "services/remote-agent/document-preview/service.json"],
+    note: "两种引擎均已真实验证 DOC/DOCX、XLS/XLSX、PPT/PPTX 的远端只读 PDF 预览，含中文、多页与多工作表；下载仍为原格式，校验原件不被修改。办公渲染器使用固定官方镜像与内部网络，无任务目录/凭据挂载、无外部端口，禁用宏执行、外链获取及无关路由。加密、损坏和超限文件明确提示，并保留原文件下载/重试。原有图片、SVG、交互 HTML、PDF、文本预览保留；文本最多 1 MB。HTML 保持 opaque sandbox 与同任务资源代理，PDF 使用 Chromium 沙箱渲染；不提供 Office 编辑、幻灯片动画或原生表格交互。",
   },
   {
     capabilityId: "delivery-experience.export-share", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",

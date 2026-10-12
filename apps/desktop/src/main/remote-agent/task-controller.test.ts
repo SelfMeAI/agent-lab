@@ -90,6 +90,41 @@ describe("remote task files, native dialogs and scoped previews", () => {
     expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; object-src 'self'; base-uri 'none'; form-action 'none'");
     expect(await response.text()).toContain("%PDF");
   });
+  it("previews all six office formats through each engine and downloads the untouched original", async () => {
+    for (const engine of ["openhands", "openclaw"] as const) {
+      const task = engine === "openclaw" ? "agent:main:selfme:" + id : id, http = controller.client(engine).http;
+      const previewOffice = vi.spyOn(http, "previewOffice").mockImplementation(async () => new Response("%PDF-1.7\nconverted", { headers: { "content-type": "application/pdf" } }));
+      const download = vi.spyOn(http, "download").mockImplementation(async () => new Response("original Office bytes"));
+      for (const ext of ["doc", "docx", "xls", "xlsx", "ppt", "pptx"]) {
+        const path = "uploads/中文 " + ext + "." + ext, preview = await controller.preview(engine, task, path);
+        expect(preview).toMatchObject({ kind: "pdf", mime: "application/pdf", sourceFormat: "." + ext, truncated: false });
+        expect(new URL(preview.url!).pathname.endsWith(".pdf")).toBe(true);
+        expect(previewOffice).toHaveBeenLastCalledWith(task, path);
+        const response = await fetch(preview.url!);
+        expect(response.headers.get("content-type")).toBe("application/pdf"); expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(response.headers.get("content-disposition")).toContain(".pdf"); expect(await response.text()).toContain("converted");
+        expect(download).not.toHaveBeenCalled();
+        const other = new URL(preview.url!); other.pathname = other.pathname.replace(/[^/]+$/, "other.txt");
+        expect((await fetch(other)).status).toBe(403);
+      }
+      save.mockResolvedValue(join(root, engine + ".docx")); await controller.download(engine, task, "uploads/原文件.docx");
+      expect(await readFile(join(root, engine + ".docx"), "utf8")).toBe("original Office bytes");
+    }
+  });
+  it("never revives a closed task's office preview after a slow conversion", async () => {
+    let finish: (response: Response) => void = () => {};
+    const convert = vi.spyOn(controller.hands.http, "previewOffice").mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const pending = controller.preview("openhands", id, "file.docx");
+    await vi.waitFor(() => expect(convert).toHaveBeenCalled());
+    await controller.close("openhands", id);
+    finish(new Response("%PDF-1.7\n", { headers: { "content-type": "application/pdf" } }));
+    await expect(pending).rejects.toThrow("预览已关闭");
+  });
+  it("propagates a failed conversion without issuing a task instruction or fabricating a PDF", async () => {
+    vi.spyOn(controller.hands.http, "previewOffice").mockRejectedValue(new Error("此文档无法预览，可以下载原文件"));
+    const send = vi.spyOn(controller.hands, "send");
+    await expect(controller.preview("openhands", id, "bad.docx")).rejects.toThrow("可以下载原文件"); expect(send).not.toHaveBeenCalled();
+  });
   it("rejects traversal and control-file requests before any download or dialog", async () => {
     const download = vi.spyOn(controller.hands.http, "download");
     for (const path of ["../secret", "/absolute", "uploads/.selfme-control", "a\\b"]) {

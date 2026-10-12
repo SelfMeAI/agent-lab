@@ -33,7 +33,7 @@ export interface RemoteTaskUpdate { engine: RemoteAgentId; taskId: string; snaps
 export interface RemoteWorkspaceFile { path: string; name: string; size: number; directory: boolean; modifiedAt?: string }
 export interface RemoteFilePage { path: string; files: RemoteWorkspaceFile[]; truncated?: boolean }
 export interface RemoteUploadedFile extends RemoteWorkspaceFile { absolutePath: string }
-export interface RemoteFilePreview { kind: "text" | "image" | "pdf" | "html" | "binary"; url?: string; text?: string; truncated: boolean; size: number; mime: string }
+export interface RemoteFilePreview { kind: "text" | "image" | "pdf" | "html" | "binary"; url?: string; text?: string; truncated: boolean; size: number; mime: string; sourceFormat?: string }
 /** Brief input protection while the agent invokes a terminal tool. */
 export interface RemoteTerminalAccess { busy: boolean; inputAllowed: boolean }
 /** One-use, short-lived native framebuffer credentials, never persisted by the client. */

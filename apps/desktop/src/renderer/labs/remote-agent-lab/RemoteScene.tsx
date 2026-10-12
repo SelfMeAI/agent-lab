@@ -9,6 +9,7 @@ import { remoteError } from "./service-presentation";
 import { desktopInputEnabled, observerLabel, remoteSceneTabs, sceneTabDescription, terminalConnectionNotice } from "./scene-presentation";
 import { desktopInputBoundary } from "./desktop-input";
 import { isTerminalProtocolReply } from "../../../../../../packages/remote-agent/src/terminal-response";
+import { remotePreviewKind } from "../../../../../../packages/remote-agent/src/file-preview";
 
 type Tab = "desktop" | "browser" | "terminal" | "files" | "preview";
 const tabLabels = { desktop: ["Desktop", "桌面"], browser: ["Browser", "浏览器"], terminal: ["Terminal", "人工终端"], files: ["Files", "文件"], preview: ["Preview", "产物"] };
@@ -16,12 +17,12 @@ export function remoteFileSize(size: number): string { return size < 1024 ? size
 export function RemoteScene({ engine, taskId, snapshot, available }: { engine: RemoteAgentId; taskId: string; snapshot?: RemoteTaskSnapshot; available: boolean }): JSX.Element {
   const bridge = window.selfmeLab!;
   const [tab, setTab] = useState<Tab>(engine === "openclaw" ? "desktop" : "browser"); const [expanded, setExpanded] = useState(false);
-  const [preview, setPreview] = useState<{ path: string; value: RemoteFilePreview }>(); const [previewError, setPreviewError] = useState(""); const previewVersion = useRef(0); const [previewLoading, setPreviewLoading] = useState(false);
+  const [preview, setPreview] = useState<{ path: string; value: RemoteFilePreview }>(); const [previewPath, setPreviewPath] = useState(""); const [previewError, setPreviewError] = useState(""); const previewVersion = useRef(0); const [previewLoading, setPreviewLoading] = useState(false);
   const disabled = !taskId || !available;
   const tabs = remoteSceneTabs(engine);
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); }; window.addEventListener("keydown", escape); return () => window.removeEventListener("keydown", escape); }, []);
   useEffect(() => () => { ++previewVersion.current; }, [engine, taskId]);
-  async function openPreview(path: string): Promise<void> { const version = ++previewVersion.current; setPreviewError(""); setPreview(undefined); setPreviewLoading(true); setTab("preview"); try { const value = await bridge.previewRemoteTaskFile(engine, taskId, path); if (version === previewVersion.current) setPreview({ path, value }); } catch (error) { if (version === previewVersion.current) setPreviewError(remoteError(error)); } finally { if (version === previewVersion.current) setPreviewLoading(false); } }
+  async function openPreview(path: string): Promise<void> { const version = ++previewVersion.current; setPreviewPath(path); setPreviewError(""); setPreview(undefined); setPreviewLoading(true); setTab("preview"); try { const value = await bridge.previewRemoteTaskFile(engine, taskId, path); if (version === previewVersion.current) setPreview({ path, value }); } catch (error) { if (version === previewVersion.current) setPreviewError(remoteError(error)); } finally { if (version === previewVersion.current) setPreviewLoading(false); } }
   return <section className={`remote-scene${expanded ? " is-expanded" : ""}`} aria-label="远端执行现场"><header className="remote-scene__heading"><h2>远端现场</h2><button type="button" className="remote-icon-button" aria-label={expanded ? "退出展开" : "展开执行现场"} title={expanded ? "退出展开 · Esc" : "展开执行现场"} onClick={() => setExpanded(!expanded)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d={expanded ? "M8 3v5H3m18 0h-5V3M3 16h5v5m8 0v-5h5" : "M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"} /></svg></button></header>
     <nav className="remote-scene__tabs" role="tablist" aria-label="执行现场视图">{tabs.map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} title={sceneTabDescription(engine, id)} onClick={() => setTab(id)}>{tabLabels[id][0]}<span> · {tabLabels[id][1]}</span></button>)}</nav>
     <div className="remote-scene__content">
@@ -32,12 +33,12 @@ export function RemoteScene({ engine, taskId, snapshot, available }: { engine: R
         {engine === "openclaw" && tab === "terminal" && <AdminTerminal taskId={taskId} />}
         {tab === "files" && <RemoteFiles engine={engine} taskId={taskId} running={snapshot?.task.status === "running"} onPreview={path => void openPreview(path)} />}
         {tab === "preview" && <div className="remote-preview">
-          {previewError && <p className="remote-error">{previewError}</p>}
-          {previewLoading ? <div className="remote-scene-empty"><span className="remote-spinner" /><p>正在读取远端产物…</p></div> : preview ? <>
-            <header title={preview.path}><strong>{preview.path.split("/").pop()}</strong><button type="button" className="remote-button" onClick={() => void bridge.downloadRemoteTaskFile(engine, taskId, preview.path).catch(error => setPreviewError(remoteError(error)))}>下载</button><button type="button" className="remote-icon-button" aria-label="刷新产物预览" title="刷新预览" onClick={() => void openPreview(preview.path)}>↻</button></header>
+          {previewPath && <header title={previewPath}><strong>{previewPath.split("/").pop()}</strong><button type="button" className="remote-button" onClick={() => void bridge.downloadRemoteTaskFile(engine, taskId, previewPath).catch(error => setPreviewError(remoteError(error)))}>{remotePreviewKind(previewPath) === "office" ? "下载原文件" : "下载"}</button><button type="button" className="remote-icon-button" aria-label="刷新产物预览" title="刷新预览" disabled={previewLoading} onClick={() => void openPreview(previewPath)}>↻</button></header>}
+          {previewError && preview && <p className="remote-error" role="alert">{previewError}</p>}
+          {previewLoading ? <div className="remote-scene-empty" role="status"><span className="remote-spinner" /><p>{remotePreviewKind(previewPath) === "office" ? "正在生成文档预览…" : "正在读取远端产物…"}</p></div> : preview ? <>
             {preview.value.kind === "text" ? <pre>{preview.value.text}</pre> : preview.value.kind === "image" ? <div className="remote-preview__image"><img src={preview.value.url} alt={preview.path} /></div> : preview.value.kind === "html" || preview.value.kind === "pdf" ? <iframe key={preview.value.url} src={preview.value.url} title={`产物预览：${preview.path}`} sandbox={preview.value.kind === "pdf" ? undefined : "allow-scripts"} referrerPolicy="no-referrer" /> : <div className="remote-scene-empty"><p>此文件无法直接预览，下载后可以使用本地应用打开</p></div>}
             {preview.value.truncated && <small className="remote-scene-note">仅预览前 1 MB，下载可获得完整内容</small>}
-          </> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择图片、HTML 或文档</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
+          </> : previewError ? <div className="remote-scene-empty"><span>▤</span><p className="remote-error" role="alert">{previewError}</p><button className="remote-button" type="button" onClick={() => void openPreview(previewPath)}>重试预览</button></div> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择文档、表格、演示文稿、图片或网页</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
         </div>}
       </>}
     </div>

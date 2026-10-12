@@ -28,6 +28,17 @@ describe("remote task-scoped HTTP", () => {
     await http.request("/selfme-lab/files"); endpoint = "http://127.0.0.1:5678"; http.reset(); await http.request("/selfme-lab/files");
     expect(fetcher.mock.calls[0][1].headers.Authorization).toBe("Bearer key"); expect(fetcher.mock.calls[1][0]).toContain(":5678/");
   });
+  it("requests Office rendering only through the authenticated, task-scoped file API", async () => {
+    const fetcher = vi.fn().mockImplementation(async () => new Response("%PDF-1.7")); vi.stubGlobal("fetch", fetcher);
+    for (const engine of ["openhands", "openclaw"] as const) {
+      const http = new RemoteHttp(engine, async () => "http://127.0.0.1:1234", async () => "private-key");
+      await http.previewOffice(id, "uploads/中文 文档.docx");
+      const [value, options] = fetcher.mock.calls.at(-1)!, url = new URL(value);
+      expect(url.searchParams.get("op")).toBe("preview"); expect(url.searchParams.get("path")).toBe("uploads/中文 文档.docx");
+      expect(url.searchParams.get("task")).toBe(id); expect(value).not.toContain("private-key");
+      expect(options.headers).toMatchObject(engine === "openhands" ? { "X-Session-API-Key": "private-key" } : { Authorization: "Bearer private-key" });
+    }
+  });
   it("does not echo an HTML gateway error or accidental credential blob", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>private-key</html>", { status: 502 })));
     const http = new RemoteHttp("openclaw", async () => "http://127.0.0.1:1234", async () => "private-key");

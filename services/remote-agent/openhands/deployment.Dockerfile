@@ -6,5 +6,7 @@ RUN sed -i 's|http://snapshot.debian.org|https://snapshot.debian.org|g' /etc/apt
     && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 install -y --no-install-recommends xvfb x11vnc fonts-noto-cjk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY extension /opt/selfme
+COPY --from=document-preview /office-preview.mjs /opt/document-preview/office-preview.mjs
+COPY --from=document-preview /office-preview-cli.mjs /opt/document-preview/office-preview-cli.mjs
 USER openhands
 ENTRYPOINT ["tini", "--", "/agent-server/.venv/bin/python", "/opt/selfme/app.py"]

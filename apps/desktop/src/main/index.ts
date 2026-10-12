@@ -151,7 +151,7 @@ void app.whenReady().then(async () => {
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
     (event) => mainWindow?.webContents.send("selfme:run-event", event),
     join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
-  const remoteConnections = {} as Record<RemoteAgentId, { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials> }>;
+  const remoteConnections = {} as Record<RemoteAgentId, { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials>; ensureDocumentPreview(): Promise<void> }>;
   const remoteServices = Object.fromEntries((["openhands", "openclaw"] as const).map(engine => {
     const credentials = new RemoteServiceCredentials(join(root, "remote-agent", "connections"), {
       encrypt: async (value) => {
@@ -161,7 +161,7 @@ void app.whenReady().then(async () => {
       decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
     }, engine);
     const container = new RemoteAgentContainer(root, () => credentials.get(), engine);
-    remoteConnections[engine] = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get() };
+    remoteConnections[engine] = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get(), ensureDocumentPreview: () => container.ensureDocumentPreview() };
     const model = new RemoteModelClient(engine, () => container.requireEndpoint(), () => credentials.get());
     return [engine, new RemoteDevelopmentService(container, model, async () => {
       const saved = await getDshProvider();

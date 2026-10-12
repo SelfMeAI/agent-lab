@@ -7,17 +7,13 @@ import { RemoteHttp, remoteFilePath, remoteTaskId } from "../../../../../package
 import { OpenHandsTasks } from "../../../../../packages/remote-agent/src/openhands/client";
 import { OpenClawTasks } from "../../../../../packages/remote-agent/src/openclaw/client";
 import type { RemoteCredentials } from "./credentials";
+import { remotePreviewKind } from "../../../../../packages/remote-agent/src/file-preview";
+export { remotePreviewKind } from "../../../../../packages/remote-agent/src/file-preview";
 
-interface Connection { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials> }
+interface Connection { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials>; ensureDocumentPreview?(): Promise<void> }
 interface FileDialogs { choose(): Promise<string[]>; save(name: string): Promise<string | null> }
 const mimes: Record<string, string> = { ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".pdf": "application/pdf", ".woff": "font/woff", ".woff2": "font/woff2" };
-export function remotePreviewKind(path: string): RemoteFilePreview["kind"] {
-  const ext = extname(path).toLowerCase(); if ([".html", ".htm"].includes(ext)) return "html";
-  if ([".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(ext)) return "image";
-  if (ext === ".pdf") return "pdf";
-  return [".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".toml", ".js", ".ts", ".tsx", ".jsx", ".py", ".sh", ".css", ".log", ".xml", ".sql", ".rs"].includes(ext) ? "text" : "binary";
-}
-type PreviewGrant = { engine: RemoteAgentId; task: string; expires: number };
+type PreviewGrant = { engine: RemoteAgentId; task: string; expires: number; document?: { path: string; bytes: Buffer } };
 
 export class RemoteTaskController {
   readonly hands: OpenHandsTasks;
@@ -26,7 +22,8 @@ export class RemoteTaskController {
   private grants = new Map<string, PreviewGrant>();
   private proxy?: Server;
   private proxyOrigin?: Promise<string>;
-  constructor(connections: Record<RemoteAgentId, Connection>, private readonly dialogs: FileDialogs,
+  private previewEpoch = new Map<string, number>();
+  constructor(private readonly connections: Record<RemoteAgentId, Connection>, private readonly dialogs: FileDialogs,
     emit: (event: RemoteTaskUpdate) => void, terminal: (event: RemoteTerminalEvent) => void) {
     const http = (engine: RemoteAgentId) => new RemoteHttp(engine, connections[engine].endpoint, async () => (await connections[engine].credentials()).sessionApiKey);
     const update = (engine: RemoteAgentId) => (snapshot: RemoteTaskSnapshot) => emit({ engine, taskId: snapshot.task.id, snapshot });
@@ -35,7 +32,10 @@ export class RemoteTaskController {
   }
   client(engine: RemoteAgentId): OpenHandsTasks | OpenClawTasks { return engine === "openhands" ? this.hands : this.claw; }
   private slot(engine: RemoteAgentId, id: string): string { remoteTaskId(id); return engine + ":" + id; }
-  private revoke(engine: RemoteAgentId, id?: string): void { for (const [token, grant] of this.grants) if (grant.engine === engine && (!id || grant.task === id)) this.grants.delete(token); }
+  private revoke(engine: RemoteAgentId, id?: string): void {
+    for (const [slot, epoch] of this.previewEpoch) if (slot.startsWith(engine + ":") && (!id || slot === this.slot(engine, id))) this.previewEpoch.set(slot, epoch + 1);
+    for (const [token, grant] of this.grants) if (grant.engine === engine && (!id || grant.task === id)) this.grants.delete(token);
+  }
   async close(engine: RemoteAgentId, id: string): Promise<void> { this.revoke(engine, id); await this.client(engine).close(id); }
   async delete(engine: RemoteAgentId, id: string): Promise<void> { await this.client(engine).delete(id); this.uploads.delete(this.slot(engine, id)); this.revoke(engine, id); }
   earlier(engine: RemoteAgentId, id: string): Promise<RemoteTaskSnapshot> { if (engine === "openhands") return this.hands.open(id); return this.claw.earlier(id); }
@@ -71,6 +71,18 @@ export class RemoteTaskController {
   }
   async preview(engine: RemoteAgentId, id: string, path: string): Promise<RemoteFilePreview> {
     remoteTaskId(id); remoteFilePath(path); const kind = remotePreviewKind(path), mime = mimes[extname(path).toLowerCase()] ?? "application/octet-stream";
+    const slot = this.slot(engine, id), epoch = this.previewEpoch.get(slot) ?? 0; this.previewEpoch.set(slot, epoch);
+    if (kind === "office") {
+      await this.connections[engine].ensureDocumentPreview?.();
+      const response = await this.client(engine).http.previewOffice(id, path);
+      if (!response.headers.get("content-type")?.toLowerCase().startsWith("application/pdf")) { await response.body?.cancel(); throw new Error("生成的文档预览无效，可以下载原文件。"); }
+      const bytes = await boundedBytes(response, 64 * 1024 * 1024);
+      if (bytes.subarray(0, 5).toString() !== "%PDF-") throw new Error("生成的文档预览无效，可以下载原文件。");
+      if (this.previewEpoch.get(slot) !== epoch) throw new Error("此任务预览已关闭，请重新打开文件。");
+      const pdfPath = path.slice(0, -extname(path).length) + ".pdf";
+      const token = this.grant({ engine, task: id, expires: Date.now() + 30 * 60_000, document: { path: pdfPath, bytes } });
+      return { kind: "pdf", sourceFormat: extname(path).toLowerCase(), size: bytes.length, mime: "application/pdf", truncated: false, url: `${await this.origin()}/${token}/${pdfPath.split("/").map(encodeURIComponent).join("/")}` };
+    }
     const response = await this.client(engine).http.download(id, path); const size = Number(response.headers.get("content-length") ?? 0);
     if (kind === "text") {
       const reader = response.body!.getReader(); const chunks: Uint8Array[] = []; let count = 0; const cap = 1024 * 1024;
@@ -80,10 +92,18 @@ export class RemoteTaskController {
     }
     await response.body?.cancel();
     if (kind === "binary") return { kind, size, mime, truncated: false };
-    for (const [token, grant] of this.grants) if (grant.expires < Date.now()) this.grants.delete(token);
-    if (this.grants.size >= 40) this.grants.delete(this.grants.keys().next().value!);
-    const token = randomBytes(24).toString("base64url"); this.grants.set(token, { engine, task: id, expires: Date.now() + 30 * 60_000 });
+    if (this.previewEpoch.get(slot) !== epoch) throw new Error("此任务预览已关闭，请重新打开文件。");
+    const token = this.grant({ engine, task: id, expires: Date.now() + 30 * 60_000 });
     return { kind, size, mime, truncated: false, url: `${await this.origin()}/${token}/${path.split("/").map(encodeURIComponent).join("/")}` };
+  }
+  private grant(value: PreviewGrant): string {
+    for (const [token, grant] of this.grants) if (grant.expires < Date.now()) this.grants.delete(token);
+    let memory = [...this.grants.values()].reduce((total, grant) => total + (grant.document?.bytes.length ?? 0), 0);
+    while (this.grants.size && (this.grants.size >= 40 || memory + (value.document?.bytes.length ?? 0) > 96 * 1024 * 1024)) {
+      const token = this.grants.keys().next().value!, grant = this.grants.get(token)!;
+      memory -= grant.document?.bytes.length ?? 0; this.grants.delete(token);
+    }
+    const token = randomBytes(24).toString("base64url"); this.grants.set(token, value); return token;
   }
   private origin(): Promise<string> {
     if (this.proxyOrigin) return this.proxyOrigin;
@@ -94,6 +114,12 @@ export class RemoteTaskController {
           const url = new URL(req.url ?? "/", "http://127.0.0.1"), parts = url.pathname.split("/");
           const grant = this.grants.get(parts[1]); if (!grant || grant.expires < Date.now()) { res.writeHead(410).end("预览已关闭，请重新打开"); return; }
           const path = parts.slice(2).map(decodeURIComponent).join("/"); remoteFilePath(path);
+          if (grant.document) {
+            if (path !== grant.document.path) { res.writeHead(403).end("预览仅限所选文档"); return; }
+            const name = basename(path, extname(path)) + ".pdf";
+            res.writeHead(200, { "Content-Type": "application/pdf", "Content-Length": grant.document.bytes.length, "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(name)}`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; object-src 'self'; base-uri 'none'; form-action 'none'" });
+            res.end(grant.document.bytes); return;
+          }
           const response = await this.client(grant.engine).http.download(grant.task, path);
           res.writeHead(200, { "Content-Type": mimes[extname(path).toLowerCase()] ?? "application/octet-stream", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Access-Control-Allow-Origin": "null",
             // PDF uses Chromium's sandboxed native PDF renderer. The URL is

@@ -35,4 +35,5 @@ export class RemoteHttp {
     return (await this.request(this.fileUrl(id, path), { method: "PUT", body: bytes as unknown as BodyInit }, 120_000)).json() as Promise<RemoteUploadedFile>;
   }
   async download(id: string, path: string): Promise<Response> { return this.request(this.fileUrl(id, path), {}, 120_000); }
+  async previewOffice(id: string, path: string): Promise<Response> { return this.request(this.fileUrl(id, path) + "&op=preview", {}, 90_000); }
 }
