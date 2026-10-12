@@ -37,7 +37,7 @@ export function RemoteScene({ engine, taskId, snapshot, available }: { engine: R
             <header title={preview.path}><strong>{preview.path.split("/").pop()}</strong><button type="button" className="remote-button" onClick={() => void bridge.downloadRemoteTaskFile(engine, taskId, preview.path).catch(error => setPreviewError(remoteError(error)))}>下载</button><button type="button" className="remote-icon-button" aria-label="刷新产物预览" title="刷新预览" onClick={() => void openPreview(preview.path)}>↻</button></header>
             {preview.value.kind === "text" ? <pre>{preview.value.text}</pre> : preview.value.kind === "image" ? <div className="remote-preview__image"><img src={preview.value.url} alt={preview.path} /></div> : preview.value.kind === "html" || preview.value.kind === "pdf" ? <iframe key={preview.value.url} src={preview.value.url} title={`产物预览：${preview.path}`} sandbox={preview.value.kind === "pdf" ? undefined : "allow-scripts"} referrerPolicy="no-referrer" /> : <div className="remote-scene-empty"><p>此文件无法直接预览，下载后可以使用本地应用打开</p></div>}
             {preview.value.truncated && <small className="remote-scene-note">仅预览前 1 MB，下载可获得完整内容</small>}
-          </> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择图片、HTML 或文档{engine === "openclaw" && <><br />运行中的网页请在桌面 Chrome 中打开</>}</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
+          </> : <div className="remote-scene-empty"><span>▤</span><p>从文件列表选择图片、HTML 或文档</p><button className="remote-button" type="button" onClick={() => setTab("files")}>查看远端文件</button></div>}
         </div>}
       </>}
     </div>
