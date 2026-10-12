@@ -7,6 +7,7 @@ function container() {
     Config: { Image: OPENHANDS_IMAGE, Labels: { "ai.selfme.lab.owner": "test-owner" } },
     State: { Running: true },
     Mounts: [{ Type: "volume", Name: "test-private-volume", Destination: "/workspace" }],
+    HostConfig: { Mounts: [] as Array<{ Type: string; Source: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> },
     NetworkSettings: { Ports: { "8000/tcp": [{ HostIp: "127.0.0.1", HostPort: "18000" }] } as Record<string, Array<{ HostIp: string; HostPort: string }>> },
   };
 }
@@ -41,9 +42,31 @@ describe("development service ownership", () => {
     const claw = container();
     claw.Config.Image = remoteDeployments.openclaw.image;
     claw.Mounts[0].Destination = "/home/node/.openclaw";
+    claw.Mounts.push({ Type: "volume", Name: "test-private-volume", Destination: "/home/node" });
+    claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".selfme-desktop/home", NoCopy: true } });
     claw.NetworkSettings.Ports = { "18789/tcp": [{ HostIp: "127.0.0.1", HostPort: "19000" }] };
     expect(containerEndpoint(claw, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
     expect(() => containerEndpoint(claw, "test-owner", "test-private-volume", "openhands")).toThrow();
+  });
+  it("rejects another volume, whole-volume HOME or an unexpected home subpath", () => {
+    const claw = container();
+    claw.Config.Image = remoteDeployments.openclaw.image;
+    claw.Mounts[0].Destination = "/home/node/.openclaw";
+    claw.Mounts.push({ Type: "volume", Name: "test-private-volume", Destination: "/home/node" });
+    claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".selfme-desktop/home", NoCopy: true } });
+    claw.NetworkSettings.Ports = { "18789/tcp": [{ HostIp: "127.0.0.1", HostPort: "19000" }] };
+    for (const patch of [{ Type: "bind" }, { Name: "foreign" }]) {
+      const changed = structuredClone(claw); Object.assign(changed.Mounts[1], patch);
+      expect(() => containerEndpoint(changed, "test-owner", "test-private-volume", "openclaw")).toThrow("挂载");
+    }
+    for (const subpath of ['', 'workspace']) {
+      const changed = structuredClone(claw); changed.HostConfig.Mounts[0].VolumeOptions!.Subpath = subpath;
+      expect(() => containerEndpoint(changed, "test-owner", "test-private-volume", "openclaw")).toThrow("挂载");
+    }
+    const prior = structuredClone(claw); prior.Config.Image = remoteDeployments.openclaw.legacyImages.at(-1)!;
+    expect(containerEndpoint(prior, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
+    prior.Mounts.pop();
+    expect(containerEndpoint(prior, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
   });
   it("accepts only known owned prior images for a volume-preserving deployment upgrade", () => {
     const prior = container(); prior.Config.Image = remoteDeployments.openhands.legacyImages[1];

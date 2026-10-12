@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { configureDesktop } from '../../services/remote-agent/openclaw/desktop/configure.mjs';
 import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
 import { simplifyPanelSource } from '../../services/remote-agent/openclaw/desktop/panel-menu.mjs';
+import { prepareDesktopHome } from '../../services/remote-agent/openclaw/bootstrap/persistent-home.mjs';
 const task = 'c0ec83da-66be-4f17-a2c2-01dc02c89f00';
 test('terminal status has no normal-input banner and uses one native restriction notice', async () => {
   const config = await readFile('services/remote-agent/openclaw/desktop/config/tmux.conf', 'utf8');
@@ -59,11 +60,58 @@ test('curated desktop is reproducible and does not modify task/provider state', 
     assert.equal((panel.match(/name="disable-struts" type="bool" value="false"/g) ?? []).length, 2);
     const desktop = await readFile(join(fixture, '.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml'), 'utf8');
     assert.match(desktop, /galaxy\.png/);
+    assert.match(desktop, /name="style" type="int" value="2"/);
+    assert.match(desktop, /name="show-trash" type="bool" value="true"/);
+    for (const icon of ['show-home', 'show-filesystem', 'show-removable', 'show-network-removable', 'show-device-removable', 'show-unknown-removable']) assert.match(desktop, new RegExp(`name="${icon}" type="bool" value="false"`));
     assert.match(desktop, /name="desktop-menu"[^<]*<property name="show" type="bool" value="false"/);
     assert.match(desktop, /name="windowlist-menu"[^<]*<property name="show" type="bool" value="false"/);
     const manager = await readFile(join(fixture, '.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml'), 'utf8');
     assert.match(manager, /name="prevent_focus_stealing" type="bool" value="true"/);
     await configureDesktop(fixture);
     assert.equal(await readFile(join(fixture, '.openclaw/openclaw.json'), 'utf8'), 'retained-provider-state');
+    const data = join(fixture, '.openclaw/.selfme-desktop/data/Trash');
+    assert.equal((await stat(join(data, 'files'))).mode & 0o777, 0o700);
+    await writeFile(join(data, 'files', 'retained.txt'), 'retained-trash-file');
+    await writeFile(join(data, 'info', 'retained.txt.trashinfo'), 'retained-trash-metadata');
+    await writeFile(join(fixture, '.config/user-dirs.dirs'), 'XDG_DOWNLOAD_DIR="$HOME/downloads"\nXDG_DESKTOP_DIR="$HOME/old-desktop"\n');
+    await configureDesktop(fixture);
+    assert.equal(await readFile(join(data, 'files', 'retained.txt'), 'utf8'), 'retained-trash-file');
+    assert.equal(await readFile(join(data, 'info', 'retained.txt.trashinfo'), 'utf8'), 'retained-trash-metadata');
+    const directories = await readFile(join(fixture, '.config/user-dirs.dirs'), 'utf8');
+    assert.match(directories, /XDG_DOWNLOAD_DIR="\$HOME\/downloads"/);
+    assert.match(directories, /XDG_DESKTOP_DIR="\$HOME\/\.openclaw\/\.selfme-desktop\/Desktop"/);
+    assert.equal((directories.match(/XDG_DESKTOP_DIR=/g) ?? []).length, 1);
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+test('desktop storage rejects a symlink before writing through it', async () => {
+  await mkdir('.work/remote-agent', { recursive: true });
+  const fixture = await mkdtemp('.work/remote-agent/desktop-link-test-');
+  try {
+    await mkdir(join(fixture, 'other'));
+    await symlink('other', join(fixture, '.openclaw'));
+    await assert.rejects(configureDesktop(fixture), /不能是符号链接/);
+    await assert.rejects(stat(join(fixture, 'other', '.selfme-desktop')), { code: 'ENOENT' });
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+test('persistent desktop home is private, additive and never follows a symlink', async () => {
+  await mkdir('.work/remote-agent', { recursive: true });
+  const fixture = await mkdtemp('.work/remote-agent/desktop-home-test-');
+  try {
+    const volume = join(fixture, 'volume'), template = join(fixture, 'template');
+    await mkdir(volume); await mkdir(template);
+    await writeFile(join(template, '.bashrc'), 'native-shell-template');
+    await writeFile(join(volume, 'openclaw.json'), 'retained-provider-state');
+    await prepareDesktopHome(volume, template);
+    const home = join(volume, '.selfme-desktop/home');
+    assert.equal((await stat(home)).mode & 0o777, 0o700);
+    assert.equal(await readFile(join(home, '.bashrc'), 'utf8'), 'native-shell-template');
+    await writeFile(join(home, '.bashrc'), 'retained-user-shell');
+    await prepareDesktopHome(volume, template);
+    assert.equal(await readFile(join(home, '.bashrc'), 'utf8'), 'retained-user-shell');
+    assert.equal(await readFile(join(volume, 'openclaw.json'), 'utf8'), 'retained-provider-state');
+    const linked = join(fixture, 'linked'); await mkdir(linked);
+    await symlink('../template', join(linked, '.selfme-desktop'));
+    await assert.rejects(prepareDesktopHome(linked, template), /不能是符号链接/);
+    await assert.rejects(stat(join(template, 'home')), { code: 'ENOENT' });
   } finally { await rm(fixture, { recursive: true, force: true }); }
 });

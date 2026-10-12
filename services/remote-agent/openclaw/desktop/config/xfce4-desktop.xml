@@ -6,7 +6,19 @@
     <property name="color-style" type="int" value="0"/>
     <property name="cycle-enable" type="bool" value="false"/>
   </property></property></property><property name="single-workspace-mode" type="bool" value="true"/><property name="single-workspace-number" type="int" value="0"/></property>
-  <property name="desktop-icons" type="empty"><property name="style" type="int" value="0"/></property>
+  <property name="desktop-icons" type="empty">
+    <property name="style" type="int" value="2"/>
+    <property name="file-icons" type="empty">
+      <property name="show-trash" type="bool" value="true"/>
+      <property name="show-home" type="bool" value="false"/>
+      <property name="show-filesystem" type="bool" value="false"/>
+      <property name="show-removable" type="bool" value="false"/>
+      <property name="show-network-removable" type="bool" value="false"/>
+      <property name="show-device-removable" type="bool" value="false"/>
+      <property name="show-unknown-removable" type="bool" value="false"/>
+    </property>
+    <property name="show-hidden-files" type="bool" value="false"/>
+  </property>
   <property name="desktop-menu" type="empty"><property name="show" type="bool" value="false"/></property>
   <property name="windowlist-menu" type="empty"><property name="show" type="bool" value="false"/></property>
 </channel>

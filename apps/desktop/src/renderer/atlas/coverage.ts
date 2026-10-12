@@ -265,6 +265,12 @@ export const coverageRecords: readonly CoverageRecord[] = [
     note: "OpenClaw 桌面连接后可直接操作远端环境，不要求人工接管，也不因普通桌面输入自动停止智能体。只有明确停止任务才调用原生中断；不再维护接管租约、等待、交还或强制接管流程。键鼠仅在当前可见、已授权且连接正常的画面生效，离开画面或失焦释放捕获。此项是人工远端输入，不代表任意模型自主 computer use 已验收。",
   },
   {
+    capabilityId: "approvals.destructive-actions", moduleId: "remote-agent-lab", harnessId: "OpenClaw · 人工桌面", platform: "desktop",
+    state: "integrated", upstream: "tested", passedChecks: [0], checkedAt: "2026-10-13",
+    evidence: ["services/remote-agent/openclaw/desktop/config/xfce4-desktop.xml", "services/remote-agent/openclaw/desktop/configure.mjs", "services/remote-agent/openclaw/bootstrap/persistent-home.mjs", "services/remote-agent/openclaw/tests/trash-native-proof.mjs", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts", "apps/desktop/src/main/remote-agent/service-manager.test.ts", "scripts/remote-agent/desktop.test.mjs"],
+    note: "OpenClaw 人工桌面和文件管理器使用原生 GIO/GVfs 回收站，文件及原位置记录保存在现有私有服务卷。真实容器已验证中文/空格文件名的回收、还原及容器重建后还原；打包客户端已实际核验桌面入口、文件管理器侧栏、右键回收和点击还原，原文件及模型配置保留。Dock 仍只有浏览器、终端、文件管理器。仅覆盖原生移入回收站，不拦截智能体或终端的 rm、Shift+Delete、覆盖及清空回收站，不代表智能体变更撤销或系统备份已实现。",
+  },
+  {
     capabilityId: "approvals.allow-once", moduleId: "remote-agent-lab", harnessId: "OpenHands / OpenClaw", platform: "desktop",
     state: "usable", upstream: "tested", passedChecks: [0, 1], checkedAt: "2026-10-13",
     evidence: ["packages/remote-agent/src/openhands/client.ts", "packages/remote-agent/src/openclaw/client.ts", "packages/remote-agent/src/openclaw/client.test.ts", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.tsx", "apps/desktop/src/renderer/labs/remote-agent-lab/RemoteTranscript.test.ts", "apps/desktop/src/main/remote-agent/service-manager.integration.test.ts"],

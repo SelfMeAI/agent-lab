@@ -197,6 +197,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await tasks.claw.delete(native.id);
           await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-reasoner", apiKey: "fixture-restored" });
           await ready();
+          await nativeTrashProof(container.name, remoteTaskId(task.id), "prepare");
         }
         tasks.reset();
         if (engine === "openclaw") {
@@ -226,6 +227,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await defaultDesktopReady(container.name);
           const page = await tasks.claw.request<{ targetId: string }>("browser.request", { method: "POST", path: "/tabs/open", body: { url: "about:blank" }, tabScope: { sessionKey: task.id } });
           expect(page.targetId).toBeTruthy(); await browserOnDesktop(container.name, (await tasks.claw.request<{ display: string }>("selfme.scene.prepare", { task: remoteTaskId(task.id) })).display);
+          await nativeTrashProof(container.name, remoteTaskId(task.id), "restore");
         }
         await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
         if (engine === "openhands") {
@@ -270,6 +272,12 @@ async function defaultDesktopReady(container: string): Promise<void> {
       return true;
     } catch { return false; }
   }, { timeout: 15_000 }).toBe(true);
+}
+
+async function nativeTrashProof(container: string, task: string, phase: "prepare" | "restore"): Promise<void> {
+  const script = await readFile("services/remote-agent/openclaw/tests/trash-native-proof.mjs", "utf8");
+  const { stdout } = await promisify(execFile)("docker", ["exec", container, "node", "--input-type=module", "-e", script, phase, task], { timeout: 45_000 });
+  expect(JSON.parse(stdout)).toEqual({ phase, nativeTrash: true, nativeRestore: true, persistentFilesystem: true });
 }
 
 async function sharedTerminalStatus(container: string, task: string): Promise<string> {

@@ -17,11 +17,12 @@ RUN ./configure --prefix=/usr --libdir=/usr/lib/$(dpkg-architecture -qDEB_HOST_M
 
 FROM ${SOURCE_IMAGE}
 USER root
-ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    XDG_DATA_HOME=/home/node/.openclaw/.selfme-desktop/data
 # Curated desktop shell; task and provider state stays in its native volume.
 RUN sed -i 's|URIs: http://deb.debian.org/|URIs: https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 update \
-    && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl xdotool fonts-noto-color-emoji \
+    && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl xdotool fonts-noto-color-emoji gvfs libglib2.0-bin xdg-user-dirs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY plugin /opt/selfme/plugin
 COPY --from=model-discovery /provider-models.ts /opt/selfme/plugin/provider-models.ts

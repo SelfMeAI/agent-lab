@@ -139,6 +139,8 @@ describe("Agent Atlas knowledge base", () => {
     expect(capabilityState("sandbox.process-isolation", "remote-agent-lab")).toBe("integrated");
     expect(capabilityState("sessions.resume", "remote-agent-lab")).toBe("usable");
     expect(capabilityState("computer.mouse-keyboard", "remote-agent-lab")).toBe("usable");
+    expect(capabilityState("approvals.destructive-actions", "remote-agent-lab")).toBe("integrated");
+    expect(capabilityState("files.undo", "remote-agent-lab")).toBe("unstarted");
     expect(capabilityState("consent-experience.takeover", "remote-agent-lab")).toBe("unstarted");
     expect(capabilityState("web-action.browser-visual", "remote-agent-lab")).toBe("unstarted");
     expect(capabilityState("enterprise.tenant", "remote-agent-lab")).toBe("unstarted");
