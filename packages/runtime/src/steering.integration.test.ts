@@ -13,15 +13,15 @@ import { KimiAdapter } from "./kimi";
 import { QwenAdapter } from "./qwen";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
-const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
-const marker = "SELFME_MID_TURN_REQUIREMENT_731";
-const secondMarker = "SELFME_SECOND_REQUIREMENT_942";
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const nodeExecutable = process.env.AGENT_LAB_STEERING_NODE_EXECUTABLE ?? process.execPath;
+const marker = "AGENT_LAB_MID_TURN_REQUIREMENT_731";
+const secondMarker = "AGENT_LAB_SECOND_REQUIREMENT_942";
 
 describe("real bundled harnesses: mid-turn steering", () => {
   // Native file watchers/process sandboxes need the normal host environment.
   const cases = (["codex", "dsh", "pi", "kimi-code", "qwen-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(cases)("$id mid-turn supplements (cancel=$cancel)", async ({ id, cancel }) => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1").each(cases)("$id mid-turn supplements (cancel=$cancel)", async ({ id, cancel }) => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/steering-check-"));
     const workspace = join(scratch, "workspace");

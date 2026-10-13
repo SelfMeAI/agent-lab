@@ -4,7 +4,7 @@
 task_display=
 for option in "$@"; do
     case "$option" in
-        --selfme-x11-display=*) task_display="${option#--selfme-x11-display=}" ;;
+        --agent-lab-x11-display=*) task_display="${option#--agent-lab-x11-display=}" ;;
     esac
 done
 case "$task_display" in

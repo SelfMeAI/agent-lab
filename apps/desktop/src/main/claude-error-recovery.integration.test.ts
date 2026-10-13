@@ -12,10 +12,10 @@ import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
 
 describe("Claude failed-turn recovery", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1")("reconnects on the next send in the same selected session with original context and error history intact", async () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1")("reconnects on the next send in the same selected session with original context and error history intact", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/claude-recovery-")), workspace = join(scratch, "workspace"); await mkdir(workspace);
     const requests: Obj[] = [], events: AgentSessionEvent[] = [];

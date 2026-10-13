@@ -6,7 +6,7 @@ export function harnessNodeExecutable(executable: string, platform = process.pla
   if (platform !== "darwin") return executable;
   const macos = dirname(executable), contents = dirname(macos);
   if (basename(macos) !== "MacOS" || basename(contents) !== "Contents") {
-    throw new Error("无法定位 macOS 后台运行器，请从完整的 SelfMe Lab.app 启动");
+    throw new Error("无法定位 macOS 后台运行器，请从完整的 Agent Lab.app 启动");
   }
   // electron-builder names both executables from productName, not npm's name
   // or app.getName(). This also resolves Electron Helper in development.

@@ -13,12 +13,12 @@ import { PiAdapter } from "./pi";
 import { chat, responses, prepareQwenTestHome, type Obj } from "./test-support/mock-model";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
-const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const nodeExecutable = process.env.AGENT_LAB_STEERING_NODE_EXECUTABLE ?? process.execPath;
 const options = [{ label: "2048", description: "数字合并" }, { label: "扫雷", description: "推理" }];
 
-describe("real harness human-question round trips (Pi uses SelfMe's SDK custom tool)", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(["qwen-code", "kimi-code", "dsh", "codex", "pi"] as const)("%s actually receives answers and handles cancellation", async id => {
+describe("real harness human-question round trips (Pi uses Agent Lab's SDK custom tool)", () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1").each(["qwen-code", "kimi-code", "dsh", "codex", "pi"] as const)("%s actually receives answers and handles cancellation", async id => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/question-native-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);
@@ -50,7 +50,7 @@ describe("real harness human-question round trips (Pi uses SelfMe's SDK custom t
           }
           if (turn === 4) {
             receivedCustom = context.includes("CUSTOM_ANSWER_947") && (!["kimi-code", "pi"].includes(id) || context.includes("CUSTOM_PLATFORM_948"));
-            if (id === "kimi-code" && context.includes("__selfme_kimi_other__")) throw new Error("Synthetic Other marker leaked into Kimi's tool result");
+            if (id === "kimi-code" && context.includes("__agent_lab_kimi_other__")) throw new Error("Synthetic Other marker leaked into Kimi's tool result");
           }
           if (turn === 2 && id === "kimi-code") receivedCancellation = context.includes("User dismissed the question without answering.");
           if (turn === 2 && id === "pi") receivedCancellation = context.includes('\\"cancelled\\":true') || context.includes('"cancelled":true');

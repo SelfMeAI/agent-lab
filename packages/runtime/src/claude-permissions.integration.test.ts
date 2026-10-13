@@ -8,10 +8,10 @@ import { ClaudeAdapter } from "./claude";
 import { anthropic } from "./test-support/mock-model";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
 
 describe("restored Claude grants still respect native safety", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1")("preserves deny/ask rules, directory boundaries and user questions after reconnect", async () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1")("preserves deny/ask rules, directory boundaries and user questions after reconnect", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/claude-grant-safety-")), workspace = join(scratch, "workspace");
     await mkdir(join(workspace, ".claude"), { recursive: true });

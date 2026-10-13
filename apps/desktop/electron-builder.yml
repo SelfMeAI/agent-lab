@@ -1,5 +1,5 @@
-appId: ai.selfme.lab
-productName: SelfMe Lab
+appId: ai.agent-lab.desktop
+productName: Agent Lab
 directories:
   output: ../../release
 files:
@@ -49,7 +49,7 @@ extraResources:
 asar: true
 mac:
   category: public.app-category.developer-tools
-  icon: ../../assets/brand/selfme-lab-app-icon.png
+  icon: ../../assets/brand/agent-lab-app-icon.png
   identity: null
   target:
     - dir

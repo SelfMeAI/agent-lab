@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, safeStorage, session, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, safeStorage, session, shell, type IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import { agentRuntimeIds, isAgentRuntimeId, type AgentQuestionAnswers, type AgentRuntimeId, type AppInfo, type FollowUpMode, type JevExperimentId } from "../../../../packages/contracts/src/index";
 import type { HarnessAdapter } from "../../../../packages/runtime/src/index";
@@ -35,6 +35,9 @@ import { RemoteDevelopmentService } from "./remote-agent/development-service";
 import { RemoteTaskController } from "./remote-agent/task-controller";
 import { remoteTaskId } from "../../../../packages/remote-agent/src/transport/http";
 import type { RemoteCredentials } from "./remote-agent/credentials";
+import { applicationIdentity, applicationName } from "./application-identity";
+import { applicationMenuTemplate } from "./application-menu";
+import { labOpenClawTaskId } from "../../../../packages/remote-agent/src/identity";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
@@ -52,7 +55,12 @@ const shutdown = installAppShutdown(app,
   () => sessionRepository?.close(),
   (error) => console.error("停止本地运行时失败：", error));
 
-app.setName("SelfMe Lab");
+const identity = applicationIdentity(app.getPath("appData"));
+// Electron captures the macOS Keychain service before ready. Existing installs
+// retain that service; after ready all menus/windows use the current app name.
+app.setName(identity.encryptionName);
+app.setPath("userData", identity.root);
+app.setPath("sessionData", identity.root);
 
 function assertMainWindow(event: IpcMainInvokeEvent): void {
   if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
@@ -63,7 +71,7 @@ function assertMainWindow(event: IpcMainInvokeEvent): void {
 function createWindow(): void {
   if (shutdown.isQuitting()) return;
   const window = new BrowserWindow({
-    title: "SelfMe Lab",
+    title: "Agent Lab",
     titleBarStyle: process.platform === "darwin" ? "hidden" : "default",
     ...(process.platform === "darwin" ? { trafficLightPosition: { x: 10, y: 19 } } : {}),
     width: 1440,
@@ -137,6 +145,9 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
 }
 
 void app.whenReady().then(async () => {
+  app.setName(applicationName);
+  app.setAboutPanelOptions({ applicationName, applicationVersion: app.getVersion() });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenuTemplate(process.platform)));
   const root = app.getPath("userData");
   const appConfig = new AppConfigStore(root);
   await appConfig.init();
@@ -145,12 +156,12 @@ void app.whenReady().then(async () => {
   await appConfig.clearLegacyFollowUpMode();
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
   localModels = new LocalModelService(new LocalModelStore(root), join(runtimeRoot, "ollama/native/ollama"),
-    (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:local-model-event", event); }, undefined,
+    (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("agent-lab:local-model-event", event); }, undefined,
     () => session.defaultSession.resolveProxy("https://huggingface.co"), electronModelMetadataFetch);
   await localModels.init();
   sessions = new AgentSessionController(sessionRepository, appConfig, makeAdapter,
-    (event) => mainWindow?.webContents.send("selfme:run-event", event),
-    join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("selfme:agent-queue-change", { sessionId, queue }));
+    (event) => mainWindow?.webContents.send("agent-lab:run-event", event),
+    join(root, "runtime-homes"), (sessionId, queue) => mainWindow?.webContents.send("agent-lab:agent-queue-change", { sessionId, queue }));
   const remoteConnections = {} as Record<RemoteAgentId, { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials>; ensureDocumentPreview(): Promise<void> }>;
   const remoteServices = Object.fromEntries((["openhands", "openclaw"] as const).map(engine => {
     const credentials = new RemoteServiceCredentials(join(root, "remote-agent", "connections"), {
@@ -171,77 +182,77 @@ void app.whenReady().then(async () => {
   remoteTasks = new RemoteTaskController(remoteConnections, {
     choose: async () => { const result = await dialog.showOpenDialog(mainWindow!, { title: "上传文件到远端任务", properties: ["openFile", "multiSelections"] }); return result.canceled ? [] : result.filePaths; },
     save: async (name) => { const result = await dialog.showSaveDialog(mainWindow!, { title: "下载远端文件", defaultPath: name }); return result.canceled ? null : result.filePath ?? null; },
-  }, event => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:remote-task-update", event); },
-  event => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("selfme:remote-terminal-event", event); });
+  }, event => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("agent-lab:remote-task-update", event); },
+  event => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("agent-lab:remote-terminal-event", event); });
   const remote = (event: IpcMainInvokeEvent, engine: unknown) => {
     assertMainWindow(event);
     if (!isRemoteAgentId(engine)) throw new Error("未知远端智能体");
     return remoteServices[engine];
   };
-  ipcMain.handle("selfme:remote-service-state", (event, engine) => remote(event, engine).state());
-  ipcMain.handle("selfme:remote-service-control", async (event, engine, action) => {
+  ipcMain.handle("agent-lab:remote-service-state", (event, engine) => remote(event, engine).state());
+  ipcMain.handle("agent-lab:remote-service-control", async (event, engine, action) => {
     const service = remote(event, engine);
     if (!["start", "stop", "restart"].includes(action)) throw new Error("未知服务操作");
     remoteTasks!.reset(engine);
     return service.control(action);
   });
-  ipcMain.handle("selfme:remote-service-logs", (event, engine) => remote(event, engine).logs());
-  ipcMain.handle("selfme:remote-model-get", (event, engine) => remote(event, engine).getModel());
-  ipcMain.handle("selfme:remote-model-save", (event, engine, input: RemoteModelInput) => remote(event, engine).saveModel(input));
-  ipcMain.handle("selfme:remote-model-list", (event, engine, input: RemoteModelListInput) => remote(event, engine).listModels(input));
+  ipcMain.handle("agent-lab:remote-service-logs", (event, engine) => remote(event, engine).logs());
+  ipcMain.handle("agent-lab:remote-model-get", (event, engine) => remote(event, engine).getModel());
+  ipcMain.handle("agent-lab:remote-model-save", (event, engine, input: RemoteModelInput) => remote(event, engine).saveModel(input));
+  ipcMain.handle("agent-lab:remote-model-list", (event, engine, input: RemoteModelListInput) => remote(event, engine).listModels(input));
   const taskClient = (event: IpcMainInvokeEvent, engine: unknown, id?: unknown) => {
     remote(event, engine);
-    if (id !== undefined && (typeof id !== "string" || (engine === "openhands" ? remoteTaskId(id) !== id : "agent:main:selfme:" + remoteTaskId(id) !== id))) throw new Error("任务标识无效");
+    if (id !== undefined && (typeof id !== "string" || (engine === "openhands" ? remoteTaskId(id) !== id : !labOpenClawTaskId(id)))) throw new Error("任务标识无效");
     return remoteTasks!.client(engine as RemoteAgentId);
   };
-  ipcMain.handle("selfme:remote-task-list", (event, engine) => taskClient(event, engine).list());
-  ipcMain.handle("selfme:remote-task-create", (event, engine) => taskClient(event, engine).create());
-  ipcMain.handle("selfme:remote-task-open", (event, engine, id) => taskClient(event, engine, id).open(id));
-  ipcMain.handle("selfme:remote-task-earlier", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.earlier(engine, id); });
-  ipcMain.handle("selfme:remote-task-close", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.close(engine, id); });
-  ipcMain.handle("selfme:remote-task-delete", async (event, engine, id) => {
+  ipcMain.handle("agent-lab:remote-task-list", (event, engine) => taskClient(event, engine).list());
+  ipcMain.handle("agent-lab:remote-task-create", (event, engine) => taskClient(event, engine).create());
+  ipcMain.handle("agent-lab:remote-task-open", (event, engine, id) => taskClient(event, engine, id).open(id));
+  ipcMain.handle("agent-lab:remote-task-earlier", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.earlier(engine, id); });
+  ipcMain.handle("agent-lab:remote-task-close", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.close(engine, id); });
+  ipcMain.handle("agent-lab:remote-task-delete", async (event, engine, id) => {
     taskClient(event, engine, id);
     const result = await dialog.showMessageBox(mainWindow!, { type: "warning", title: "删除远端任务", message: "删除此任务及其对话记录？", detail: "这会删除服务端任务历史和待发消息。已生成文件仍留在服务卷中，工作中的任务将先停止。", buttons: ["取消", "删除任务"], defaultId: 0, cancelId: 0 });
     if (result.response === 1) await remoteTasks!.delete(engine, id);
   });
-  ipcMain.handle("selfme:remote-task-send", (event, engine, id, prompt, files, options) => { taskClient(event, engine, id); return remoteTasks!.send(engine, id, prompt, files, options); });
-  ipcMain.handle("selfme:remote-inputs-state", (event, engine, id) => taskClient(event, engine, id).inputQueue(id));
-  ipcMain.handle("selfme:remote-inputs-mode", (event, engine, id, mode) => { if (mode !== "queue" && mode !== "steer") throw new Error("发送方式无效"); return taskClient(event, engine, id).inputMode(id, mode); });
-  ipcMain.handle("selfme:remote-inputs-remove", (event, engine, id, messageId) => { if (typeof messageId !== "string") throw new Error("消息标识无效"); return taskClient(event, engine, id).inputAction(id, messageId, "remove"); });
-  ipcMain.handle("selfme:remote-inputs-steer", (event, engine, id, messageId) => { if (typeof messageId !== "string") throw new Error("消息标识无效"); return taskClient(event, engine, id).inputAction(id, messageId, "steer"); });
-  ipcMain.handle("selfme:remote-task-control", (event, engine, id, action) => { const client = taskClient(event, engine, id); if (action !== "stop" && action !== "resume") throw new Error("未知任务操作"); return client.control(id, action); });
-  ipcMain.handle("selfme:remote-task-approval", (event, engine, id, requestId, decision) => {
+  ipcMain.handle("agent-lab:remote-task-send", (event, engine, id, prompt, files, options) => { taskClient(event, engine, id); return remoteTasks!.send(engine, id, prompt, files, options); });
+  ipcMain.handle("agent-lab:remote-inputs-state", (event, engine, id) => taskClient(event, engine, id).inputQueue(id));
+  ipcMain.handle("agent-lab:remote-inputs-mode", (event, engine, id, mode) => { if (mode !== "queue" && mode !== "steer") throw new Error("发送方式无效"); return taskClient(event, engine, id).inputMode(id, mode); });
+  ipcMain.handle("agent-lab:remote-inputs-remove", (event, engine, id, messageId) => { if (typeof messageId !== "string") throw new Error("消息标识无效"); return taskClient(event, engine, id).inputAction(id, messageId, "remove"); });
+  ipcMain.handle("agent-lab:remote-inputs-steer", (event, engine, id, messageId) => { if (typeof messageId !== "string") throw new Error("消息标识无效"); return taskClient(event, engine, id).inputAction(id, messageId, "steer"); });
+  ipcMain.handle("agent-lab:remote-task-control", (event, engine, id, action) => { const client = taskClient(event, engine, id); if (action !== "stop" && action !== "resume") throw new Error("未知任务操作"); return client.control(id, action); });
+  ipcMain.handle("agent-lab:remote-task-approval", (event, engine, id, requestId, decision) => {
     taskClient(event, engine, id); if (typeof requestId !== "string" || !["once", "always", "reject"].includes(decision)) throw new Error("审批无效");
     return engine === "openhands" ? remoteTasks!.hands.approve(id, requestId, decision) : remoteTasks!.claw.approve(id, requestId, decision);
   });
-  ipcMain.handle("selfme:remote-task-question", (event, engine, id, requestId, answers) => {
+  ipcMain.handle("agent-lab:remote-task-question", (event, engine, id, requestId, answers) => {
     taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎通过对话询问用户");
     if (typeof requestId !== "string" || (answers !== null && (!answers || typeof answers !== "object" || Object.values(answers).some(value => !Array.isArray(value) || value.some(answer => typeof answer !== "string" || answer.length > 10_000))))) throw new Error("回答无效");
     return remoteTasks!.claw.answer(id, requestId, answers);
   });
-  ipcMain.handle("selfme:remote-task-upload", (event, engine, id, remaining = 10) => { taskClient(event, engine, id); return remoteTasks!.upload(engine, id, remaining); });
-  ipcMain.handle("selfme:remote-task-files", (event, engine, id, path) => taskClient(event, engine, id).http.listFiles(id, path));
-  ipcMain.handle("selfme:remote-task-preview", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.preview(engine, id, path); });
-  ipcMain.handle("selfme:remote-task-download", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.download(engine, id, path); });
-  ipcMain.handle("selfme:remote-task-desktop", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.desktop(engine, id); });
-  ipcMain.handle("selfme:remote-terminal-access", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入人工终端"); return remoteTasks!.claw.terminalAccess(id); });
+  ipcMain.handle("agent-lab:remote-task-upload", (event, engine, id, remaining = 10) => { taskClient(event, engine, id); return remoteTasks!.upload(engine, id, remaining); });
+  ipcMain.handle("agent-lab:remote-task-files", (event, engine, id, path) => taskClient(event, engine, id).http.listFiles(id, path));
+  ipcMain.handle("agent-lab:remote-task-preview", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.preview(engine, id, path); });
+  ipcMain.handle("agent-lab:remote-task-download", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.download(engine, id, path); });
+  ipcMain.handle("agent-lab:remote-task-desktop", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.desktop(engine, id); });
+  ipcMain.handle("agent-lab:remote-terminal-access", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入人工终端"); return remoteTasks!.claw.terminalAccess(id); });
   const terminalClient = (event: IpcMainInvokeEvent, engine: unknown, id: unknown) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入人工终端"); return remoteTasks!.claw; };
-  ipcMain.handle("selfme:remote-terminal-open", (event, engine, id) => terminalClient(event, engine, id).terminal(id));
-  ipcMain.handle("selfme:remote-terminal-input", (event, engine, id, terminalId, data) => { const client = terminalClient(event, engine, id); if (typeof data !== "string" || data.length > 65_536) throw new Error("终端输入无效"); return client.terminalInput(id, terminalId, data); });
-  ipcMain.handle("selfme:remote-terminal-resize", (event, engine, id, terminalId, cols, rows) => { const client = terminalClient(event, engine, id); if (![cols, rows].every(value => Number.isInteger(value) && value >= 2 && value <= 500)) throw new Error("终端尺寸无效"); return client.terminalResize(id, terminalId, cols, rows); });
-  ipcMain.handle("selfme:remote-terminal-close", (event, engine, id, terminalId) => terminalClient(event, engine, id).terminalClose(id, terminalId));
-  ipcMain.handle("selfme:app-info", (event): AppInfo => {
+  ipcMain.handle("agent-lab:remote-terminal-open", (event, engine, id) => terminalClient(event, engine, id).terminal(id));
+  ipcMain.handle("agent-lab:remote-terminal-input", (event, engine, id, terminalId, data) => { const client = terminalClient(event, engine, id); if (typeof data !== "string" || data.length > 65_536) throw new Error("终端输入无效"); return client.terminalInput(id, terminalId, data); });
+  ipcMain.handle("agent-lab:remote-terminal-resize", (event, engine, id, terminalId, cols, rows) => { const client = terminalClient(event, engine, id); if (![cols, rows].every(value => Number.isInteger(value) && value >= 2 && value <= 500)) throw new Error("终端尺寸无效"); return client.terminalResize(id, terminalId, cols, rows); });
+  ipcMain.handle("agent-lab:remote-terminal-close", (event, engine, id, terminalId) => terminalClient(event, engine, id).terminalClose(id, terminalId));
+  ipcMain.handle("agent-lab:app-info", (event): AppInfo => {
     assertMainWindow(event);
     return { name: app.getName(), version: app.getVersion(), platform: process.platform, arch: process.arch };
   });
-  ipcMain.handle("selfme:open-external", async (event, value: string): Promise<void> => {
+  ipcMain.handle("agent-lab:open-external", async (event, value: string): Promise<void> => {
     assertMainWindow(event);
     const url = new URL(value);
     const allowed = new Set(["developers.openai.com", "modelcontextprotocol.io", "github.com", "code.claude.com", "learn.microsoft.com", "support.google.com", "deepmind.google", "docs.langchain.com"]);
     if (url.protocol !== "https:" || !allowed.has(url.hostname) || url.username || url.password) throw new Error("不允许打开此外部地址");
     await shell.openExternal(url.toString());
   });
-  ipcMain.handle("selfme:choose-workspace", async (event): Promise<string | null> => {
+  ipcMain.handle("agent-lab:choose-workspace", async (event): Promise<string | null> => {
     assertMainWindow(event);
     const result = await dialog.showOpenDialog(mainWindow!, {
       title: "选择工作目录",
@@ -249,11 +260,11 @@ void app.whenReady().then(async () => {
     });
     return result.canceled ? null : (result.filePaths[0] ?? null);
   });
-  ipcMain.handle("selfme:list-runtimes", async (event) => {
+  ipcMain.handle("agent-lab:list-runtimes", async (event) => {
     assertMainWindow(event);
     return Promise.all(agentRuntimeIds.map((runtimeId) => makeAdapter(runtimeId, "probe").probe()));
   });
-  ipcMain.handle("selfme:get-provider-status", async (event, runtimeId: string) => {
+  ipcMain.handle("agent-lab:get-provider-status", async (event, runtimeId: string) => {
     assertMainWindow(event);
     if (runtimeId === "dsh") return getDshProviderStatus();
     if (runtimeId === "codex") return getCodexProviderStatus();
@@ -264,7 +275,7 @@ void app.whenReady().then(async () => {
     if (runtimeId === "jev") return getJevProviderStatus();
     throw new Error("此运行时暂不支持模型配置");
   });
-  ipcMain.handle("selfme:list-provider-models", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string }) => {
+  ipcMain.handle("agent-lab:list-provider-models", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string }) => {
     assertMainWindow(event);
     if (!isAgentRuntimeId(runtimeId) || !config || typeof config.baseUrl !== "string" || (config.apiKey !== undefined && typeof config.apiKey !== "string")) {
       throw new Error("无效的模型列表请求");
@@ -281,7 +292,7 @@ void app.whenReady().then(async () => {
     }
     return discoverModels(config.baseUrl, apiKey ?? "", protocol, net.fetch);
   });
-  ipcMain.handle("selfme:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
+  ipcMain.handle("agent-lab:save-provider", async (event, runtimeId: string, config: { baseUrl: string; apiKey?: string; model?: string }) => {
     assertMainWindow(event);
     if (runtimeId === "dsh") {
       return sessions!.reconfigure("dsh", () => saveDshProvider(config));
@@ -302,110 +313,110 @@ void app.whenReady().then(async () => {
     if (runtimeId === "jev") return saveJevProvider(config);
     throw new Error("此运行时暂不支持模型配置");
   });
-  ipcMain.handle("selfme:jev-decision", async (event, fen: string, style: "balanced" | "aggressive" | "positional") => {
+  ipcMain.handle("agent-lab:jev-decision", async (event, fen: string, style: "balanced" | "aggressive" | "positional") => {
     assertMainWindow(event);
     return decideJevMove(fen, style);
   });
-  ipcMain.handle("selfme:jev-experiment", async (event, experimentId: JevExperimentId, state: string) => {
+  ipcMain.handle("agent-lab:jev-experiment", async (event, experimentId: JevExperimentId, state: string) => {
     assertMainWindow(event);
     return runJevExperiment(experimentId, state);
   });
-  ipcMain.handle("selfme:local-model-state", (event) => { assertMainWindow(event); return localModels!.getState(); });
-  ipcMain.handle("selfme:local-model-details", (event, model: string) => { assertMainWindow(event); return localModels!.details(model); });
-  ipcMain.handle("selfme:local-model-preferences", (event, value: LocalModelPreferences) => { assertMainWindow(event); return localModels!.savePreferences(value); });
-  ipcMain.handle("selfme:local-model-run", (event, value: LocalModelRunRequest) => { assertMainWindow(event); return localModels!.startRun(value); });
-  ipcMain.handle("selfme:local-model-stop", (event) => { assertMainWindow(event); localModels!.stopRun(); });
-  ipcMain.handle("selfme:local-model-pull", (event, model: string) => { assertMainWindow(event); return localModels!.pull(model); });
-  ipcMain.handle("selfme:local-model-pause-download", (event) => { assertMainWindow(event); return localModels!.pauseDownload(); });
-  ipcMain.handle("selfme:local-model-resume-download", (event) => { assertMainWindow(event); return localModels!.resumeDownload(); });
-  ipcMain.handle("selfme:local-model-stop-download", (event) => { assertMainWindow(event); return localModels!.stopDownload(); });
-  ipcMain.handle("selfme:local-model-unload", (event, model: string) => { assertMainWindow(event); return localModels!.unload(model); });
-  ipcMain.handle("selfme:local-model-delete", (event, model: string) => { assertMainWindow(event); return localModels!.deleteModel(model); });
-  ipcMain.handle("selfme:local-model-history-run", (event, id: string) => { assertMainWindow(event); return localModels!.getRun(id); });
-  ipcMain.handle("selfme:local-model-latest-run", (event, mode: LocalModelRunRequest["mode"], models: string[]) => { assertMainWindow(event); return localModels!.store.latestForModels(mode, models); });
-  ipcMain.handle("selfme:local-model-delete-run", (event, id: string) => { assertMainWindow(event); localModels!.deleteRun(id); });
-  ipcMain.handle("selfme:local-model-choose-directory", async (event): Promise<string | null> => {
+  ipcMain.handle("agent-lab:local-model-state", (event) => { assertMainWindow(event); return localModels!.getState(); });
+  ipcMain.handle("agent-lab:local-model-details", (event, model: string) => { assertMainWindow(event); return localModels!.details(model); });
+  ipcMain.handle("agent-lab:local-model-preferences", (event, value: LocalModelPreferences) => { assertMainWindow(event); return localModels!.savePreferences(value); });
+  ipcMain.handle("agent-lab:local-model-run", (event, value: LocalModelRunRequest) => { assertMainWindow(event); return localModels!.startRun(value); });
+  ipcMain.handle("agent-lab:local-model-stop", (event) => { assertMainWindow(event); localModels!.stopRun(); });
+  ipcMain.handle("agent-lab:local-model-pull", (event, model: string) => { assertMainWindow(event); return localModels!.pull(model); });
+  ipcMain.handle("agent-lab:local-model-pause-download", (event) => { assertMainWindow(event); return localModels!.pauseDownload(); });
+  ipcMain.handle("agent-lab:local-model-resume-download", (event) => { assertMainWindow(event); return localModels!.resumeDownload(); });
+  ipcMain.handle("agent-lab:local-model-stop-download", (event) => { assertMainWindow(event); return localModels!.stopDownload(); });
+  ipcMain.handle("agent-lab:local-model-unload", (event, model: string) => { assertMainWindow(event); return localModels!.unload(model); });
+  ipcMain.handle("agent-lab:local-model-delete", (event, model: string) => { assertMainWindow(event); return localModels!.deleteModel(model); });
+  ipcMain.handle("agent-lab:local-model-history-run", (event, id: string) => { assertMainWindow(event); return localModels!.getRun(id); });
+  ipcMain.handle("agent-lab:local-model-latest-run", (event, mode: LocalModelRunRequest["mode"], models: string[]) => { assertMainWindow(event); return localModels!.store.latestForModels(mode, models); });
+  ipcMain.handle("agent-lab:local-model-delete-run", (event, id: string) => { assertMainWindow(event); localModels!.deleteRun(id); });
+  ipcMain.handle("agent-lab:local-model-choose-directory", async (event): Promise<string | null> => {
     assertMainWindow(event);
     const result = await dialog.showOpenDialog(mainWindow!, { title: "选择模型存储目录", defaultPath: localModels!.store.modelsDirectory, properties: ["openDirectory", "createDirectory"] });
     const path = result.canceled ? null : result.filePaths[0] ?? null;
     if (path) await localModels!.changeDirectory(path);
     return path;
   });
-  ipcMain.handle("selfme:local-model-open-directory", async (event): Promise<void> => {
+  ipcMain.handle("agent-lab:local-model-open-directory", async (event): Promise<void> => {
     assertMainWindow(event); const error = await shell.openPath(localModels!.store.modelsDirectory); if (error) throw new Error(error);
   });
-  ipcMain.handle("selfme:agent-session-catalog", async (event, runtimeId: AgentRuntimeId) => {
+  ipcMain.handle("agent-lab:agent-session-catalog", async (event, runtimeId: AgentRuntimeId) => {
     assertMainWindow(event);
     return sessions!.catalog(runtimeId);
   });
-  ipcMain.handle("selfme:create-agent-session", async (event, runtimeId: AgentRuntimeId, workspace: string) => {
+  ipcMain.handle("agent-lab:create-agent-session", async (event, runtimeId: AgentRuntimeId, workspace: string) => {
     assertMainWindow(event);
     return sessions!.create(runtimeId, workspace);
   });
-  ipcMain.handle("selfme:agent-session-events", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:agent-session-events", async (event, sessionId: string) => {
     assertMainWindow(event);
     return sessions!.events(sessionId);
   });
-  ipcMain.handle("selfme:select-agent-session", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:select-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.select(sessionId);
   });
-  ipcMain.handle("selfme:delete-agent-session", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:delete-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.delete(sessionId);
   });
-  ipcMain.handle("selfme:restore-agent-session", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:restore-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.restore(sessionId);
   });
-  ipcMain.handle("selfme:purge-agent-session", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:purge-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.purge(sessionId);
   });
-  ipcMain.handle("selfme:start-agent-session", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:start-agent-session", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.activate(sessionId);
   });
-  ipcMain.handle("selfme:send-session-prompt", async (event, sessionId: string, prompt: string) => {
+  ipcMain.handle("agent-lab:send-session-prompt", async (event, sessionId: string, prompt: string) => {
     assertMainWindow(event);
     await sessions!.send(sessionId, prompt);
   });
-  ipcMain.handle("selfme:cancel-session-run", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:cancel-session-run", async (event, sessionId: string) => {
     assertMainWindow(event);
     await sessions!.cancel(sessionId);
   });
-  ipcMain.handle("selfme:steer-session-prompt", async (event, sessionId: string, prompt: string) => {
+  ipcMain.handle("agent-lab:steer-session-prompt", async (event, sessionId: string, prompt: string) => {
     assertMainWindow(event);
     await sessions!.steer(sessionId, prompt);
   });
-  ipcMain.handle("selfme:enqueue-session-prompt", async (event, sessionId: string, prompt: string) => {
+  ipcMain.handle("agent-lab:enqueue-session-prompt", async (event, sessionId: string, prompt: string) => {
     assertMainWindow(event); await sessions!.enqueue(sessionId, prompt);
   });
-  ipcMain.handle("selfme:edit-queued-session-prompt", async (event, sessionId: string, messageId: string, prompt: string) => {
+  ipcMain.handle("agent-lab:edit-queued-session-prompt", async (event, sessionId: string, messageId: string, prompt: string) => {
     assertMainWindow(event); await sessions!.editQueued(sessionId, messageId, prompt);
   });
-  ipcMain.handle("selfme:delete-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
+  ipcMain.handle("agent-lab:delete-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
     assertMainWindow(event); await sessions!.deleteQueued(sessionId, messageId);
   });
-  ipcMain.handle("selfme:move-queued-session-prompt", async (event, sessionId: string, messageId: string, direction: "up" | "down") => {
+  ipcMain.handle("agent-lab:move-queued-session-prompt", async (event, sessionId: string, messageId: string, direction: "up" | "down") => {
     assertMainWindow(event); await sessions!.moveQueued(sessionId, messageId, direction);
   });
-  ipcMain.handle("selfme:steer-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
+  ipcMain.handle("agent-lab:steer-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
     assertMainWindow(event); await sessions!.steerQueued(sessionId, messageId);
   });
-  ipcMain.handle("selfme:retry-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
+  ipcMain.handle("agent-lab:retry-queued-session-prompt", async (event, sessionId: string, messageId: string) => {
     assertMainWindow(event); await sessions!.retryQueued(sessionId, messageId);
   });
-  ipcMain.handle("selfme:resume-session-queue", async (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:resume-session-queue", async (event, sessionId: string) => {
     assertMainWindow(event); await sessions!.resumeQueue(sessionId);
   });
-  ipcMain.handle("selfme:pause-session-queue", (event, sessionId: string) => {
+  ipcMain.handle("agent-lab:pause-session-queue", (event, sessionId: string) => {
     assertMainWindow(event); sessions!.pauseQueue(sessionId);
   });
-  ipcMain.handle("selfme:set-session-follow-up-mode", (event, sessionId: string, mode: FollowUpMode) => {
+  ipcMain.handle("agent-lab:set-session-follow-up-mode", (event, sessionId: string, mode: FollowUpMode) => {
     assertMainWindow(event); sessions!.setFollowUpMode(sessionId, mode);
   });
-  ipcMain.handle("selfme:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string, answers?: AgentQuestionAnswers) => {
+  ipcMain.handle("agent-lab:respond-session-approval", async (event, sessionId: string, requestId: string | number, optionId: string, answers?: AgentQuestionAnswers) => {
     assertMainWindow(event);
     await sessions!.respondApproval(sessionId, requestId, optionId, answers);
   });
@@ -416,7 +427,7 @@ void app.whenReady().then(async () => {
   });
 }).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  dialog.showErrorBox("SelfMe Lab 无法启动", `读取本地会话或配置失败：${message}`);
+  dialog.showErrorBox("Agent Lab 无法启动", `读取本地会话或配置失败：${message}`);
   app.quit();
 });
 

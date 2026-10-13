@@ -397,7 +397,7 @@ export class PiAdapter implements HarnessAdapter {
       this.toolInputs.delete(event.toolCallId);
       const diff = this.fileTracker?.finish(event.toolCallId, !event.isError);
       const details = object(object(event.result).details);
-      const rawOutput = event.toolName === "ask_user_question" && details.type === "selfmeUserQuestions" && typeof details.summary === "string"
+      const rawOutput = event.toolName === "ask_user_question" && details.type === "agentLabUserQuestions" && typeof details.summary === "string"
         ? details.summary : resultText(event.result);
       this.emit("tool", {
         title: event.toolName,

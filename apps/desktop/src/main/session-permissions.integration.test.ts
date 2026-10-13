@@ -16,13 +16,13 @@ import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
-const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const nodeExecutable = process.env.AGENT_LAB_STEERING_NODE_EXECUTABLE ?? process.execPath;
 
 describe("real native session approval lifetime", () => {
   const cases = (["claude-code", "pi", "codex", "kimi-code", "qwen-code", "dsh"] as const).map(id => ({ id, files: false }));
   cases.push({ id: "qwen-code", files: true });
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(cases)("$id preserves its native approval scope on reconnect (file editing=$files)", async ({ id, files }) => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1").each(cases)("$id preserves its native approval scope on reconnect (file editing=$files)", async ({ id, files }) => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/permission-native-")), workspace = join(scratch, "workspace"); await mkdir(workspace);
     const errors: string[] = [], approvals: AgentSessionEvent[] = [], events: AgentSessionEvent[] = [];

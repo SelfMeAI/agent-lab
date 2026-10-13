@@ -3,8 +3,8 @@ import type { LocalModelEvent, LocalModelPreferences, LocalModelRun, LocalModelS
 import type { DesktopBridge } from "../../../../../../packages/contracts/src/index";
 
 export function localModelBridge(): DesktopBridge {
-  if (!window.selfmeLab) throw new Error("请在 SelfMe Lab 桌面应用内运行本地模型实验");
-  return window.selfmeLab;
+  if (!window.agentLab) throw new Error("请在 Agent Lab 桌面应用内运行本地模型实验");
+  return window.agentLab;
 }
 
 interface LocalModelViewState {
@@ -53,14 +53,14 @@ export function acceptLocalModelEvent(event: LocalModelEvent): void {
 }
 
 export function attachLocalModelEvents(): () => void {
-  return window.selfmeLab?.onLocalModelEvent(acceptLocalModelEvent) ?? (() => {});
+  return window.agentLab?.onLocalModelEvent(acceptLocalModelEvent) ?? (() => {});
 }
 export function useLocalModels(): LocalModelViewState {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; }, () => state, () => state);
 }
 export function ensureLocalModelRun(mode: LocalModelRun["mode"], models: string[]): Promise<void> {
   const key = localModelExperimentKey(mode, models);
-  if (state.runs[key] !== undefined || !window.selfmeLab) return Promise.resolve();
+  if (state.runs[key] !== undefined || !window.agentLab) return Promise.resolve();
   const pending = runRequests.get(key); if (pending) return pending;
   const revision = runCacheRevision;
   update({ ...state, loadingRuns: { ...state.loadingRuns, [key]: true } });
@@ -86,7 +86,7 @@ export async function deleteLocalModelRun(id: string): Promise<void> {
 }
 export function refreshLocalModels(): Promise<void> {
   if (loading) return loading;
-  if (!window.selfmeLab) return Promise.resolve();
+  if (!window.agentLab) return Promise.resolve();
   update({ ...state, loading: true, error: null });
   loading = localModelBridge().getLocalModelState().then((data) => {
     acceptState(data);

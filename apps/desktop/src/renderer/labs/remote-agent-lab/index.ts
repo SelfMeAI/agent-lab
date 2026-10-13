@@ -9,7 +9,7 @@ export const remoteAgentLab: LabModule = {
   Page: RemoteAgentPage,
   purpose: "体验自部署的远端智能体，查看任务过程、远端工作区与文件产物。",
   views: [
-    { id: "openhands", label: "OpenHands", designId: "remote.openhands.workspace", designStatus: "approved" },
-    { id: "openclaw", label: "OpenClaw", designId: "remote.openclaw.workspace", designStatus: "approved" },
+    { id: "openhands", label: "OpenHands" },
+    { id: "openclaw", label: "OpenClaw" },
   ],
 };

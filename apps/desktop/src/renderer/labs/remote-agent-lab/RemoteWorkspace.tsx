@@ -17,7 +17,7 @@ const drafts = new Map<string, string>();
 const attachments = new Map<string, RemoteUploadedFile[]>();
 const inputTickets = new Map<string, { signature: string; id: string }>();
 export function RemoteWorkspace({ engine, available, revision }: { engine: RemoteAgentId; available: boolean; revision: number }): JSX.Element {
-  const bridge = window.selfmeLab!;
+  const bridge = window.agentLab!;
   const [tasks, setTasks] = useState<RemoteTask[]>([]); const [snapshot, setSnapshot] = useState<RemoteTaskSnapshot>();
   const [selected, setSelected] = useState(""); const [opening, setOpening] = useState(false); const [submitting, setSubmitting] = useState(false); const [acting, setActing] = useState(false);
   const [prompt, setPrompt] = useState(""); const [files, setFiles] = useState<RemoteUploadedFile[]>([]); const [error, setError] = useState(""); const [atBottom, setAtBottom] = useState(true);

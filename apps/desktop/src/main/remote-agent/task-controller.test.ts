@@ -18,7 +18,7 @@ afterEach(async () => { controller.shutdown(); vi.restoreAllMocks(); await rm(ro
 
 describe("remote task files, native dialogs and scoped previews", () => {
   it("returns the native desktop grant without issuing a task instruction", async () => {
-    const key = "agent:main:selfme:" + id;
+    const key = "agent:main:agent-lab:" + id;
     const native = { url: "ws://127.0.0.1/observe", control: true, expiresAt: Date.now() + 60_000 };
     const desktop = vi.spyOn(controller.claw, "desktop").mockResolvedValue(native);
     const send = vi.spyOn(controller.claw, "send");
@@ -45,7 +45,7 @@ describe("remote task files, native dialogs and scoped previews", () => {
     await controller.send("openhands", id, "读取文件", [uploaded]); expect(send).toHaveBeenCalledWith(id, "读取文件", [uploaded], undefined);
     await expect(controller.send("openhands", id, "", [{ ...uploaded, absolutePath: "/other-user/private" }])).rejects.toThrow("不属于");
     await expect(controller.send("openhands", id.replace("c0ec", "a0ec"), "", [uploaded])).rejects.toThrow("不属于");
-    await expect(controller.send("openclaw", "agent:main:selfme:" + id, "", [uploaded])).rejects.toThrow("不属于");
+    await expect(controller.send("openclaw", "agent:main:agent-lab:" + id, "", [uploaded])).rejects.toThrow("不属于");
   });
   it("does not fetch a remote download when the native Save dialog is cancelled", async () => {
     const download = vi.spyOn(controller.hands.http, "download");
@@ -92,7 +92,7 @@ describe("remote task files, native dialogs and scoped previews", () => {
   });
   it("previews all six office formats through each engine and downloads the untouched original", async () => {
     for (const engine of ["openhands", "openclaw"] as const) {
-      const task = engine === "openclaw" ? "agent:main:selfme:" + id : id, http = controller.client(engine).http;
+      const task = engine === "openclaw" ? "agent:main:agent-lab:" + id : id, http = controller.client(engine).http;
       const previewOffice = vi.spyOn(http, "previewOffice").mockImplementation(async () => new Response("%PDF-1.7\nconverted", { headers: { "content-type": "application/pdf" } }));
       const download = vi.spyOn(http, "download").mockImplementation(async () => new Response("original Office bytes"));
       for (const ext of ["doc", "docx", "xls", "xlsx", "ppt", "pptx"]) {
@@ -127,7 +127,7 @@ describe("remote task files, native dialogs and scoped previews", () => {
   });
   it("rejects traversal and control-file requests before any download or dialog", async () => {
     const download = vi.spyOn(controller.hands.http, "download");
-    for (const path of ["../secret", "/absolute", "uploads/.selfme-control", "a\\b"]) {
+    for (const path of ["../secret", "/absolute", "uploads/.agent-lab-control", "a\\b"]) {
       await expect(controller.preview("openhands", id, path)).rejects.toThrow("文件路径");
       await expect(controller.download("openhands", id, path)).rejects.toThrow("文件路径");
     }

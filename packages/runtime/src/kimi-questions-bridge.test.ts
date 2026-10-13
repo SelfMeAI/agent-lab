@@ -47,15 +47,15 @@ describe("Kimi's version-pinned Other form bridge", () => {
     const content = kimiFormAnswerContent(parsed, checked, kimiFormCustomFields(form)!);
     expect(mappers.answers(questions, { action: "accept", content })).toEqual(expected);
     if (input.q0[0] === "扫雷") expect(content).toEqual({ q0: "扫雷", q1: ["电脑", "手机"] });
-    else expect(content).toMatchObject({ q0: form._meta.selfmeKimiOther.fields[0].value, q0_other: input.q0[0] });
+    else expect(content).toMatchObject({ q0: form._meta.agentLabKimiOther.fields[0].value, q0_other: input.q0[0] });
   });
   it("does not collide with a declared label that looks like the synthetic Other value", () => {
-    const qs = [{ question: "选择？", options: [{ label: "__selfme_kimi_other__" }, { label: "B" }] }];
+    const qs = [{ question: "选择？", options: [{ label: "__agent_lab_kimi_other__" }, { label: "B" }] }];
     const form = mappers.form(qs, "session"), parsed = kimiFormQuestions(form), fields = kimiFormCustomFields(form)!;
     expect(fields.q0.value).not.toBe(qs[0].options[0].label);
-    expect(parsed[0].options.map(o => o.label)).toContain("__selfme_kimi_other__");
-    const content = kimiFormAnswerContent(parsed, validateQuestionAnswers(parsed, { q0: ["__selfme_kimi_other__"] }), fields);
-    expect(mappers.answers(qs, { action: "accept", content })).toEqual({ "选择？": "__selfme_kimi_other__" });
+    expect(parsed[0].options.map(o => o.label)).toContain("__agent_lab_kimi_other__");
+    const content = kimiFormAnswerContent(parsed, validateQuestionAnswers(parsed, { q0: ["__agent_lab_kimi_other__"] }), fields);
+    expect(mappers.answers(qs, { action: "accept", content })).toEqual({ "选择？": "__agent_lab_kimi_other__" });
   });
   it.each(["cancel", "decline"])("does not fabricate answers on %s", action => {
     const form = mappers.form(questions, "session"), fields = kimiFormCustomFields(form)!;
@@ -76,7 +76,7 @@ describe("Kimi's version-pinned Other form bridge", () => {
     expect(() => kimiFormAnswerContent(parsed, { q0: ["象棋"], q1: ["主机", "平板"] }, fields)).toThrow(/一个自定义/);
   });
   it.each(["version", "field", "value", "duplicate"])("fails closed on malformed bridge metadata: %s", invalid => {
-    const form = mappers.form(questions, "session"), meta = form._meta.selfmeKimiOther;
+    const form = mappers.form(questions, "session"), meta = form._meta.agentLabKimiOther;
     if (invalid === "version") meta.version = 2;
     if (invalid === "field") meta.fields[0].fieldId = "q1";
     if (invalid === "value") meta.fields[0].value = "不存在";

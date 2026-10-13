@@ -17,11 +17,11 @@ function setup() {
   return { requests, expired, bridge, tool, execute };
 }
 
-describe("SelfMe Pi question extension", () => {
+describe("Agent Lab Pi question extension", () => {
   it("uses the official custom-tool contract with explicit sequential execution", () => {
     const { tool } = setup();
     expect(tool).toMatchObject({ name: "ask_user_question", executionMode: "sequential" });
-    expect(tool.description).toContain("SelfMe");
+    expect(tool.description).toContain("Agent Lab");
     expect(tool.parameters.properties.questions).toMatchObject({ minItems: 1, maxItems: 4 });
   });
   it("waits for actual answers and returns single/multi/custom answers in Pi's tool result", async () => {

@@ -4,7 +4,7 @@ import { TerminalActivity, activeBrowserAction, isTerminalTool } from "../../../
 import { inputTerminal, showTerminal, showBrowser } from "../../../services/remote-agent/openclaw/desktop/session.mjs";
 import type { RemoteTerminalAccess } from "../../contracts/src/remote-agent";
 
-const task = "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionKey = `agent:main:selfme:${task}`;
+const task = "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionKey = `agent:main:agent-lab:${task}`;
 vi.mock("node:fs/promises", async original => ({ ...await original<typeof import("node:fs/promises")>(), readFile: vi.fn(async () => task), realpath: vi.fn(async path => path) }));
 vi.mock("../../../services/remote-agent/openclaw/desktop/session.mjs", () => ({ setTerminalAccess: vi.fn(async () => {}), setDesktopTask: vi.fn(async () => {}), showTerminal: vi.fn(async () => {}), showBrowser: vi.fn(async () => {}), inputTerminal: vi.fn(async () => {}), prepareTerminal: vi.fn(async () => {}), terminalArgv: vi.fn(() => []), disposeTerminal: vi.fn(async () => {}) }));
 type Api = Parameters<typeof plugin.register>[0];
@@ -27,7 +27,7 @@ function fixture() {
   plugin.register(api);
   const context: Parameters<Handler>[0]["context"] = {
     isTerminalEnabled: () => true, getRuntimeConfig: () => ({}),
-    terminalSessions: { list: () => [{ sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/" + task }], write: (owner, id) => owner === "owner" && id === "term" },
+    terminalSessions: { list: () => [{ sessionId: "term", cwd: "/home/node/.openclaw/workspace/agent-lab/" + task }], write: (owner, id) => owner === "owner" && id === "term" },
     hostDesktopService: {
       acquireComputer: async options => { stopDesktop = options.onStop; return { env: { DISPLAY: ":101" }, isCurrent: () => true, release() {} }; },
       observe: vi.fn(async options => ({ wsPath: "/desktop/observe", control: options.control, expiresAtMs: 100 })),
@@ -39,10 +39,10 @@ function fixture() {
     await handler({ params, context, client: { connId: owner, connectionSignal: connection.signal }, respond(ok, result, problem) { if (ok) value = result; else error = problem?.message ?? "failed"; } });
     if (error) throw new Error(error); return value as T;
   }
-  const state = () => call<RemoteTerminalAccess>("selfme.terminal.status", { task });
+  const state = () => call<RemoteTerminalAccess>("agent-lab.terminal.status", { task });
   const hook = (id: string, tool = "exec", signal?: AbortSignal, kind?: string, params = {}) => before({ toolName: tool, params, toolKind: kind }, { sessionKey, runId: "run", toolCallId: id, abortSignal: signal });
   const finish = (id: string, tool = "exec") => after({ toolName: tool, params: {} }, { sessionKey, runId: "run", toolCallId: id });
-  const input = (data: string, id = "term", owner = "owner") => call("selfme.terminal.input", { task, sessionId: id, data }, owner);
+  const input = (data: string, id = "term", owner = "owner") => call("agent-lab.terminal.input", { task, sessionId: id, data }, owner);
   return { methods, context, call, state, hook, finish, input, connection };
 }
 
@@ -73,14 +73,14 @@ describe("manual terminal input, without scene takeover", () => {
     expect(inputTerminal).not.toHaveBeenCalled();
   });
   it("keeps the desktop directly operable while a terminal tool runs, without aborting the tool", async () => {
-    const f = fixture(); await f.call("selfme.scene.prepare", { task }); await f.hook("work");
-    expect(await f.call("selfme.scene.observe", { task })).toMatchObject({ control: true });
+    const f = fixture(); await f.call("agent-lab.scene.prepare", { task }); await f.hook("work");
+    expect(await f.call("agent-lab.scene.observe", { task })).toMatchObject({ control: true });
     expect((await f.state()).busy).toBe(true);
-    expect([...f.methods.keys()].some(name => name.startsWith("selfme.control.") || name.startsWith("selfme.browser."))).toBe(false);
+    expect([...f.methods.keys()].some(name => name.startsWith("agent-lab.control.") || name.startsWith("agent-lab.browser."))).toBe(false);
     await f.finish("work");
   });
   it("only native browser actions can foreground Chrome; command execution never opens a terminal window", async () => {
-    const f = fixture(); await f.call("selfme.scene.prepare", { task });
+    const f = fixture(); await f.call("agent-lab.scene.prepare", { task });
     await f.hook("command"); await f.finish("command");
     expect(showTerminal).not.toHaveBeenCalled();
     await f.hook("open", "browser", undefined, undefined, { action: "open" });

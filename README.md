@@ -1,6 +1,6 @@
-# SelfMe Lab
+# Agent Lab
 
-SelfMe Lab 是 Electron + TypeScript 桌面实验平台，只保留四个已实现的实验室：Agent Lab、Remote Agent Lab、Local Model Lab 和 JEV Lab。首页提供四个独立入口，各实验室保留自己的工作区、配置和测试场景。
+Agent Lab 是 Electron + TypeScript 桌面实验平台，只保留四个已实现的实验室：Agent Lab、Remote Agent Lab、Local Model Lab 和 JEV Lab。首页提供四个独立入口，各实验室保留自己的工作区、配置和测试场景。
 
 ## 运行与验收
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 npm run typecheck
 npm test
-SELFME_DSH_SMOKE=1 npm test
+AGENT_LAB_DSH_SMOKE=1 npm test
 ```
 
 `npm install` 会把固定版本 DSH 安装在本项目的 `runtimes/dsh/` 内。Codex 是官方源码构建的本地运行时，不能依赖用户电脑上安装的 Codex；其大型可执行文件不入 Git。新克隆仓库如需运行或打包 Codex，需在此仓库执行一次 `npm run build:codex`。该命令使用固定的官方 Codex 与 rusty_v8 提交，首次编译需要 Git、Rust/Cargo、较长时间和充足磁盘空间，源代码与构建缓存只在项目的 `.cache/`；运行 `npm run verify:codex` 校验版本、包布局与哈希。已准备运行时后：
@@ -20,7 +20,7 @@ SELFME_DSH_SMOKE=1 npm test
 npm run package:mac
 ```
 
-打包结果位于 `release/mac-arm64/SelfMe Lab.app`。当前包未签名、未公证，不是对外发布包；打包版包含 DSH、Codex CLI、Code Mode host 与 ripgrep，不要求用户另行安装这些运行时。
+打包结果位于 `release/mac-arm64/Agent Lab.app`。当前包未签名、未公证，不是对外发布包；打包版包含 DSH、Codex CLI、Code Mode host 与 ripgrep，不要求用户另行安装这些运行时。
 
 ## 四个实验室
 
@@ -56,8 +56,9 @@ runtimes/dsh/               固定版本 DSH 清单；node_modules 不入 Git
 runtimes/codex/             Codex 来源记录、许可和包元数据；大型二进制不入 Git
 scripts/                    运行时准备、源码构建和校验
 assets/                     应用实际使用的品牌图与背景
-design/                     已确认设计稿、视觉约束与提示词
 .cache/、.work/、release/    本地缓存/测试/打包产物，不入 Git
 ```
 
-Renderer 不直接访问文件系统或密钥；桌面调用通过 `DesktopBridge` 和主进程收口。研发阶段的远端服务部署在本机 Docker 中，但任务仍在服务端执行，不使用客户端本地工作目录。保留的工作区设计稿用于风格参考，不是功能完成证明；首页以当前四入口实现为准，每个真实能力都要以打包版的交互和产物验收。
+Renderer 不直接访问文件系统或密钥；桌面调用通过 `DesktopBridge` 和主进程收口。研发阶段的远端服务部署在本机 Docker 中，但任务仍在服务端执行，不使用客户端本地工作目录。首页以当前四入口实现为准，每个真实能力都要以打包版的交互和产物验收。
+
+新安装使用 Agent Lab 的应用身份。已有安装会兼容原数据目录、系统加密身份和 Docker 卷，避免改名导致模型配置、会话或产物丢失；旧标识仅用于数据兼容，不作为项目名称。

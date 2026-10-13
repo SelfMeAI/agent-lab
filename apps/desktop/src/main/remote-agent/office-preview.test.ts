@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { convertOffice, DocumentPreviewError, previewFailure } from "../../../../../services/remote-agent/document-preview/office-preview.mjs";
-const url = "http://selfme-lab-document-preview-0123456789abcdef:3000";
+const url = "http://agent-lab-document-preview-0123456789abcdef:3000";
 let root: string;
 beforeEach(async () => { const base = resolve(".work/remote-agent/office-tests"); await mkdir(base, { recursive: true }); root = await mkdtemp(join(base, "fixture-")); });
 afterEach(async () => { await rm(root, { recursive: true, force: true }); });

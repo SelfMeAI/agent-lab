@@ -22,13 +22,13 @@ export function App(): JSX.Element {
   const jevView = jevWorkspace || jevExperiment;
   const localModelView = route.lab?.id === "local-model-lab";
   const remoteView = route.lab?.id === "remote-agent-lab";
-  const macDesktop = Boolean(window.selfmeLab) && /Macintosh/.test(navigator.userAgent);
+  const macDesktop = Boolean(window.agentLab) && /Macintosh/.test(navigator.userAgent);
 
   useEffect(() => {
     const syncRoute = (): void => setRoute(parseHash(window.location.hash));
     window.addEventListener("hashchange", syncRoute);
-    if (window.selfmeLab) {
-      void window.selfmeLab.getAppInfo().then(setInfo).catch(() => setInfo(null));
+    if (window.agentLab) {
+      void window.agentLab.getAppInfo().then(setInfo).catch(() => setInfo(null));
     }
     const detachAgents = attachAgentEvents();
     const detachLocalModels = attachLocalModelEvents();

@@ -1,9 +1,9 @@
 {
-  "name": "@selfme-lab/desktop",
-  "productName": "SelfMe Lab",
+  "name": "@agent-lab/desktop",
+  "productName": "Agent Lab",
   "private": true,
   "version": "0.1.0",
-  "description": "SelfMe Lab desktop experiment platform",
+  "description": "Agent Lab desktop experiment platform",
   "main": "./out/main/index.js",
   "scripts": {
     "predev": "node ../../node_modules/electron/install.js",

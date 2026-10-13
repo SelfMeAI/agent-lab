@@ -12,7 +12,7 @@ import { AppConfigStore } from "./app-config";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 describe("Pi SDK custom question tool: app persistence and concurrent sessions", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1")("isolates pending answers, stops one session, persists the other and resumes its native context", async () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1")("isolates pending answers, stops one session, persists the other and resumes its native context", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/pi-questions-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);

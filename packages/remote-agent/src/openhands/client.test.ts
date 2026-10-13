@@ -18,7 +18,7 @@ function fixture() {
   vi.stubGlobal("WebSocket", NativeSocket);
   const http = new RemoteHttp("openhands", async () => "http://127.0.0.1:1234", async () => "private-token");
   const json = vi.spyOn(http, "json").mockImplementation(async (path: string) => {
-    if (path.startsWith("/api/selfme/inputs")) return { mode: "queue", paused: false, revision: 0, items: [] };
+    if (path.startsWith("/api/agent-lab/inputs")) return { mode: "queue", paused: false, revision: 0, items: [] };
     if (path.includes("events/search")) return { items: [{ id: "canonical-user", kind: "MessageEvent", source: "user", llm_message: { role: "user", content: [{ text: "Hello" }] } }] };
     return { id, title: "新任务", execution_status: "idle" };
   });
@@ -35,7 +35,7 @@ describe("OpenHands ordered native task stream", () => {
   });
   it("history replay cannot regress activity and newer assistant/tool work advances it", async () => {
     const { client, json, updates } = fixture();
-    json.mockImplementation(async path => path.startsWith("/api/selfme/inputs") ? { mode: "queue", paused: false, revision: 0, items: [] } : { id, title: "Task", execution_status: "finished", updated_at: "2026-10-12T15:10:00Z" });
+    json.mockImplementation(async path => path.startsWith("/api/agent-lab/inputs") ? { mode: "queue", paused: false, revision: 0, items: [] } : { id, title: "Task", execution_status: "finished", updated_at: "2026-10-12T15:10:00Z" });
     await client.open(id);
     NativeSocket.current.frame({ type: "durable", seq: 0, event: { id: "old", kind: "MessageEvent", source: "user", timestamp: "2026-10-12T14:50:00", llm_message: { content: [{ text: "old" }] } } });
     expect(updates.at(-1)?.task.updatedAt).toBe("2026-10-12T15:10:00.000Z");
@@ -48,7 +48,7 @@ describe("OpenHands ordered native task stream", () => {
   it("creates a visible browser with automatic confirmed vision instead of a stale override", async () => {
     const { client, json } = fixture();
     json.mockImplementation(async (path: string) => {
-      if (path === "/api/selfme/workspace") return { root: "/workspace/selfme/fixture" };
+      if (path === "/api/agent-lab/workspace") return { root: "/workspace/agent-lab/fixture" };
       if (path === "/api/settings") return { llm_api_key_is_set: true, agent_settings: { llm: { model: "openai/deepseek-flash", base_url: "https://api.deepseek.com", api_key: "encrypted-fixture", capability_overrides: { supports_vision: false } } } };
       return { id, title: "新任务", execution_status: "idle" };
     });
@@ -114,7 +114,7 @@ describe("OpenHands ordered native task stream", () => {
     const { client, json, updates } = fixture(); await client.open(id);
     json.mockResolvedValueOnce({ mode: "queue", paused: true, revision: 1, items: [{ id: "held", text: "Hello", at: "2026-10-13T00:00:00Z", state: "queued", files: [], error: "消息尚未提交，待发内容已保留。" }] }); await client.send(id, "Hello");
     expect(updates.at(-1)?.queue).toMatchObject({ paused: true, items: [{ text: "Hello" }] });
-    expect(json.mock.calls.filter(([path, method]) => path === "/api/selfme/inputs/send" && method === "POST")).toHaveLength(1);
+    expect(json.mock.calls.filter(([path, method]) => path === "/api/agent-lab/inputs/send" && method === "POST")).toHaveLength(1);
     expect(json.mock.calls.some(([path]) => path.endsWith("/events") || path.endsWith("/run"))).toBe(false); client.shutdown();
   });
   it("replays execution failure with its reason and accepts a continuation in the same conversation", async () => {
@@ -130,7 +130,7 @@ describe("OpenHands ordered native task stream", () => {
     await vi.waitFor(() => expect(NativeSocket.current.closed).toBe(false)); NativeSocket.current.frame(fatal);
     expect((await reopened).failure).toEqual(snapshot.failure);
     await client.send(id, "Continue after checking existing files");
-    expect(json).toHaveBeenCalledWith("/api/selfme/inputs/send", "POST", expect.objectContaining({ text: "Continue after checking existing files", mode: "queue" }));
+    expect(json).toHaveBeenCalledWith("/api/agent-lab/inputs/send", "POST", expect.objectContaining({ text: "Continue after checking existing files", mode: "queue" }));
     NativeSocket.current.frame({ type: "durable", seq: 1, event: { id: "started", kind: "ConversationStateUpdateEvent", key: "execution_status", value: "running" } });
     expect(updates.at(-1)?.task.status).toBe("running"); expect(updates.at(-1)?.failure).toBeUndefined();
     expect(updates.at(-1)?.items.some(item => item.failure)).toBe(true); client.shutdown();

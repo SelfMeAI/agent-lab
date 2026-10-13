@@ -8,11 +8,11 @@ import { QwenAdapter } from "./qwen";
 import { chat, prepareQwenTestHome, type Obj } from "./test-support/mock-model";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
-const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const nodeExecutable = process.env.AGENT_LAB_STEERING_NODE_EXECUTABLE ?? process.execPath;
 
 describe("Qwen Code native tools, permissions, diff and resume", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1")("writes and edits only after approval, preserves native context on restart, and respects rejection", async () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1")("writes and edits only after approval, preserves native context on restart, and respects rejection", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/qwen-native-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);

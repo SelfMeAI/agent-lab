@@ -12,8 +12,6 @@ export type LabId =
 export interface LabView {
   id: string;
   label: string;
-  designId: string;
-  designStatus?: "approved" | "pending";
 }
 
 export interface LabDefinition {

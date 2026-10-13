@@ -48,7 +48,7 @@ describe("user question card", () => {
     const questions = kimiFormQuestions({ mode: "form", message: "游戏？", requestedSchema: { type: "object", properties: {
       q0: { type: "string", title: "类型", oneOf: [{ const: "2048" }, { const: "扫雷" }, { const: "other-marker", title: "Other" }] },
       q0_other: { type: "string", title: "Other" },
-    } }, _meta: { selfmeKimiOther: { version: 1, fields: [{ id: "q0", fieldId: "q0_other", value: "other-marker" }] } } });
+    } }, _meta: { agentLabKimiOther: { version: 1, fields: [{ id: "q0", fieldId: "q0_other", value: "other-marker" }] } } });
     const draft = toggleQuestionChoice(emptyQuestionDraft, questions[0], questions[0].options.length);
     const render = (questionDraft: typeof draft): string => renderToStaticMarkup(createElement(TranscriptItem, {
       runtimeId: "kimi-code", workspace: "/workspace", onApprove: () => {}, approvalBusy: false, questionDraft,

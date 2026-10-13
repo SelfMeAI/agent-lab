@@ -6,19 +6,19 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as wait } from 'node:timers/promises';
 const run = promisify(execFile);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const state = '/home/node/.cache/selfme-lab';
+const state = '/home/node/.cache/agent-lab';
 const socket = join(state, 'terminal.sock');
-const config = '/opt/selfme/desktop/config/tmux.conf';
+const config = '/opt/agent-lab/desktop/config/tmux.conf';
 export const contextPath = join(state, 'desktop-context.json');
 export const accessPath = join(state, 'terminal-access.json');
 export function tmuxArgv() { return ['-S', socket, '-f', config]; }
 export function terminalIdentity(task) {
   if (typeof task !== 'string' || !uuid.test(task)) throw new Error('任务标识无效');
-  return { task, name: 'selfme-' + task, cwd: '/home/node/.openclaw/workspace/selfme/' + task };
+  return { task, name: 'agent-lab-' + task, cwd: '/home/node/.openclaw/workspace/agent-lab/' + task };
 }
 export async function checkedTask(task) {
   const identity = terminalIdentity(task);
-  if (await realpath(identity.cwd) !== identity.cwd || await readFile(join(identity.cwd, '.selfme-workspace'), 'utf8') !== task) throw new Error('任务工作区未准备好');
+  if (await realpath(identity.cwd) !== identity.cwd || await readFile(join(identity.cwd, '.agent-lab-workspace'), 'utf8') !== task) throw new Error('任务工作区未准备好');
   return identity;
 }
 export async function setDesktopTask(task) {
@@ -32,23 +32,23 @@ export async function setDesktopTask(task) {
 }
 export function terminalArgv(task, desktop = false) {
   terminalIdentity(task);
-  return [process.execPath, '/opt/selfme/desktop/terminal-attach.mjs', task, desktop ? 'desktop' : 'external'];
+  return [process.execPath, '/opt/agent-lab/desktop/terminal-attach.mjs', task, desktop ? 'desktop' : 'external'];
 }
 export function terminalViewPattern(task) {
   terminalIdentity(task);
-  return '^' + process.execPath.replaceAll('.', '\\.') + ' /opt/selfme/desktop/terminal-attach\\.mjs ' + task + ' desktop$';
+  return '^' + process.execPath.replaceAll('.', '\\.') + ' /opt/agent-lab/desktop/terminal-attach\\.mjs ' + task + ' desktop$';
 }
 export function terminalWindowArgv(task) {
   const identity = terminalIdentity(task);
   return ['--disable-server', '--title', '人工终端 · ' + task.slice(0, 8), '--working-directory', identity.cwd, '--hide-menubar', '--hide-toolbar', '--geometry', '110x30', '--command', terminalArgv(task, true).join(' ')];
 }
 async function setInputPresentation(name, access) {
-  const current = name === 'selfme-' + access?.task;
+  const current = name === 'agent-lab-' + access?.task;
   const synchronized = access?.expiresAt > Date.now();
   const writable = synchronized && current && access.ready === true;
   const notice = writable ? '' : !synchronized ? '终端输入状态暂不可用' : !current ? '请先在应用中选择此任务' : '智能体正在调用终端工具 · 暂不可输入';
-  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_input', writable ? '1' : '0']);
-  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@selfme_terminal_notice', notice]);
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@agent_lab_input', writable ? '1' : '0']);
+  await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, '@agent_lab_terminal_notice', notice]);
   await run('tmux', [...tmuxArgv(), 'set-option', '-t', name, 'status', writable ? 'off' : 'on']);
 }
 export async function setTerminalAccess(access) {
@@ -57,7 +57,7 @@ export async function setTerminalAccess(access) {
   await writeFile(temporary, JSON.stringify(access ?? {}), { mode: 0o600 }); await rename(temporary, accessPath);
   let sessions;
   try { ({ stdout: sessions } = await run('tmux', [...tmuxArgv(), 'list-sessions', '-F', '#{session_name}'])); } catch { return; }
-  for (const name of sessions.trim().split('\n').filter(name => /^selfme-[0-9a-f-]{36}$/.test(name))) {
+  for (const name of sessions.trim().split('\n').filter(name => /^agent-lab-[0-9a-f-]{36}$/.test(name))) {
     await setInputPresentation(name, access);
   }
   if (!access?.ready) {

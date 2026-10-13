@@ -1,6 +1,6 @@
 Kimi Code CLI is developed by Moonshot AI and distributed under the MIT License.
 This runtime uses the official npm @moonshot-ai/kimi-code distribution, pinned to 2.1.1.
-Installed upstream files are unmodified. SelfMe Lab's steering-loader.mjs extends
+Installed upstream files are unmodified. Agent Lab's steering-loader.mjs extends
 the loaded ACP transport in memory to expose native agent.steer and prevent
 an idle/cancelled steering request from launching a new task. Dependencies and
 registry integrity hashes are recorded in package-lock.json.

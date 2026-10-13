@@ -6,32 +6,41 @@ import { GatewayRequestError, openClawRpc } from "../../../../../packages/remote
 import type { RemoteCredentials } from "./credentials";
 import { remoteDeployments, redactServiceOutput } from "./deployment";
 import { DocumentPreviewService } from "./document-preview-service";
+import { legacyApplicationRoot, legacyResourceNamespace, legacyDesktopHome, ownedResource } from "../application-identity";
 
 export const OPENHANDS_VERSION = remoteDeployments.openhands.version;
 export const OPENHANDS_IMAGE = remoteDeployments.openhands.image;
-const ownerLabel = "ai.selfme.lab.owner";
-const deploymentLabel = "ai.selfme.lab.deployment";
+const ownerLabel = "ai.agent-lab.desktop.owner";
+const deploymentLabel = "ai.agent-lab.desktop.deployment";
 type Container = { Config: { Image: string; Hostname?: string; Labels: Record<string, string> }; HostConfig?: { Mounts?: Array<{ Type: string; Source?: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null>; Networks?: Record<string, unknown> } };
 
 export function assertExclusiveServiceVolume(labels: Record<string, string> | null, owner: string, containers: string[], name: string): void {
-  if (labels?.[ownerLabel] !== owner) throw new Error("同名服务卷不属于当前应用，未作修改");
+  if (!ownedResource(labels, owner)) throw new Error("同名服务卷不属于当前应用，未作修改");
   if (containers.some(container => container !== name)) throw new Error("浏览器服务卷被其他容器引用，未启动或清理锁");
 }
 
 export function containerEndpoint(container: Container, owner: string, volume: string, engine: RemoteAgentId = "openhands"): string | null {
   const deployment = remoteDeployments[engine];
-  if (container.Config.Labels?.[ownerLabel] !== owner || ![deployment.image, ...deployment.legacyImages].includes(container.Config.Image)) throw new Error("同名容器不属于当前实验服务，未作修改");
+  if (!ownedResource(container.Config.Labels, owner) || ![deployment.image, ...deployment.legacyImages].includes(container.Config.Image)) throw new Error("同名容器不属于当前实验服务，未作修改");
   // Current OpenClaw also exposes ONLY the desktop-home subdirectory of this
   // same private volume at HOME. Known prior images may have the original single
   // mount or this strictly verified layout, so later image upgrades remain safe.
   const mounts = engine === "openclaw" && (container.Config.Image === deployment.image || container.Mounts.length === 2)
-    ? [{ destination: deployment.mount, subpath: "" }, { destination: "/home/node", subpath: ".selfme-desktop/home" }]
+    ? [{ destination: deployment.mount, subpath: "" }, { destination: "/home/node", subpath: ".agent-lab-desktop/home" }]
     : [{ destination: deployment.mount, subpath: "" }];
   const configured = container.HostConfig?.Mounts;
   if (container.Mounts.length !== mounts.length || !mounts.every(expected =>
     container.Mounts.some(mount => mount.Type === "volume" && mount.Name === volume && mount.Destination === expected.destination)
     && (expected.subpath ? configured?.some(mount => mount.Type === "volume" && mount.Source === volume && mount.Target === expected.destination && mount.VolumeOptions?.Subpath === expected.subpath && mount.VolumeOptions.NoCopy === true)
-      : !configured?.some(mount => mount.Target === expected.destination && mount.VolumeOptions?.Subpath)))) throw new Error("服务挂载不符合远端工作区隔离规则，未作修改");
+      : !configured?.some(mount => mount.Target === expected.destination && mount.VolumeOptions?.Subpath)))) {
+    // Known old deployments used the same isolated HOME in this private volume.
+    // Verify the complete layout, not merely the presence of a legacy subpath.
+    if (engine !== "openclaw" || container.Config.Image === deployment.image || container.Mounts.length !== 2
+      || !container.Mounts.every(mount => mount.Type === "volume" && mount.Name === volume && [deployment.mount, "/home/node"].includes(mount.Destination))
+      || ![deployment.mount, "/home/node"].every(destination => container.Mounts.filter(mount => mount.Destination === destination).length === 1)
+      || !configured?.some(mount => mount.Type === "volume" && mount.Source === volume && mount.Target === "/home/node" && mount.VolumeOptions?.Subpath === legacyDesktopHome && mount.VolumeOptions.NoCopy === true)
+      || configured.some(mount => mount.Target === deployment.mount && mount.VolumeOptions?.Subpath)) throw new Error("服务挂载不符合远端工作区隔离规则，未作修改");
+  }
   if (!container.State.Running) return null;
   const bindings = container.NetworkSettings.Ports[`${deployment.port}/tcp`];
   if (bindings?.length !== 1 || bindings[0].HostIp !== "127.0.0.1") throw new Error("研发服务必须只绑定本机回环地址");
@@ -56,9 +65,10 @@ export class RemoteAgentContainer {
   constructor(root: string, private readonly credentials: () => Promise<RemoteCredentials>, readonly engine: RemoteAgentId = "openhands") {
     this.deployment = remoteDeployments[engine];
     this.owner = createHash("sha256").update(root).digest("hex").slice(0, 16);
-    this.name = `selfme-lab-${engine}-${this.owner}`;
+    const namespace = legacyApplicationRoot(root) ? legacyResourceNamespace : "agent-lab";
+    this.name = `${namespace}-${engine}-${this.owner}`;
     this.volume = `${this.name}-data`;
-    this.documentPreview = new DocumentPreviewService(this.owner, (args, timeout) => this.command(args, undefined, timeout));
+    this.documentPreview = new DocumentPreviewService(this.owner, (args, timeout) => this.command(args, undefined, timeout), namespace);
     this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command, ...(engine === "openclaw" ? { hostname: this.name } : {}) })).digest("hex").slice(0, 16);
   }
 
@@ -93,7 +103,7 @@ export class RemoteAgentContainer {
   }
   private async checkImage(): Promise<void> {
     const labels = JSON.parse(await this.command(["image", "inspect", "--format", "{{json .Config.Labels}}", this.deployment.image], undefined, 8000)) as Record<string, string> | null;
-    if (labels?.["ai.selfme.lab.source.commit"] !== this.deployment.commit || labels?.["ai.selfme.lab.engine"] !== this.engine || labels?.["ai.selfme.lab.integration"] !== "1") throw new Error("服务镜像的源码或部署层标识不匹配，请重新构建固定源码镜像");
+    if (labels?.["ai.agent-lab.desktop.source.commit"] !== this.deployment.commit || labels?.["ai.agent-lab.desktop.engine"] !== this.engine || labels?.["ai.agent-lab.desktop.integration"] !== "1") throw new Error("服务镜像的源码或部署层标识不匹配，请重新构建固定源码镜像");
   }
 
   /** Status reads do not silently approve devices. Pairing happens on explicit Start. */
@@ -171,7 +181,7 @@ export class RemoteAgentContainer {
     } else {
       try {
         const volume = JSON.parse(await this.command(["volume", "inspect", this.volume])) as Array<{ Labels: Record<string, string> }>;
-        if (volume[0]?.Labels?.[ownerLabel] !== this.owner) throw new Error("同名服务卷不属于当前应用，未作修改");
+        if (!ownedResource(volume[0]?.Labels, this.owner)) throw new Error("同名服务卷不属于当前应用，未作修改");
       } catch (error) {
         if (!/no such volume/i.test(String(error))) throw error;
         await this.command(["volume", "create", "--label", `${ownerLabel}=${this.owner}`, this.volume]);
@@ -183,27 +193,27 @@ export class RemoteAgentContainer {
         await this.command([
           "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "64",
           "--label", `${ownerLabel}=${this.owner}`, "--mount", `type=volume,src=${this.volume},dst=${this.deployment.mount}`,
-          "--entrypoint", "node", this.deployment.image, "/opt/selfme/bootstrap/persistent-home.mjs",
+          "--entrypoint", "node", this.deployment.image, "/opt/agent-lab/bootstrap/persistent-home.mjs",
         ]);
       }
       const env: NodeJS.ProcessEnv = this.engine === "openhands"
         ? { OH_SESSION_API_KEYS_0: keys.sessionApiKey, OH_SECRET_KEY: keys.persistenceKey }
         : { OPENCLAW_GATEWAY_TOKEN: keys.sessionApiKey };
       const envArgs = this.engine === "openhands" ? [
-        "OH_SESSION_API_KEYS_0", "OH_SECRET_KEY", "OH_CONVERSATIONS_PATH=/workspace/selfme/conversations",
-        "OH_BASH_EVENTS_DIR=/workspace/selfme/bash", "OH_PERSISTENCE_DIR=/workspace/selfme/settings", "OPENHANDS_SUPPRESS_BANNER=1",
+        "OH_SESSION_API_KEYS_0", "OH_SECRET_KEY", "OH_CONVERSATIONS_PATH=/workspace/agent-lab/conversations",
+        "OH_BASH_EVENTS_DIR=/workspace/agent-lab/bash", "OH_PERSISTENCE_DIR=/workspace/agent-lab/settings", "OPENHANDS_SUPPRESS_BANNER=1",
       ] : [
         "OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_NO_RESPAWN=1", "OPENCLAW_SKIP_CHANNELS=1", "OPENCLAW_SKIP_CRON=1",
         "OPENCLAW_SKIP_GMAIL_WATCHER=1", "OPENCLAW_CODEX_DISCOVERY_LIVE=0",
-        "SELFME_OPENCLAW_PRIVATE_VOLUME=1",
+        "AGENT_LAB_OPENCLAW_PRIVATE_VOLUME=1",
       ];
       await this.command([
         "run", "--detach", "--name", this.name, "--label", `${ownerLabel}=${this.owner}`, "--label", `${deploymentLabel}=${this.deploymentRevision}`,
         ...(this.engine === "openclaw" ? ["--hostname", this.name] : []),
         "--publish", `127.0.0.1::${this.deployment.port}`, "--mount", `type=volume,src=${this.volume},dst=${this.deployment.mount}`,
-        ...(this.engine === "openclaw" ? ["--mount", `type=volume,src=${this.volume},dst=/home/node,volume-subpath=.selfme-desktop/home,volume-nocopy`] : []),
+        ...(this.engine === "openclaw" ? ["--mount", `type=volume,src=${this.volume},dst=/home/node,volume-subpath=.agent-lab-desktop/home,volume-nocopy`] : []),
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "1024", "--shm-size", "256m",
-        "--env", `SELFME_DOCUMENT_PREVIEW_URL=${this.documentPreview.url}`,
+        "--env", `AGENT_LAB_DOCUMENT_PREVIEW_URL=${this.documentPreview.url}`,
         ...envArgs.flatMap(value => ["--env", value]), this.deployment.image, ...this.deployment.command,
       ], env);
     }

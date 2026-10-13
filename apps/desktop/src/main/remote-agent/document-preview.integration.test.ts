@@ -15,7 +15,7 @@ const exec = promisify(execFile);
 const projectRoot = fileURLToPath(new URL("../../../../../", import.meta.url));
 const fixtures = resolve(projectRoot, ".work/remote-agent/document-preview-fixtures");
 
-describe.skipIf(process.env.SELFME_DOCUMENT_PREVIEW_INTEGRATION !== "1")("real Office rendering in both native services", () => {
+describe.skipIf(process.env.AGENT_LAB_DOCUMENT_PREVIEW_INTEGRATION !== "1")("real Office rendering in both native services", () => {
   it("renders six formats, Chinese, multiple sheets/pages, and leaves encrypted, invalid and original files untouched", async () => {
     await mkdir(fixtures, { recursive: true });
     await exec("docker", ["run", "--rm", "--network", "none", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
@@ -77,8 +77,8 @@ describe.skipIf(process.env.SELFME_DOCUMENT_PREVIEW_INTEGRATION !== "1")("real O
         controller.shutdown(); await container.stop();
         await exec("docker", ["rm", container.name]).catch(error => { if (!/No such container/i.test(String(error.stderr))) throw error; });
         await exec("docker", ["volume", "rm", container.volume]).catch(error => { if (!/no such volume/i.test(String(error.stderr))) throw error; });
-        await exec("docker", ["rm", `selfme-lab-document-preview-${container.owner}`]).catch(error => { if (!/No such container/i.test(String(error.stderr))) throw error; });
-        await exec("docker", ["network", "rm", `selfme-lab-document-preview-${container.owner}-network`]).catch(error => { if (!/not found|no such network/i.test(String(error.stderr))) throw error; });
+        await exec("docker", ["rm", `agent-lab-document-preview-${container.owner}`]).catch(error => { if (!/No such container/i.test(String(error.stderr))) throw error; });
+        await exec("docker", ["network", "rm", `agent-lab-document-preview-${container.owner}-network`]).catch(error => { if (!/not found|no such network/i.test(String(error.stderr))) throw error; });
         await rm(root, { recursive: true, force: true });
       }
     }

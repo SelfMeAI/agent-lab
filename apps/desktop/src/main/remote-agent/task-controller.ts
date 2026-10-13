@@ -64,7 +64,7 @@ export class RemoteTaskController {
     remoteFilePath(path); const destination = await this.dialogs.save(basename(path)); if (!destination) return false;
     const response = await this.client(engine).http.download(id, path); const bytes = await boundedBytes(response, 64 * 1024 * 1024);
     // The native Save dialog authorizes this single destination, including replacement.
-    const temporary = join(dirname(destination), ".selfme-download-" + randomUUID());
+    const temporary = join(dirname(destination), ".agent-lab-download-" + randomUUID());
     try { await writeFile(temporary, bytes, { flag: "wx", mode: 0o600 }); await rename(temporary, destination); }
     finally { await unlink(temporary).catch(() => {}); }
     return true;
@@ -138,7 +138,7 @@ export class RemoteTaskController {
   }
   async desktop(engine: RemoteAgentId, id: string) {
     remoteTaskId(id); if (engine === "openclaw") return this.claw.desktop(id);
-    const result = await this.hands.http.json<{ wsPath: string; expiresAt: number; control: boolean }>("/api/selfme/observer", "POST", { task: id });
+    const result = await this.hands.http.json<{ wsPath: string; expiresAt: number; control: boolean }>("/api/agent-lab/observer", "POST", { task: id });
     const base = new URL(await this.hands.http.base()); base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     return { url: new URL(result.wsPath, base).toString(), expiresAt: result.expiresAt, control: false };
   }

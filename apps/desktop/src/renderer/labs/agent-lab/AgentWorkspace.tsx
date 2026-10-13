@@ -257,12 +257,12 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   const availability = followUpAvailability(snapshot.phase, { connecting, stopping, submitting, changingMode });
 
   const connect = useCallback(async (sessionId: string): Promise<void> => {
-    if (!window.selfmeLab) return;
+    if (!window.agentLab) return;
     const phase = store.getSnapshot().sessions.find(item => item.id === sessionId)?.phase;
     if (interactions.get(sessionId).connecting || (phase && phase !== "idle" && phase !== "error")) return;
     interactions.update(sessionId, { connecting: true, error: null });
     try {
-      await window.selfmeLab.startAgentSession(sessionId);
+      await window.agentLab.startAgentSession(sessionId);
     } catch (error) {
       interactions.update(sessionId, { error: errorMessage(error) });
     } finally {
@@ -272,15 +272,15 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   useEffect(() => {
     let active = true;
-    if (window.selfmeLab) {
-      void Promise.all([window.selfmeLab.getProviderStatus(runtimeId), window.selfmeLab.getAgentSessionCatalog(runtimeId)])
+    if (window.agentLab) {
+      void Promise.all([window.agentLab.getProviderStatus(runtimeId), window.agentLab.getAgentSessionCatalog(runtimeId)])
         .then(async ([status, catalog]) => {
           if (!active) return;
           setProvider(status);
           store.setCatalog(catalog, true);
           const selectedId = store.getSnapshot().selectedSessionId;
           if (selectedId) {
-            const history = await window.selfmeLab!.getAgentSessionEvents(selectedId);
+            const history = await window.agentLab!.getAgentSessionEvents(selectedId);
             if (!active) return;
             store.loadHistory(selectedId, history);
             if (status.configured) await connect(selectedId);
@@ -325,7 +325,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   async function chooseFollowUpMode(mode: FollowUpMode): Promise<void> {
     const sessionId = store.getSnapshot().selectedSessionId;
-    if (!sessionId || !window.selfmeLab) return;
+    if (!sessionId || !window.agentLab) return;
     const currentInteraction = interactions.get(sessionId);
     if (currentInteraction.changingMode || !followUpAvailability(store.getSnapshot().phase, {
       connecting: currentInteraction.connecting, stopping: currentInteraction.stopping, submitting: currentInteraction.submitting,
@@ -333,7 +333,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     setShowSendMenu(false);
     interactions.update(sessionId, { changingMode: true });
     try {
-      await window.selfmeLab.setSessionFollowUpMode(sessionId, mode);
+      await window.agentLab.setSessionFollowUpMode(sessionId, mode);
       store.setFollowUpMode(sessionId, mode);
       if (store.getSnapshot().selectedSessionId === sessionId) promptRef.current?.focus();
     }
@@ -377,7 +377,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   }
 
   async function createSession(path: string): Promise<void> {
-    const bridge = window.selfmeLab;
+    const bridge = window.agentLab;
     if (!bridge) return;
     try {
       const created = await bridge.createAgentSession(runtimeId, path);
@@ -391,11 +391,11 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   }
 
   async function chooseWorkspace(): Promise<void> {
-    if (!window.selfmeLab) return;
+    if (!window.agentLab) return;
     if (creatingRef.current) return;
     creatingRef.current = true; setCreatingSession(true);
     try {
-      const selected = await window.selfmeLab.chooseWorkspace();
+      const selected = await window.agentLab.chooseWorkspace();
       if (selected) await createSession(selected);
     } catch (error) { setRailError(errorMessage(error)); }
     finally { creatingRef.current = false; setCreatingSession(false); }
@@ -411,37 +411,37 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   }
 
   async function selectSession(next: AgentSessionSummary): Promise<void> {
-    if (!window.selfmeLab) return;
+    if (!window.agentLab) return;
     if (next.id === snapshot.selectedSessionId) {
       if (provider?.configured && !busy && snapshot.phase !== "ready") await connect(next.id);
       return;
     }
     store.select(next.id);
     try {
-      await window.selfmeLab.selectAgentSession(next.id);
-      store.loadHistory(next.id, await window.selfmeLab.getAgentSessionEvents(next.id));
+      await window.agentLab.selectAgentSession(next.id);
+      store.loadHistory(next.id, await window.agentLab.getAgentSessionEvents(next.id));
       if (provider?.configured) await connect(next.id);
     } catch (error) { interactions.update(next.id, { error: errorMessage(error) }); }
   }
 
   async function refreshSessionCatalog(): Promise<void> {
-    if (!window.selfmeLab) return;
-    const catalog = await window.selfmeLab.getAgentSessionCatalog(runtimeId);
+    if (!window.agentLab) return;
+    const catalog = await window.agentLab.getAgentSessionCatalog(runtimeId);
     store.setCatalog(catalog, true);
     const selectedId = store.getSnapshot().selectedSessionId;
     if (selectedId) {
-      store.loadHistory(selectedId, await window.selfmeLab.getAgentSessionEvents(selectedId));
+      store.loadHistory(selectedId, await window.agentLab.getAgentSessionEvents(selectedId));
       if (provider?.configured) await connect(selectedId);
     }
   }
 
   async function confirmSessionAction(): Promise<void> {
-    if (!sessionAction || !window.selfmeLab) return;
+    if (!sessionAction || !window.agentLab) return;
     setSessionActionBusy(true);
     setRailError(null);
     try {
-      if (sessionAction.kind === "delete") await window.selfmeLab.deleteAgentSession(sessionAction.id);
-      else { await window.selfmeLab.purgeAgentSession(sessionAction.id); interactions.forget(sessionAction.id); }
+      if (sessionAction.kind === "delete") await window.agentLab.deleteAgentSession(sessionAction.id);
+      else { await window.agentLab.purgeAgentSession(sessionAction.id); interactions.forget(sessionAction.id); }
       setSessionAction(null);
       await refreshSessionCatalog();
     } catch (error) {
@@ -452,10 +452,10 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
   }
 
   async function restoreSession(id: string): Promise<void> {
-    if (!window.selfmeLab) return;
+    if (!window.agentLab) return;
     setRailError(null);
     try {
-      await window.selfmeLab.restoreAgentSession(id);
+      await window.agentLab.restoreAgentSession(id);
       await refreshSessionCatalog();
       setShowDeletedSessions(false);
     } catch (error) { setRailError(errorMessage(error)); }
@@ -466,7 +466,7 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     const sessionId = current.selectedSessionId;
     const currentInteraction = interactions.get(sessionId);
     const text = currentInteraction.prompt.trim();
-    if (!text || !window.selfmeLab || !followUpAvailability(current.phase, currentInteraction).canSubmit) return;
+    if (!text || !window.agentLab || !followUpAvailability(current.phase, currentInteraction).canSubmit) return;
     if (!sessionId) { await chooseWorkspace(); return; }
     if (!provider?.configured) { onOpenSettings?.(); return; }
     const action = composerAction(current.phase, current.queue, followUpMode);
@@ -478,9 +478,9 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
     followOutputRef.current = true;
     setShowLatest(false);
     try {
-      if (action === "steer") await window.selfmeLab.steerSessionPrompt(sessionId, text);
-      else if (action === "queue") await window.selfmeLab.enqueueSessionPrompt(sessionId, text);
-      else await window.selfmeLab.sendSessionPrompt(sessionId, text);
+      if (action === "steer") await window.agentLab.steerSessionPrompt(sessionId, text);
+      else if (action === "queue") await window.agentLab.enqueueSessionPrompt(sessionId, text);
+      else await window.agentLab.sendSessionPrompt(sessionId, text);
     } catch (error) {
       interactions.update(sessionId, state => ({ prompt: state.prompt || text, error: errorMessage(error) }));
     } finally {
@@ -490,10 +490,10 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   async function approve(requestId: string | number, optionId: string, answers?: AgentQuestionAnswers): Promise<void> {
     const current = store.getSnapshot(), sessionId = current.selectedSessionId;
-    if (!window.selfmeLab || !sessionId || interactions.get(sessionId).stopping || interactions.get(sessionId).approvalBusy || current.phase === "cancelling") return;
+    if (!window.agentLab || !sessionId || interactions.get(sessionId).stopping || interactions.get(sessionId).approvalBusy || current.phase === "cancelling") return;
     interactions.update(sessionId, { approvalBusy: true });
     try {
-      await window.selfmeLab.respondSessionApproval(sessionId, requestId, optionId, answers);
+      await window.agentLab.respondSessionApproval(sessionId, requestId, optionId, answers);
       const entry = current.entries.find(item => item.approval?.requestId === requestId);
       if (entry) interactions.update(sessionId, state => {
         const { [entry.id]: _removed, ...questionDrafts } = state.questionDrafts;
@@ -510,11 +510,11 @@ export function AgentWorkspace({ runtimeId, onOpenSettings, providerRevision = 0
 
   async function cancel(): Promise<void> {
     const current = store.getSnapshot(), sessionId = current.selectedSessionId;
-    if (!sessionId || !window.selfmeLab || interactions.get(sessionId).stopping || current.phase === "cancelling") return;
+    if (!sessionId || !window.agentLab || interactions.get(sessionId).stopping || current.phase === "cancelling") return;
     interactions.update(sessionId, { stopping: true });
     setShowSendMenu(false);
     try {
-      await window.selfmeLab.cancelSessionRun(sessionId);
+      await window.agentLab.cancelSessionRun(sessionId);
       store.removeAllApprovals(sessionId);
     } catch (error) {
       interactions.update(sessionId, { error: errorMessage(error) });

@@ -22,7 +22,7 @@ const descriptions: Record<string, string> = {
 export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: LabPageProps): JSX.Element {
   const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([]);
   useEffect(() => {
-    if (window.selfmeLab) void window.selfmeLab.listRuntimes().then(setRuntimeStatuses).catch(() => setRuntimeStatuses([]));
+    if (window.agentLab) void window.agentLab.listRuntimes().then(setRuntimeStatuses).catch(() => setRuntimeStatuses([]));
   }, []);
 
   if (!isAgentRuntimeId(viewId)) {

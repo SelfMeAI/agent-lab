@@ -112,7 +112,7 @@ describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama rea
     const service = new LocalModelService(store, process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama"), (event) => { if (event.type === "run" && event.run.outputs[0].text) deltas.push(event.run.outputs[0].text); });
     try {
       await service.init();
-      await service.changeDirectory(join(homedir(), "Library/Application Support/SelfMe Lab/local-models"));
+      await service.changeDirectory(join(homedir(), "Library/Application Support/Agent Lab/local-models"));
       const initial = await service.getState();
       if (initial.runtime.status !== "ready") throw new Error(initial.runtime.error ?? "Ollama failed to start");
       expect(initial.runtime).toMatchObject({ status: "ready", version: "0.35.0" });

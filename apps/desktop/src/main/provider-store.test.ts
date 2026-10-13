@@ -28,7 +28,7 @@ afterEach(async () => {
 
 describe("Claude independent encrypted provider", () => {
   it("never adopts OpenAI/DSH credentials and preserves the encrypted key during edits", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-claude-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-claude-provider-"));
     await saveDshProvider({ baseUrl: "https://deepseek.example", apiKey: "dsh-private" });
     expect((await getClaudeProviderStatus()).configured).toBe(false);
     await expect(getClaudeProvider()).rejects.toThrow(/请先配置 Claude/);
@@ -43,7 +43,7 @@ describe("Claude independent encrypted provider", () => {
 
 describe("Qwen Code independent provider configuration", () => {
   it("copies DSH once, encrypts the key, and supports independent edits and blank-key saves", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-qwen-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-qwen-provider-"));
     await saveDshProvider({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", apiKey: "initial-qwen-secret" });
     const statuses = await Promise.all([getQwenProviderStatus(), getQwenProviderStatus()]);
     expect(statuses[0]).toEqual({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", configured: true });
@@ -57,7 +57,7 @@ describe("Qwen Code independent provider configuration", () => {
     expect((await getDshProvider()).apiKey).toBe("changed-dsh-secret");
   });
   it("does not adopt later DSH edits after first initialization without a key", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-qwen-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-qwen-provider-"));
     expect((await getQwenProviderStatus()).configured).toBe(false);
     await saveDshProvider({ baseUrl: "https://later.example/v1", apiKey: "later-key" });
     await expect(getQwenProvider()).rejects.toThrow("请先配置 Qwen Code");
@@ -66,7 +66,7 @@ describe("Qwen Code independent provider configuration", () => {
 
 describe("Pi provider configuration", () => {
   it("does not copy DSH credentials for new users and keeps saved settings independent", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-pi-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-pi-provider-"));
     await saveDshProvider({ baseUrl: "https://first.example/v1", apiKey: "dsh-original" });
     expect(await getDshProviderStatus()).toEqual({ baseUrl: "https://first.example/v1", model: "deepseek-v4-flash", configured: true });
 
@@ -85,7 +85,7 @@ describe("Pi provider configuration", () => {
   });
 
   it("uses the bundled ACP model for an older DSH configuration without a model field", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-dsh-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-dsh-provider-"));
     await writeFile(join(state.userData, "dsh-provider.json"), JSON.stringify({ baseUrl: "https://api.deepseek.com" }));
     expect(await getDshProviderStatus()).toEqual({ baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash", configured: false });
   });
@@ -93,7 +93,7 @@ describe("Pi provider configuration", () => {
 
 describe("Kimi provider configuration", () => {
   it("copies an existing DSH connection only on first use and then remains independent", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-kimi-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-kimi-provider-"));
     await saveDshProvider({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", apiKey: "dsh-original" });
 
     expect(await getKimiProvider()).toEqual({ baseUrl: "https://first.example/v1", model: "deepseek-v4-pro", apiKey: "dsh-original" });
@@ -106,7 +106,7 @@ describe("Kimi provider configuration", () => {
   });
 
   it("starts with Kimi defaults when no DSH key exists", async () => {
-    state.userData = await mkdtemp(join(tmpdir(), "selfme-kimi-provider-"));
+    state.userData = await mkdtemp(join(tmpdir(), "agent-lab-kimi-provider-"));
     expect(await getKimiProviderStatus()).toEqual({ baseUrl: "https://api.kimi.com/coding/v1", model: "kimi-for-coding", configured: false });
     await saveDshProvider({ baseUrl: "https://later.example/v1", apiKey: "later-dsh-key" });
     expect(await getKimiProviderStatus()).toEqual({ baseUrl: "https://api.kimi.com/coding/v1", model: "kimi-for-coding", configured: false });

@@ -61,7 +61,7 @@ export function dshQuestions(value: unknown): AgentQuestion[] {
   return result;
 }
 
-/** SelfMe's Pi custom tool, not a built-in Pi question protocol. */
+/** Agent Lab's Pi custom tool, not a built-in Pi question protocol. */
 export function piQuestions(value: unknown): AgentQuestion[] {
   if (!Array.isArray(value) || !value.length || value.length > 4) return [];
   const result: AgentQuestion[] = [];
@@ -82,7 +82,7 @@ export type KimiCustomFields = Record<string, { fieldId: string; value: string }
 
 /** Only the version-pinned Kimi bridge may add custom-input companion fields. */
 export function kimiFormCustomFields(params: Obj): KimiCustomFields | null {
-  const metadata = object(params._meta).selfmeKimiOther;
+  const metadata = object(params._meta).agentLabKimiOther;
   if (metadata === undefined) return {};
   const bridge = object(metadata), properties = object(object(params.requestedSchema).properties);
   if (bridge.version !== 1 || !Array.isArray(bridge.fields) || !bridge.fields.length || bridge.fields.length > 16) return null;

@@ -39,7 +39,7 @@ function string(value: unknown): string | undefined {
 }
 
 export function dshModelOverlay(model: string): string {
-  return `- id: acp\n  config:\n    provider: deepseek-official\n    model: ${JSON.stringify(model)}\n- insert:\n    - id: selfme-ask-user\n      name: '@deepseek-ai/dsh-tool-ask-user'\n`;
+  return `- id: acp\n  config:\n    provider: deepseek-official\n    model: ${JSON.stringify(model)}\n- insert:\n    - id: agent-lab-ask-user\n      name: '@deepseek-ai/dsh-tool-ask-user'\n`;
 }
 
 export function contentText(value: unknown): string | undefined {
@@ -120,14 +120,14 @@ export class DshAdapter implements HarnessAdapter {
     await mkdir(this.options.homeDirectory, { recursive: true, mode: 0o700 });
     const provider = await this.options.provider();
     this.apiKey = provider.apiKey;
-    const modelPatchPath = join(this.options.homeDirectory, "selfme-model.patch.yml");
+    const modelPatchPath = join(this.options.homeDirectory, "agent-lab-model.patch.yml");
     await writeFile(modelPatchPath, dshModelOverlay(provider.model), { mode: 0o600 });
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
       DSH_HOME: this.options.homeDirectory,
       DEEPSEEK_BASE_URL: provider.baseUrl,
-      SELFME_ACP_STEERING: "1",
+      AGENT_LAB_ACP_STEERING: "1",
     };
     if (provider.apiKey) env.DEEPSEEK_API_KEY = provider.apiKey;
     else delete env.DEEPSEEK_API_KEY;
@@ -158,7 +158,7 @@ export class DshAdapter implements HarnessAdapter {
     try {
       await this.request("initialize", {
         protocolVersion: 1,
-        clientInfo: { name: "selfme-lab", version: "0.1.0" },
+        clientInfo: { name: "agent-lab", version: "0.1.0" },
         clientCapabilities: {},
       }, 30000);
       const session = resumeRef
@@ -207,7 +207,7 @@ export class DshAdapter implements HarnessAdapter {
     if (!this.sessionId || !["running", "approval"].includes(this.phase)) throw new Error("本轮已结束，补充指令未提交");
     const text = this.steering.begin(messageId, prompt);
     try {
-      await this.request("_selfme/steer", { sessionId: this.sessionId, text, messageId }, 15000);
+      await this.request("_agent_lab/steer", { sessionId: this.sessionId, text, messageId }, 15000);
       this.steering.accepted(messageId);
     } catch (error) { const failure = steeringError(error, this.apiKey); this.steering.rejected(messageId, failure); throw failure; }
   }
@@ -329,7 +329,7 @@ export class DshAdapter implements HarnessAdapter {
       this.handleApproval(message);
       return;
     }
-    if (method === "_selfme/user-question") { this.handleQuestion(message); return; }
+    if (method === "_agent_lab/user-question") { this.handleQuestion(message); return; }
     const id = message.id;
     if (typeof id !== "number") return;
     const pending = this.pending.get(id);
@@ -342,7 +342,7 @@ export class DshAdapter implements HarnessAdapter {
   private handleUpdate(params: JsonObject): void {
     const update = object(params.update);
     const kind = string(update.sessionUpdate) ?? "update";
-    if (kind === "selfme_steering") {
+    if (kind === "agent_lab_steering") {
       const id = string(update.messageId);
       if (id && update.state === "incorporated") this.steering.incorporated(id);
       else if (id) this.steering.unconfirmed(id, string(update.detail) ?? "未确认接入本轮任务");

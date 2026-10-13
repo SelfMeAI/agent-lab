@@ -2,6 +2,6 @@
 Type=Application
 Name=Chromium
 Icon=chromium
-Exec=/usr/local/bin/node /opt/selfme/desktop/launch.mjs browser
+Exec=/usr/local/bin/node /opt/agent-lab/desktop/launch.mjs browser
 Terminal=false
 StartupNotify=true

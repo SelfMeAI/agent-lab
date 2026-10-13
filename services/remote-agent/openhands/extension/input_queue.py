@@ -6,6 +6,7 @@ import sqlite3
 import time
 from pathlib import Path
 from uuid import UUID, uuid4
+from legacy_state import input_senders
 
 HELD_ERROR = "消息尚未提交，待发内容已保留。点击继续后重试。"
 CONTINUE = "继续当前任务；先核对已有进度与产物，不要重复已完成的操作。\n\n"
@@ -26,8 +27,8 @@ class NativeInput:
 
     def receipt(self, key):
         from openhands.sdk.event import MessageEvent
-        marker = "selfme-input:" + key
-        return any(isinstance(event, MessageEvent) and event.source == "user" and event.sender == marker for event in reversed(self.service.get_conversation().state.events))
+        markers = input_senders(key)
+        return any(isinstance(event, MessageEvent) and event.source == "user" and event.sender in markers for event in reversed(self.service.get_conversation().state.events))
 
     async def stop(self):
         await self.service.interrupt()
@@ -61,7 +62,7 @@ class NativeInput:
                     conversation.reject_pending_actions("已收到新的要求，原审批操作不再执行")
                 if self.receipt(key):
                     return True
-                conversation.send_message(Message(role="user", content=[TextContent(text=body)]), sender="selfme-input:" + key)
+                conversation.send_message(Message(role="user", content=[TextContent(text=body)]), sender="agent-lab-input:" + key)
                 return True
 
         await self.service.stop_goal_loop()

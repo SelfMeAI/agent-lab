@@ -59,12 +59,12 @@ export function PendingMessageQueue({ sessionId, queue, canSteer, canResume, sto
 
   async function edit(item: PendingAgentMessage): Promise<void> {
     // An open editor must not race automatic draining at the end of a turn.
-    if (await act(() => window.selfmeLab!.pauseSessionQueue(sessionId))) setEditing({ id: item.id, text: item.text });
+    if (await act(() => window.agentLab!.pauseSessionQueue(sessionId))) setEditing({ id: item.id, text: item.text });
   }
 
   async function save(): Promise<void> {
     if (!editing?.text.trim()) return;
-    if (await act(() => window.selfmeLab!.editQueuedSessionPrompt(sessionId, editing.id, editing.text))) setEditing(null);
+    if (await act(() => window.agentLab!.editQueuedSessionPrompt(sessionId, editing.id, editing.text))) setEditing(null);
   }
 
   if (!messages.length && !error && !editing) return null;
@@ -72,8 +72,8 @@ export function PendingMessageQueue({ sessionId, queue, canSteer, canResume, sto
     <div className="agent-queue__heading">
       <span className="agent-queue__title"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6" /></svg><strong>待发送</strong><small>{messages.length}</small>{queue.paused && <em>已暂停</em>}</span>
       <small className="agent-queue__hint" title={queueHint}>{queueHint}</small>
-      {queue.paused ? <button className="agent-queue__control" type="button" disabled={busy || !canResume || unconfirmed || !!editing || !configured} title={resumeHint} onClick={() => void act(() => window.selfmeLab!.resumeSessionQueue(sessionId))}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden="true"><path d="m6 4 6 4-6 4z" /></svg>继续队列</button>
-        : <button className="agent-queue__control" type="button" disabled={busy} title="只暂停队列自动发送，当前轮继续工作" onClick={() => void act(() => window.selfmeLab!.pauseSessionQueue(sessionId))}><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="2.5" height="8" rx=".7" /><rect x="9.5" y="4" width="2.5" height="8" rx=".7" /></svg>暂停队列</button>}
+      {queue.paused ? <button className="agent-queue__control" type="button" disabled={busy || !canResume || unconfirmed || !!editing || !configured} title={resumeHint} onClick={() => void act(() => window.agentLab!.resumeSessionQueue(sessionId))}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden="true"><path d="m6 4 6 4-6 4z" /></svg>继续队列</button>
+        : <button className="agent-queue__control" type="button" disabled={busy} title="只暂停队列自动发送，当前轮继续工作" onClick={() => void act(() => window.agentLab!.pauseSessionQueue(sessionId))}><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="2.5" height="8" rx=".7" /><rect x="9.5" y="4" width="2.5" height="8" rx=".7" /></svg>暂停队列</button>}
     </div>
     <div className="agent-queue__list" onScroll={() => setMenu(null)}>{messages.map((item, index) => <div className={`agent-queue__item${item.state === "unconfirmed" ? " is-unconfirmed" : ""}`} key={item.id}>
       {editing?.id === item.id ? <div className="agent-queue__editor">
@@ -90,12 +90,12 @@ export function PendingMessageQueue({ sessionId, queue, canSteer, canResume, sto
           {item.state === "queued" && item.detail && <small title={item.detail}>未提交 · 可编辑后继续</small>}
         </div>
         <div className="agent-queue__actions">
-          {item.state === "queued" && <button className="agent-queue__steer" type="button" disabled={busy || !canSteer || !!editing} title={stopping ? "当前轮正在停止，不能补充" : editing ? "先保存或取消编辑" : !canSteer ? "当前没有可补充的工作轮次" : "只将这条消息补充到当前轮"} onClick={() => void act(() => window.selfmeLab!.steerQueuedSessionPrompt(sessionId, item.id))}>Steer<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12 12 4M5 4h7v7" /></svg></button>}
+          {item.state === "queued" && <button className="agent-queue__steer" type="button" disabled={busy || !canSteer || !!editing} title={stopping ? "当前轮正在停止，不能补充" : editing ? "先保存或取消编辑" : !canSteer ? "当前没有可补充的工作轮次" : "只将这条消息补充到当前轮"} onClick={() => void act(() => window.agentLab!.steerQueuedSessionPrompt(sessionId, item.id))}>Steer<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12 12 4M5 4h7v7" /></svg></button>}
           {item.state === "unconfirmed" && <button type="button" disabled={busy || !!editing} onClick={() => setRetrying(retrying === item.id ? null : item.id)}>重发…</button>}
           {item.state === "queued" && <button className="agent-queue__more" type="button" disabled={busy || !!editing} aria-label={`消息 ${index + 1} 的操作`} title="编辑、排序或删除" aria-haspopup="menu" aria-expanded={menu?.id === item.id} onClick={(event) => toggleMenu(event.currentTarget, item)}><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1" /><circle cx="8" cy="8" r="1" /><circle cx="13" cy="8" r="1" /></svg></button>}
-          {item.state === "unconfirmed" && <button type="button" disabled={busy || !!editing} title="从队列移除，不会撤回已提交的内容" onClick={() => void act(() => window.selfmeLab!.deleteQueuedSessionPrompt(sessionId, item.id))}>移除</button>}
+          {item.state === "unconfirmed" && <button type="button" disabled={busy || !!editing} title="从队列移除，不会撤回已提交的内容" onClick={() => void act(() => window.agentLab!.deleteQueuedSessionPrompt(sessionId, item.id))}>移除</button>}
         </div>
-        {retrying === item.id && <div className="agent-queue__retry" role="alert"><p>这条消息可能已接入。确认尚未执行后再重发，避免重复操作。</p><div><button type="button" disabled={busy} autoFocus onClick={() => setRetrying(null)}>取消</button><button type="button" disabled={busy} onClick={() => void act(() => window.selfmeLab!.retryQueuedSessionPrompt(sessionId, item.id)).then((ok) => { if (ok) setRetrying(null); })}>确认重新排队</button></div></div>}
+        {retrying === item.id && <div className="agent-queue__retry" role="alert"><p>这条消息可能已接入。确认尚未执行后再重发，避免重复操作。</p><div><button type="button" disabled={busy} autoFocus onClick={() => setRetrying(null)}>取消</button><button type="button" disabled={busy} onClick={() => void act(() => window.agentLab!.retryQueuedSessionPrompt(sessionId, item.id)).then((ok) => { if (ok) setRetrying(null); })}>确认重新排队</button></div></div>}
       </>}
     </div>)}</div>
     {editing && !messages.some((item) => item.id === editing.id) && <div className="agent-queue__editor"><p>消息已提交，未保存的修改仍在此处，可复制后另行发送。</p><textarea aria-label="未保存的修改" value={editing.text} readOnly /><button type="button" onClick={() => setEditing(null)}>关闭</button></div>}
@@ -109,9 +109,9 @@ export function PendingMessageQueue({ sessionId, queue, canSteer, canResume, sto
       if (event.key === "Tab") setMenu(null);
     }}>
       <button type="button" role="menuitem" onClick={() => { const item = messages.find(item => item.id === menu.id); setMenu(null); if (item) void edit(item); }}>编辑</button>
-      <button type="button" role="menuitem" disabled={messages.findIndex(item => item.id === menu.id) <= 0 || messages[messages.findIndex(item => item.id === menu.id) - 1]?.state !== "queued"} onClick={() => { const id = menu.id; setMenu(null); void act(() => window.selfmeLab!.moveQueuedSessionPrompt(sessionId, id, "up")); }}>上移 <span>↑</span></button>
-      <button type="button" role="menuitem" disabled={messages.findIndex(item => item.id === menu.id) >= messages.length - 1 || messages[messages.findIndex(item => item.id === menu.id) + 1]?.state !== "queued"} onClick={() => { const id = menu.id; setMenu(null); void act(() => window.selfmeLab!.moveQueuedSessionPrompt(sessionId, id, "down")); }}>下移 <span>↓</span></button>
-      <button className="is-danger" type="button" role="menuitem" onClick={() => { const id = menu.id; setMenu(null); void act(() => window.selfmeLab!.deleteQueuedSessionPrompt(sessionId, id)); }}>删除</button>
+      <button type="button" role="menuitem" disabled={messages.findIndex(item => item.id === menu.id) <= 0 || messages[messages.findIndex(item => item.id === menu.id) - 1]?.state !== "queued"} onClick={() => { const id = menu.id; setMenu(null); void act(() => window.agentLab!.moveQueuedSessionPrompt(sessionId, id, "up")); }}>上移 <span>↑</span></button>
+      <button type="button" role="menuitem" disabled={messages.findIndex(item => item.id === menu.id) >= messages.length - 1 || messages[messages.findIndex(item => item.id === menu.id) + 1]?.state !== "queued"} onClick={() => { const id = menu.id; setMenu(null); void act(() => window.agentLab!.moveQueuedSessionPrompt(sessionId, id, "down")); }}>下移 <span>↓</span></button>
+      <button className="is-danger" type="button" role="menuitem" onClick={() => { const id = menu.id; setMenu(null); void act(() => window.agentLab!.deleteQueuedSessionPrompt(sessionId, id)); }}>删除</button>
     </div>, document.body)}
   </section>;
 }

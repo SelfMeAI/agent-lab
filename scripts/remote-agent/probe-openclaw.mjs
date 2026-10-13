@@ -13,26 +13,26 @@ export async function probeOpenClaw() {
   const source = lock.sources.find(item => item.id === definition.build.source);
   if (!source) throw new Error("测试源码不在锁文件中");
   const upstream = await ensureSource(engine, source, { verifyOnly: true });
-  const actual = await run("docker", ["image", "inspect", "--format", '{{index .Config.Labels "ai.selfme.lab.source.commit"}}', definition.build.image], projectRoot, { capture: true });
+  const actual = await run("docker", ["image", "inspect", "--format", '{{index .Config.Labels "ai.agent-lab.desktop.source.commit"}}', definition.build.image], projectRoot, { capture: true });
   if (actual !== source.commit) throw new Error("请先成功构建锁定源码的 OpenClaw 镜像");
 
   // The release image intentionally excludes dev dependencies and source.
   // Native build-stage layers are already cached by remote:build.
-  const sourceImage = `selfme-lab/openclaw-proof-source:${source.version}-source-${source.commit.slice(0, 12)}`;
-  const image = `selfme-lab/openclaw-desktop-probe:${source.version}-source-${source.commit.slice(0, 12)}`;
+  const sourceImage = `agent-lab/openclaw-proof-source:${source.version}-source-${source.commit.slice(0, 12)}`;
+  const image = `agent-lab/openclaw-desktop-probe:${source.version}-source-${source.commit.slice(0, 12)}`;
   const proofDefinition = { ...definition, build: { ...definition.build, image: sourceImage, target: "build" } };
   await run("docker", buildArguments(proofDefinition, source, upstream), projectRoot, { timeout: 600_000 });
   await run("docker", ["build", "--progress=plain", "--file", join(directory, "tests", "desktop-probe.Dockerfile"),
-    "--tag", image, "--build-arg", `SOURCE_IMAGE=${sourceImage}`, "--label", `ai.selfme.lab.source.commit=${source.commit}`,
+    "--tag", image, "--build-arg", `SOURCE_IMAGE=${sourceImage}`, "--label", `ai.agent-lab.desktop.source.commit=${source.commit}`,
     join(directory, "tests")], projectRoot, { timeout: 600_000 });
 
   const artifacts = join(projectRoot, ".work", "remote-agent", engine, `desktop-${Date.now()}`);
   await mkdir(artifacts, { recursive: true, mode: 0o700 });
-  const name = `selfme-lab-openclaw-desktop-probe-${randomUUID()}`;
+  const name = `agent-lab-openclaw-desktop-probe-${randomUUID()}`;
   let container;
   let failure;
   try {
-    container = await run("docker", ["create", "--init", "--name", name, "--label", "ai.selfme.lab.probe=desktop",
+    container = await run("docker", ["create", "--init", "--name", name, "--label", "ai.agent-lab.desktop.probe=desktop",
       "--network", "none", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "1024", "--shm-size", "256m", image], projectRoot, { capture: true });
     if (!/^[a-f0-9]{64}$/.test(container)) throw new Error("测试容器标识无效");
     try { await run("docker", ["start", "--attach", container], projectRoot, { timeout: 480_000 }); }

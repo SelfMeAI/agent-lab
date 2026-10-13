@@ -57,7 +57,7 @@ describe("app shutdown storage lifetime", () => {
     expect(app.requestQuit()).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(stopSessions).toHaveBeenCalledOnce());
     expect(shutdown.isQuitting()).toBe(true);
-    // The still-open window may request selfme:agent-session-catalog at either
+    // The still-open window may request agent-lab:agent-session-catalog at either
     // point. Before-quit must never put the repository into the closed state.
     expect(repository.list("qwen-code")[0].id).toBe(session.id);
     finish();

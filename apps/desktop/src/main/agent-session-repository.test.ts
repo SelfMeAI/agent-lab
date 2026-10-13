@@ -16,7 +16,7 @@ function event(kind: RunEvent["kind"], text: string, phase?: RunEvent["phase"]):
 
 describe("agent session SQLite storage", () => {
   it("persists isolated permission records, retains them through soft-delete and removes them on purge", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-permissions-")); roots.push(root);
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-permissions-")); roots.push(root);
     const first = new AgentSessionRepository(root); await first.init();
     const a = first.create("claude-code", root), b = first.create("claude-code", root), pi = first.create("pi", root);
     const record = { workspace: root, updates: [{ type: "setMode", mode: "acceptEdits", destination: "session" }] };
@@ -35,7 +35,7 @@ describe("agent session SQLite storage", () => {
     expect(db.prepare("SELECT COUNT(*) AS count FROM agent_session_permissions WHERE session_id = ?").get(a.id)?.count).toBe(0); db.close();
   });
   it("recovers pending steering without resending it and preserves confirmed receipts", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-steering-recovery-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-steering-recovery-"));
     roots.push(root);
     const first = new AgentSessionRepository(root);
     await first.init();
@@ -63,7 +63,7 @@ describe("agent session SQLite storage", () => {
   });
 
   it("keeps sessions, native references, and independent event streams across reopen", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-sessions-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-sessions-"));
     roots.push(root);
     const first = new AgentSessionRepository(root);
     await first.init();
@@ -88,7 +88,7 @@ describe("agent session SQLite storage", () => {
   });
 
   it("stores UI selection in a separate config file", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-config-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-config-"));
     roots.push(root);
     const first = new AppConfigStore(root);
     await first.init();
@@ -100,7 +100,7 @@ describe("agent session SQLite storage", () => {
   });
 
   it("keeps the last selection when config writes overlap", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-config-overlap-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-config-overlap-"));
     roots.push(root);
     const config = new AppConfigStore(root);
     await config.init();
@@ -116,7 +116,7 @@ describe("agent session SQLite storage", () => {
   });
 
   it("sorts by the last user task, not later runtime status, and keeps deletion recoverable", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-session-order-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-session-order-"));
     roots.push(root);
     const repo = new AgentSessionRepository(root);
     await repo.init();
@@ -143,7 +143,7 @@ describe("agent session SQLite storage", () => {
   });
 
   it("migrates an existing SQLite file and recovers last prompt time from history", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-session-migration-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-session-migration-"));
     roots.push(root);
     const old = new DatabaseSync(join(root, "agent-sessions.sqlite"));
     old.exec(`
@@ -172,7 +172,7 @@ describe("agent session SQLite storage", () => {
   });
 
   it("lists a large set without truncation and keeps recent work at the front", async () => {
-    const root = await mkdtemp(join(tmpdir(), "selfme-session-many-"));
+    const root = await mkdtemp(join(tmpdir(), "agent-lab-session-many-"));
     roots.push(root);
     const repo = new AgentSessionRepository(root);
     await repo.init();

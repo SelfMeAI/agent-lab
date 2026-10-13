@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { readFile, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify, stripVTControlCharacters } from "node:util";
+import { fileURLToPath } from "node:url";
 import { RemoteServiceCredentials } from "./credentials";
 import { RemoteAgentContainer } from "./service-manager";
 import { remoteDeployments } from "./deployment";
@@ -11,12 +12,13 @@ import { RemoteModelClient } from "../../../../../packages/remote-agent/src/mode
 import { RemoteTaskController } from "./task-controller";
 import { remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
 import type { RemoteTaskSnapshot, RemoteTerminalEvent } from "../../../../../packages/contracts/src/remote-agent";
+const projectRoot = fileURLToPath(new URL("../../../../../", import.meta.url));
 
 // Explicit Docker integration; fixture-only connection keys, never real API calls.
-describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-built remote services", () => {
+describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source-built remote services", () => {
   for (const engine of ["openhands", "openclaw"] as const) {
     it(`${engine}: authenticated start, native config persistence, restart and retained data`, async () => {
-      const root = resolve(".work", "remote-agent", `integration-${engine}-${randomUUID()}`);
+      const root = resolve(projectRoot, ".work", "remote-agent", `integration-${engine}-${randomUUID()}`);
       const credentials = new RemoteServiceCredentials(root, {
         encrypt: async value => Buffer.from(value), decrypt: async value => value.toString(),
       }, engine);
@@ -69,7 +71,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         expect(await models.listModels({ protocol: "anthropic", baseUrl: "http://127.0.0.1:8943", apiKey: "inventory-fixture" })).toEqual(["fixture-a", "fixture-b"]);
         await expect(models.listModels({ protocol: "openai", baseUrl: "http://127.0.0.1:8943" })).rejects.toThrow("已更改");
         expect(await models.get()).toEqual(priorConnection);
-        if (engine === "openhands") expect([401, 403]).toContain((await fetch(`${await container.requireEndpoint()}/api/selfme/models`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ protocol: "openai", baseUrl: "http://127.0.0.1:8943", apiKey: "inventory-fixture" }) })).status);
+        if (engine === "openhands") expect([401, 403]).toContain((await fetch(`${await container.requireEndpoint()}/api/agent-lab/models`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ protocol: "openai", baseUrl: "http://127.0.0.1:8943", apiKey: "inventory-fixture" }) })).status);
         const client = tasks.client(engine), task = await client.create();
         expect((await client.list()).some(row => row.id === task.id)).toBe(true);
         const files = client.http, body = new TextEncoder().encode("NATIVE_REMOTE_FILES_OK\n");
@@ -77,7 +79,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         expect((await files.listFiles(task.id, "uploads")).files.map(row => row.name)).toEqual(["proof.txt"]);
         expect(await (await files.download(task.id, "uploads/proof.txt")).text()).toBe("NATIVE_REMOTE_FILES_OK\n");
         await expect(files.upload(task.id, "uploads/proof.txt", body)).rejects.toThrow("同名文件");
-        const fileRoute = engine === "openhands" ? "/api/selfme/files" : "/selfme-lab/files";
+        const fileRoute = engine === "openhands" ? "/api/agent-lab/files" : "/agent-lab/files";
         const query = new URLSearchParams({ task: remoteTaskId(task.id), path: "../private" });
         await expect(files.request(`${fileRoute}?${query}`)).rejects.toThrow("文件路径");
         expect([401, 403]).toContain((await fetch(`${await container.requireEndpoint()}${fileRoute}?task=${remoteTaskId(task.id)}&op=list`)).status);
@@ -89,25 +91,25 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           const grant = await tasks.desktop(engine, task.id);
           expect(grant.control).toBe(true); expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
-          const scene = await tasks.claw.request<{ display: string }>("selfme.scene.prepare", { task: remoteTaskId(task.id) });
+          const scene = await tasks.claw.request<{ display: string }>("agent-lab.scene.prepare", { task: remoteTaskId(task.id) });
           expect(scene.display).toMatch(/^:\d+$/);
           const terminal = await tasks.claw.terminal(task.id);
-          expect(terminal.cwd).toBe('/home/node/.openclaw/workspace/selfme/' + remoteTaskId(task.id));
+          expect(terminal.cwd).toBe('/home/node/.openclaw/workspace/agent-lab/' + remoteTaskId(task.id));
           expect(await sharedTerminalStatus(container.name, remoteTaskId(task.id))).toBe("off");
           expect(stripVTControlCharacters(terminal.buffer ?? "")).not.toContain("可输入命令");
           const windowState = () => desktopTerminalState(container.name, scene.display, remoteTaskId(task.id));
           expect((await windowState()).window).toBe(false);
           expect(await tasks.claw.terminalAccess(task.id)).toEqual({ busy: false, inputAllowed: true });
-          await tasks.claw.terminalInput(task.id, terminal.id, "export SELFME_SHARED_SHELL=retained; printf '\\nIDLE_INPUT_OK\\n'\r");
+          await tasks.claw.terminalInput(task.id, terminal.id, "export AGENT_LAB_SHARED_SHELL=retained; printf '\\nIDLE_INPUT_OK\\n'\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/IDLE_INPUT_OK\r?\n/);
           expect((await windowState()).window).toBe(false);
           await tasks.claw.terminalInput(task.id, terminal.id, "sleep 2\r");
           await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
           await tasks.claw.terminalInput(task.id, terminal.id, "\x1b[>0;276;0c");
-          await expect(tasks.claw.request("selfme.terminal.input", { task: remoteTaskId(task.id), sessionId: "foreign-terminal", data: "echo BLOCKED\r" })).rejects.toThrow("不属于");
+          await expect(tasks.claw.request("agent-lab.terminal.input", { task: remoteTaskId(task.id), sessionId: "foreign-terminal", data: "echo BLOCKED\r" })).rejects.toThrow("不属于");
           const execDesktop = promisify(execFile);
           // Only an explicit desktop launcher opens the real shell window.
-          await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/selfme/desktop/session.mjs'; await showTerminal(process.argv[1]);", remoteTaskId(task.id)]);
+          await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { showTerminal } from '/opt/agent-lab/desktop/session.mjs'; await showTerminal(process.argv[1]);", remoteTaskId(task.id)]);
           await sharedTerminalOnDesktop(container.name, scene.display, remoteTaskId(task.id));
           await sharedTerminalAccess(container.name, remoteTaskId(task.id), 1);
           await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\nREMOTE_PTY_OK\\n'; pwd; printenv DISPLAY\r");
@@ -125,25 +127,25 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           await expect.poll(async () => (await windowState()).activeTitle, { timeout: 5000 }).toContain("Chromium");
           const focus = (await windowState()).active;
           await tasks.claw.terminalInput(task.id, terminal.id, "\x03");
-          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\n%s\\n' \"$SELFME_SHARED_SHELL\"\r");
+          await tasks.claw.terminalInput(task.id, terminal.id, "printf '\\n%s\\n' \"$AGENT_LAB_SHARED_SHELL\"\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/retained\r?\n/);
           expect((await windowState()).active).toBe(focus);
           await tasks.claw.terminalClose(task.id, terminal.id);
           const reopened = await tasks.claw.terminal(task.id);
-          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nREATTACHED_%s\\n' \"$SELFME_SHARED_SHELL\"\r");
+          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nREATTACHED_%s\\n' \"$AGENT_LAB_SHARED_SHELL\"\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/REATTACHED_retained\r?\n/);
           expect((await windowState()).active).toBe(focus);
           // Closing the GUI attachment must not kill or reopen the shared shell.
           await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { execFileSync } from 'node:child_process';const id=process.argv[1];const row=execFileSync('wmctrl',['-l'],{encoding:'utf8'}).split('\\n').find(line=>line.endsWith('人工终端 · '+id.slice(0,8)));if(row)execFileSync('wmctrl',['-ic',row.split(/\\s+/)[0]]);", remoteTaskId(task.id)]);
           await expect.poll(async () => (await windowState()).window, { timeout: 5000 }).toBe(false);
-          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nAFTER_GUI_CLOSE_%s\\n' \"$SELFME_SHARED_SHELL\"\r");
+          await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nAFTER_GUI_CLOSE_%s\\n' \"$AGENT_LAB_SHARED_SHELL\"\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/AFTER_GUI_CLOSE_retained\r?\n/);
           expect((await windowState()).window).toBe(false);
           await tasks.claw.terminalClose(task.id, reopened.id);
           // Real native command execution, live output and Stop, without paid API calls.
-          await execDesktop("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile("scripts/remote-agent/fixtures/execution-provider.mjs", "utf8")]);
+          await execDesktop("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile(resolve(projectRoot, "scripts/remote-agent/fixtures/execution-provider.mjs"), "utf8")]);
           const cfg = await tasks.claw.request<{ hash: string }>("config.get");
-          await tasks.claw.request("config.patch", { baseHash: cfg.hash, raw: JSON.stringify({ models: { providers: { selfme: { baseUrl: "http://127.0.0.1:8944/v1", api: "openai-completions", apiKey: "execution-fixture", request: { allowPrivateNetwork: true }, models: [{ id: "execution-fixture", name: "Execution fixture", input: ["text"] }] } } }, agents: { defaults: { model: { primary: "selfme/execution-fixture" } } }, tools: { codeMode: false } }) });
+          await tasks.claw.request("config.patch", { baseHash: cfg.hash, raw: JSON.stringify({ models: { providers: { agent_lab: { baseUrl: "http://127.0.0.1:8944/v1", api: "openai-completions", apiKey: "execution-fixture", request: { allowPrivateNetwork: true }, models: [{ id: "execution-fixture", name: "Execution fixture", input: ["text"] }] } } }, agents: { defaults: { model: { primary: "agent_lab/execution-fixture" } } }, tools: { codeMode: false } }) });
           await ready();
           const native = await tasks.claw.create(); await tasks.claw.open(native.id);
           await tasks.claw.terminal(native.id);
@@ -226,7 +228,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
           expect(await framebufferHeader(grant.url)).toMatch(/^RFB /);
           await defaultDesktopReady(container.name);
           const page = await tasks.claw.request<{ targetId: string }>("browser.request", { method: "POST", path: "/tabs/open", body: { url: "about:blank" }, tabScope: { sessionKey: task.id } });
-          expect(page.targetId).toBeTruthy(); await browserOnDesktop(container.name, (await tasks.claw.request<{ display: string }>("selfme.scene.prepare", { task: remoteTaskId(task.id) })).display);
+          expect(page.targetId).toBeTruthy(); await browserOnDesktop(container.name, (await tasks.claw.request<{ display: string }>("agent-lab.scene.prepare", { task: remoteTaskId(task.id) })).display);
           await nativeTrashProof(container.name, remoteTaskId(task.id), "restore");
         }
         await client.delete(task.id); expect((await client.list()).some(row => row.id === task.id)).toBe(false);
@@ -249,7 +251,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INTEGRATION !== "1")("native source-bu
         const exec = promisify(execFile);
         await exec("docker", ["rm", container.name]);
         await exec("docker", ["volume", "rm", container.volume]);
-        await exec("docker", ["network", "rm", `selfme-lab-document-preview-${container.owner}-network`]);
+        await exec("docker", ["network", "rm", `agent-lab-document-preview-${container.owner}-network`]);
         await rm(root, { recursive: true, force: true });
       }
       async function ready() {
@@ -268,20 +270,20 @@ async function defaultDesktopReady(container: string): Promise<void> {
   const exec = promisify(execFile);
   await expect.poll(async () => {
     try {
-      await exec("docker", ["exec", container, "sh", "-lc", "test -x /usr/bin/xfdesktop && test -x /usr/bin/thunar && test -x /usr/bin/xfce4-terminal && test -x /usr/bin/tmux && test -x /usr/bin/xdotool && test -e /opt/selfme/desktop/assets/galaxy.png && pgrep -x xfdesktop >/dev/null"]);
+      await exec("docker", ["exec", container, "sh", "-lc", "test -x /usr/bin/xfdesktop && test -x /usr/bin/thunar && test -x /usr/bin/xfce4-terminal && test -x /usr/bin/tmux && test -x /usr/bin/xdotool && test -e /opt/agent-lab/desktop/assets/galaxy.png && pgrep -x xfdesktop >/dev/null"]);
       return true;
     } catch { return false; }
   }, { timeout: 15_000 }).toBe(true);
 }
 
 async function nativeTrashProof(container: string, task: string, phase: "prepare" | "restore"): Promise<void> {
-  const script = await readFile("services/remote-agent/openclaw/tests/trash-native-proof.mjs", "utf8");
+  const script = await readFile(resolve(projectRoot, "services/remote-agent/openclaw/tests/trash-native-proof.mjs"), "utf8");
   const { stdout } = await promisify(execFile)("docker", ["exec", container, "node", "--input-type=module", "-e", script, phase, task], { timeout: 45_000 });
   expect(JSON.parse(stdout)).toEqual({ phase, nativeTrash: true, nativeRestore: true, persistentFilesystem: true });
 }
 
 async function sharedTerminalStatus(container: string, task: string): Promise<string> {
-  const { stdout } = await promisify(execFile)("docker", ["exec", container, "tmux", "-S", "/home/node/.cache/selfme-lab/terminal.sock", "show-options", "-v", "-t", "selfme-" + task, "status"]);
+  const { stdout } = await promisify(execFile)("docker", ["exec", container, "tmux", "-S", "/home/node/.cache/agent-lab/terminal.sock", "show-options", "-v", "-t", "agent-lab-" + task, "status"]);
   return stdout.trim();
 }
 
@@ -290,8 +292,8 @@ async function sharedTerminalOnDesktop(container: string, display: string, task:
   await expect.poll(async () => {
     const { stdout } = await exec("docker", ["exec", "-e", `DISPLAY=${display}`, container, "node", "--input-type=module", "-e", `
       import { execFileSync } from 'node:child_process';
-      const task = process.argv[1], socket = '/home/node/.cache/selfme-lab/terminal.sock';
-      const clients = execFileSync('tmux', ['-S', socket, 'list-clients', '-t', 'selfme-' + task, '-F', '#{client_tty}'], {encoding:'utf8'}).trim().split('\\n');
+      const task = process.argv[1], socket = '/home/node/.cache/agent-lab/terminal.sock';
+      const clients = execFileSync('tmux', ['-S', socket, 'list-clients', '-t', 'agent-lab-' + task, '-F', '#{client_tty}'], {encoding:'utf8'}).trim().split('\\n');
       const windows = execFileSync('wmctrl', ['-l'], {encoding:'utf8'});
       console.log(JSON.stringify({clients:clients.length, window:windows.includes('人工终端 · ' + task.slice(0,8))}));
     `, task]);
@@ -321,7 +323,7 @@ async function desktopTerminalState(container: string, display: string, task: st
 async function sharedTerminalAccess(container: string, task: string, writable: number): Promise<void> {
   const exec = promisify(execFile);
   await expect.poll(async () => {
-    const { stdout } = await exec("docker", ["exec", container, "tmux", "-S", "/home/node/.cache/selfme-lab/terminal.sock", "list-clients", "-t", "selfme-" + task, "-F", "#{client_flags}"]);
+    const { stdout } = await exec("docker", ["exec", container, "tmux", "-S", "/home/node/.cache/agent-lab/terminal.sock", "list-clients", "-t", "agent-lab-" + task, "-F", "#{client_flags}"]);
     return stdout.trim().split("\n").filter(Boolean).filter(flags => !flags.split(",").includes("read-only")).length;
   }, { timeout: 5000 }).toBe(writable);
 }

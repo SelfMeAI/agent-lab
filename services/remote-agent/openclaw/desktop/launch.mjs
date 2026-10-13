@@ -11,7 +11,7 @@ export async function launch(app) {
   if (app !== 'browser') throw new Error('未知桌面入口');
   // Native authenticated browser APIs, never a second unmanaged profile.
   const call = async params => {
-    const { stdout } = await run(process.execPath, ['/app/openclaw.mjs', 'gateway', 'call', 'browser.request', '--json', '--params', JSON.stringify({ ...params, tabScope: { sessionKey: 'agent:main:selfme:' + task } })], { timeout: 30_000, maxBuffer: 1024 * 1024 });
+    const { stdout } = await run(process.execPath, ['/app/openclaw.mjs', 'gateway', 'call', 'browser.request', '--json', '--params', JSON.stringify({ ...params, tabScope: { sessionKey: 'agent:main:agent-lab:' + task } })], { timeout: 30_000, maxBuffer: 1024 * 1024 });
     return JSON.parse(stdout);
   };
   const list = await call({ method: 'GET', path: '/tabs' });
@@ -21,6 +21,6 @@ export async function launch(app) {
   await call({ method: 'POST', path: '/tabs/focus', body: { targetId: target.targetId } });
 }
 if (process.argv[1] === new URL(import.meta.url).pathname) launch(process.argv[2]).catch(error => {
-  console.error('[selfme] Desktop launcher failed:', error.message);
+  console.error('[agent-lab] Desktop launcher failed:', error.message);
   process.exitCode = 1;
 });

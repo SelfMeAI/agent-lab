@@ -120,7 +120,7 @@ describe("local model desktop presentation and state", () => {
     const store = await import("./local-model-store"); const data = fixture(); store.acceptLocalModelEvent({ type: "state", state: data });
     let finishRead!: (run: LocalModelRun | null) => void;
     const read = vi.fn(() => new Promise<LocalModelRun | null>((resolve) => { finishRead = resolve; }));
-    vi.stubGlobal("window", { selfmeLab: { getLatestLocalModelRun: read } });
+    vi.stubGlobal("window", { agentLab: { getLatestLocalModelRun: read } });
     const lookup = store.ensureLocalModelRun("playground", ["qwen3:0.6b"]);
     expect(store.ensureLocalModelRun("playground", ["QWEN3:0.6B"])).toBe(lookup); expect(read).toHaveBeenCalledTimes(1);
     const key = store.localModelExperimentKey("playground", ["qwen3:0.6b"]);
@@ -142,7 +142,7 @@ describe("local model desktop presentation and state", () => {
     let finishRead!: (run: LocalModelRun | null) => void;
     const read = vi.fn(() => new Promise<LocalModelRun | null>((resolve) => { finishRead = resolve; }));
     const remove = vi.fn(async () => {});
-    vi.stubGlobal("window", { selfmeLab: { getLatestLocalModelRun: read, deleteLocalModelRun: remove, getLocalModelState: async () => ({ ...data, latestRun: gemma }) } });
+    vi.stubGlobal("window", { agentLab: { getLatestLocalModelRun: read, deleteLocalModelRun: remove, getLocalModelState: async () => ({ ...data, latestRun: gemma }) } });
     const pending = store.ensureLocalModelRun("playground", ["qwen3:0.6b"]);
     await store.deleteLocalModelRun("qwen-deleted");
     finishRead(fixtureRun("qwen3:0.6b", "qwen-deleted")); await pending;
@@ -172,7 +172,7 @@ describe("local model desktop presentation and state", () => {
   it("serializes preferences and ignores stale preference events while saving newer input", async () => {
     const store = await import("./local-model-store"); store.acceptLocalModelEvent({ type: "state", state: fixture() });
     const writes: LocalModelPreferences[] = [];
-    vi.stubGlobal("window", { selfmeLab: { saveLocalModelPreferences: async (p: LocalModelPreferences) => {
+    vi.stubGlobal("window", { agentLab: { saveLocalModelPreferences: async (p: LocalModelPreferences) => {
       writes.push(p); store.acceptLocalModelEvent({ type: "state", state: { ...fixture(), preferences: p } }); return p;
     } } });
     await Promise.all([0.8, 0.9, 1.0].map((temperature) => store.saveLocalModelPreferences({ ...preferences, parameters: { ...preferences.parameters, temperature } })));

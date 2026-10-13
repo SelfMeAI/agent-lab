@@ -5,13 +5,26 @@ import { createOpenClawIdentity } from "./gateway";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const id = "53b1dfe1-b090-4a2d-b680-8eb4f0172812";
-function fixture(page: unknown) {
+function fixture(page: unknown, sessionKey = "agent:main:agent-lab:task") {
   const native = new QueueNative(".work/remote-agent/native-queue-test", () => {}, async () => {});
-  const request = vi.fn(async () => page);
+  const request = vi.fn(async (method: string) => method === "sessions.list" ? { sessions: [{ key: sessionKey }] } : page);
   vi.spyOn(native as unknown as { gateway(): Promise<unknown> }, "gateway").mockResolvedValue({ request });
   return { native, request };
 }
 describe("OpenClaw native input custody", () => {
+  it("keeps queued native receipts and delivery bound to the original session after renaming", async () => {
+    const { native, request } = fixture({ inputReceipts: [{ runId: id, state: "consumed" }] }, "agent:main:selfme:task");
+    expect(await native.receipt("task", id)).toBe("consumed");
+    await native.send("task", "new instruction", id, true, () => true);
+    expect(request).toHaveBeenCalledWith("chat.send", { sessionKey: "agent:main:selfme:task", message: "new instruction", queueMode: "steer", idempotencyKey: id });
+    expect(request.mock.calls.filter(([method]) => method === "sessions.list")).toHaveLength(1);
+  });
+  it("never creates a substitute native session when the original is missing", async () => {
+    const { native, request } = fixture({});
+    request.mockImplementation(async () => ({ sessions: [] }));
+    await expect(native.receipt("missing", id)).rejects.toThrow("未创建替代会话");
+    expect(request.mock.calls.some(([method]) => method === "chat.send")).toBe(false);
+  });
   it("recognizes direct-turn durable correlation without pretending it has a pending-input receipt", async () => {
     const { native } = fixture({ inputReceipts: [], messages: [{ role: "user", content: "text", __openclaw: { idempotencyKey: id + ":user" } }] });
     expect(await native.receipt("task", id)).toBe("consumed");

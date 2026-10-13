@@ -9,7 +9,7 @@ describe("remote scene presentation", () => {
     expect(remoteSceneTabs("openhands")).toEqual(["browser", "files", "preview"]);
   });
   it("uses workspace wording for both engines without changing their views", async () => {
-    vi.stubGlobal("window", { selfmeLab: {} });
+    vi.stubGlobal("window", { agentLab: {} });
     vi.stubGlobal("self", globalThis);
     try {
       const { RemoteScene } = await import("./RemoteScene");

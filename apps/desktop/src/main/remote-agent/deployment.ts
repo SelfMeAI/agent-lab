@@ -1,19 +1,22 @@
 import type { RemoteAgentId } from "../../../../../packages/contracts/src/remote-agent";
+import { legacyResourceNamespace } from "../application-identity";
 
 // Provision private native server config once. Never replace existing state.
 export const openClawBootstrap = `
 import { mkdir, writeFile, readFile, rename } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
-import { recoverManagedBrowserProfile } from '/opt/selfme/bootstrap/browser-profile.mjs';
-import { configureDesktop } from '/opt/selfme/desktop/configure.mjs';
+import { recoverManagedBrowserProfile } from '/opt/agent-lab/bootstrap/browser-profile.mjs';
+import { configureDesktop } from '/opt/agent-lab/desktop/configure.mjs';
+import { migrateOpenClawConfig, migrateOpenClawState } from '/opt/agent-lab/bootstrap/legacy-state.mjs';
 process.env.LANG = 'C.UTF-8';
 process.env.LC_ALL = 'C.UTF-8';
-await configureDesktop();
 const home = '/home/node/.openclaw';
+await migrateOpenClawState(home);
+await configureDesktop();
 await mkdir(home, { recursive: true, mode: 0o700 });
 await mkdir(home + '/workspace', { recursive: true });
-const recovered = await recoverManagedBrowserProfile(home, { privateVolume: process.env.SELFME_OPENCLAW_PRIVATE_VOLUME === '1' });
-if (recovered.length) console.log('[selfme] Recovered stale managed browser process locks; profile data retained.');
+const recovered = await recoverManagedBrowserProfile(home, { privateVolume: process.env.AGENT_LAB_OPENCLAW_PRIVATE_VOLUME === '1' });
+if (recovered.length) console.log('[agent-lab] Recovered stale managed browser process locks; profile data retained.');
 const config = {
   gateway: { mode: 'local', bind: 'lan', port: 18789,
     auth: { mode: 'token', token: '\${OPENCLAW_GATEWAY_TOKEN}' }, controlUi: { enabled: false } },
@@ -26,11 +29,11 @@ try { await writeFile(home + '/openclaw.json', JSON.stringify(config), { flag: '
 catch (error) { if (error.code !== 'EEXIST') throw error; }
 // Deployment extension migration only; model accounts, task histories and
 // device trust remain native and are never regenerated or reset.
-const saved = JSON.parse(await readFile(home + '/openclaw.json', 'utf8'));
+const saved = migrateOpenClawConfig(JSON.parse(await readFile(home + '/openclaw.json', 'utf8')));
 saved.plugins ??= {}; saved.plugins.entries ??= {}; saved.plugins.load ??= {};
-saved.plugins.allow = [...new Set([...(saved.plugins.allow ?? []), 'selfme-lab'])];
-saved.plugins.load.paths = [...new Set([...(saved.plugins.load.paths ?? []), '/opt/selfme/plugin'])];
-saved.plugins.entries['selfme-lab'] = { ...(saved.plugins.entries['selfme-lab'] ?? {}), enabled: true };
+saved.plugins.allow = [...new Set([...(saved.plugins.allow ?? []), 'agent-lab'])];
+saved.plugins.load.paths = [...new Set([...(saved.plugins.load.paths ?? []), '/opt/agent-lab/plugin'])];
+saved.plugins.entries['agent-lab'] = { ...(saved.plugins.entries['agent-lab'] ?? {}), enabled: true };
 saved.tools ??= {}; saved.tools.profile ??= 'full';
 saved.tools.exec ??= { host: 'gateway', security: 'allowlist', ask: 'on-miss' };
 saved.gateway ??= {}; saved.gateway.terminal ??= {}; saved.gateway.terminal.enabled = true;
@@ -45,8 +48,8 @@ saved.browser.extraArgs = [...new Set([...(saved.browser.extraArgs ?? []), '--st
 // its own loopback hosts, not the host machine, LAN or arbitrary private IPs.
 saved.browser.ssrfPolicy ??= {};
 saved.browser.ssrfPolicy.allowedHostnames = [...new Set([...(saved.browser.ssrfPolicy.allowedHostnames ?? []), 'localhost', '127.0.0.1'])];
-await writeFile(home + '/.selfme-config-next.json', JSON.stringify(saved), { mode: 0o600 });
-await rename(home + '/.selfme-config-next.json', home + '/openclaw.json');
+await writeFile(home + '/.agent-lab-config-next.json', JSON.stringify(saved), { mode: 0o600 });
+await rename(home + '/.agent-lab-config-next.json', home + '/openclaw.json');
 const child = spawn(process.execPath, ['/app/openclaw.mjs', 'gateway', '--bind', 'lan'], { stdio: 'inherit', env: process.env });
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => child.kill(signal));
 child.on('error', () => process.exit(1));
@@ -54,9 +57,15 @@ child.on('exit', (code) => process.exit(code ?? 1));
 `;
 
 export const remoteDeployments = {
-  openhands: { name: "OpenHands", version: "1.53.0", commit: "54daf056bd863bb46f922a2fe9324dd736b37ff6", image: "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab9", legacyImages: ["selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab1", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab2", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab3", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab4", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab5", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab6", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab7", "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab8"], port: 8000, mount: "/workspace", command: [] },
-  openclaw: { name: "OpenClaw", version: "2026.9.9", commit: "bcfc88812a35243893585dbeca87ca41b48272ca", image: "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30", legacyImages: ["selfme-lab/openclaw:2026.9.9-source-bcfc88812a35", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab1", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab2", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab3", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab4", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab5", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab6", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab7", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab8", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab9", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab10", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab11", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab12", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab13", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab14", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab15", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab16", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab17", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab18", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab19", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab20", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab21", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab22", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab23", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab24", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab25", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab26", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab27", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab28", "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab29"], port: 18789, mount: "/home/node/.openclaw", command: ["node", "--input-type=module", "-e", openClawBootstrap] },
+  openhands: { name: "OpenHands", version: "1.53.0", commit: "54daf056bd863bb46f922a2fe9324dd736b37ff6", image: "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab9", legacyImages: ["agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab1", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab2", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab3", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab4", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab5", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab6", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab7", "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab8"], port: 8000, mount: "/workspace", command: [] },
+  openclaw: { name: "OpenClaw", version: "2026.9.9", commit: "bcfc88812a35243893585dbeca87ca41b48272ca", image: "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30", legacyImages: ["agent-lab/openclaw:2026.9.9-source-bcfc88812a35", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab1", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab2", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab3", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab4", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab5", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab6", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab7", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab8", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab9", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab10", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab11", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab12", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab13", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab14", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab15", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab16", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab17", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab18", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab19", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab20", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab21", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab22", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab23", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab24", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab25", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab26", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab27", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab28", "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab29"], port: 18789, mount: "/home/node/.openclaw", command: ["node", "--input-type=module", "-e", openClawBootstrap] },
 } satisfies Record<RemoteAgentId, { name: string; version: string; commit: string; image: string; legacyImages: string[]; port: number; mount: string; command: string[] }>;
+
+// Recognize only the exact previously pinned images for a volume-preserving
+// upgrade. New images, labels, APIs and configuration always use Agent Lab.
+for (const deployment of Object.values(remoteDeployments)) {
+  deployment.legacyImages.push(...[deployment.image, ...deployment.legacyImages].map(image => image.replace(/^agent-lab\//, `${legacyResourceNamespace}/`)));
+}
 
 export function redactServiceOutput(value: string, secrets: string[] = []): string {
   let clean = value;

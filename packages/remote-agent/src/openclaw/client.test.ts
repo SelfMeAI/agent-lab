@@ -5,8 +5,8 @@ import { RemoteHttp } from "../transport/http";
 import { OpenClawConnection, type GatewayEvent } from "./connection";
 import { createOpenClawIdentity } from "./gateway";
 
-const id = "agent:main:selfme:c0ec83da-66be-4f17-a2c2-01dc02c89f00";
-const queueReply = (method: string) => method.startsWith("selfme.inputs.") ? { mode: "queue", paused: false, revision: 0, items: [] } : {};
+const id = "agent:main:agent-lab:c0ec83da-66be-4f17-a2c2-01dc02c89f00";
+const queueReply = (method: string) => method.startsWith("agent-lab.inputs.") ? { mode: "queue", paused: false, revision: 0, items: [] } : {};
 const message = (value: string) => ({ role: "user", content: value, __openclaw: { id: value } });
 function fixture() {
   const updates: RemoteTaskSnapshot[] = [], terminalEvents: RemoteTerminalEvent[] = [];
@@ -15,7 +15,7 @@ function fixture() {
     if (method === "sessions.list") return { sessions: [{ key: id, displayName: "新任务", status: "idle" }] };
     if (method === "chat.history") return { messages: [message("tail")], hasMore: false, pagination: { rawPageMessages: 1 } };
     if (method === "question.list") return { questions: [] };
-    if (method === "selfme.scene.prepare") return { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00", display: ":101" };
+    if (method === "agent-lab.scene.prepare") return { root: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00", display: ":101" };
     return queueReply(method);
   });
   const event = (frame: GatewayEvent) => (client as unknown as { event(frame: GatewayEvent): void }).event(frame);
@@ -25,8 +25,17 @@ afterEach(() => vi.restoreAllMocks());
 describe("OpenClaw native task projections and custody", () => {
   it("subscribes to background service-owned tool progress before replaying history", async () => {
     const { client, request } = fixture(); await client.open(id);
-    expect(request).toHaveBeenCalledWith("sessions.subscribe", { group: "selfme-lab", limit: 100, sortBy: "updatedAt" });
+    expect(request).toHaveBeenCalledWith("sessions.subscribe", { limit: 100, sortBy: "updatedAt" });
     expect(request.mock.calls.findIndex(([method]) => method === "sessions.subscribe")).toBeLessThan(request.mock.calls.findIndex(([method]) => method === "chat.history"));
+    client.shutdown();
+  });
+  it("lists both native name generations while excluding unrelated sessions", async () => {
+    const { client, request } = fixture();
+    const old = "agent:main:selfme:53b1dfe1-b090-4a2d-b680-8eb4f0172812";
+    request.mockImplementation(async (method: string) => method === "sessions.list" ? { sessions: [{ key: id }, { key: old }, { key: "agent:main:other:c0ec83da-66be-4f17-a2c2-01dc02c89f00" }] } : queueReply(method));
+    expect((await client.list()).map(task => task.id)).toEqual([id, old]);
+    await client.open(old);
+    expect(request).toHaveBeenCalledWith("chat.history", expect.objectContaining({ sessionKey: old }));
     client.shutdown();
   });
   it("uses automatic native presentation names instead of a global unique alias", () => {
@@ -184,19 +193,19 @@ describe("OpenClaw native task projections and custody", () => {
   });
   it("stops the native session without withdrawing an unrelated queued input run", async () => {
     const { client, request } = fixture(); await client.control(id, "stop");
-    expect(request).toHaveBeenCalledWith("selfme.inputs.control", { task: id.split(":").at(-1), action: "stop" }); client.shutdown();
+    expect(request).toHaveBeenCalledWith("agent-lab.inputs.control", { task: id.split(":").at(-1), action: "stop" }); client.shutdown();
   });
   it("submits explicit Queue and Steer through the server-owned outbox, not an implicit interruption", async () => {
     const { client, request, event } = fixture(); await client.open(id);
     await client.send(id, "start");
-    const first = request.mock.calls.find(([name]) => name === "selfme.inputs.send")?.[1];
+    const first = request.mock.calls.find(([name]) => name === "agent-lab.inputs.send")?.[1];
     expect(first).toMatchObject({ task: id.split(":").at(-1), text: "start", mode: "queue" });
     expect(first).not.toHaveProperty("timeoutMs");
     await client.send(id, "supplement", [], { mode: "steer", requestId: "017281bb-2c5b-4d90-83c0-a39b3de79373" });
-    expect(request).toHaveBeenCalledWith("selfme.inputs.send", expect.objectContaining({ mode: "steer", text: "supplement" }));
+    expect(request).toHaveBeenCalledWith("agent-lab.inputs.send", expect.objectContaining({ mode: "steer", text: "supplement" }));
     event({ event: "chat", payload: { sessionKey: id, state: "aborted" } });
     await client.send(id, "retry");
-    expect(request.mock.calls.filter(([name]) => name === "selfme.inputs.send").at(-1)?.[1]).toMatchObject({ mode: "queue" });
+    expect(request.mock.calls.filter(([name]) => name === "agent-lab.inputs.send").at(-1)?.[1]).toMatchObject({ mode: "queue" });
     expect(request).not.toHaveBeenCalledWith("chat.send", expect.anything()); client.shutdown();
   });
   it("restores the failed native turn on reopen and starts a new turn without losing history", async () => {
@@ -212,7 +221,7 @@ describe("OpenClaw native task projections and custody", () => {
     expect(snapshot.failure?.message).toContain("malformed tool call");
     await client.close(id); expect((await client.open(id)).failure).toEqual(snapshot.failure);
     await client.send(id, "Continue after checking existing files");
-    expect(request).toHaveBeenCalledWith("selfme.inputs.send", expect.objectContaining({ text: "Continue after checking existing files", mode: "queue" }));
+    expect(request).toHaveBeenCalledWith("agent-lab.inputs.send", expect.objectContaining({ text: "Continue after checking existing files", mode: "queue" }));
     // Execution state remains native; merely accepting an input cannot fake a new run.
     eventNativeStart();
     expect(updates.at(-1)?.task.status).toBe("running"); expect(updates.at(-1)?.failure).toBeUndefined();
@@ -257,9 +266,9 @@ describe("OpenClaw native task projections and custody", () => {
   });
   it("binds PTY actions to the task and deduplicates the attached buffer's sequence", async () => {
     const { client, request, event, terminalEvents } = fixture();
-    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00", confined: false } : method === "terminal.attach" ? { buffer: "initial", seq: 7 } : {});
+    request.mockImplementation(async method => method === "agent-lab.scene.prepare" ? { root: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00", confined: false } : method === "terminal.attach" ? { buffer: "initial", seq: 7 } : {});
     expect(await client.terminal(id)).toMatchObject({ id: "term", buffer: "initial" });
-    expect(request).toHaveBeenCalledWith("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "selfme-lab-terminal", hostId: "gateway", threadId: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" } });
+    expect(request).toHaveBeenCalledWith("terminal.open", { cols: 100, rows: 30, catalog: { catalogId: "agent-lab-terminal", hostId: "gateway", threadId: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" } });
     expect(request).not.toHaveBeenCalledWith("terminal.input", expect.anything());
     event({ event: "terminal.data", payload: { sessionId: "term", seq: 7, data: "initial" } });
     event({ event: "terminal.data", payload: { sessionId: "term", seq: 8, data: "next" } });
@@ -268,13 +277,13 @@ describe("OpenClaw native task projections and custody", () => {
   });
   it("keeps terminal custody validation while letting the server distinguish idle and running", async () => {
     const { client, request } = fixture();
-    request.mockImplementation(async method => method === "selfme.scene.prepare" ? { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : {});
+    request.mockImplementation(async method => method === "agent-lab.scene.prepare" ? { root: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : method === "terminal.open" ? { sessionId: "term", cwd: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00" } : {});
     await client.terminal(id); await client.terminalInput(id, "term", "pwd\r");
-    expect(request).toHaveBeenCalledWith("selfme.terminal.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionId: "term", data: "pwd\r" });
+    expect(request).toHaveBeenCalledWith("agent-lab.terminal.input", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00", sessionId: "term", data: "pwd\r" });
     await expect(client.terminalInput(id, "foreign", "pwd\r")).rejects.toThrow("不属于");
-    request.mockImplementation(async method => { if (method === "selfme.terminal.input") throw new Error("智能体正在工作"); return {}; });
+    request.mockImplementation(async method => { if (method === "agent-lab.terminal.input") throw new Error("智能体正在工作"); return {}; });
     await expect(client.terminalInput(id, "term", "pwd\r")).rejects.toThrow("正在工作");
-    expect(request).not.toHaveBeenCalledWith("selfme.control.acquire", expect.anything());
+    expect(request).not.toHaveBeenCalledWith("agent-lab.control.acquire", expect.anything());
     client.shutdown();
   });
   it("projects partial native command output before the tool completes", async () => {
@@ -287,8 +296,8 @@ describe("OpenClaw native task projections and custody", () => {
   it("does not keep a native PTY when attaching fails", async () => {
     const { client, request } = fixture();
     request.mockImplementation(async method => {
-      if (method === "selfme.scene.prepare") return { root: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" };
-      if (method === "terminal.open") return { sessionId: "failed-term", cwd: "/home/node/.openclaw/workspace/selfme/c0ec83da-66be-4f17-a2c2-01dc02c89f00" };
+      if (method === "agent-lab.scene.prepare") return { root: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00" };
+      if (method === "terminal.open") return { sessionId: "failed-term", cwd: "/home/node/.openclaw/workspace/agent-lab/c0ec83da-66be-4f17-a2c2-01dc02c89f00" };
       if (method === "terminal.attach") throw new Error("attach failed"); return {};
     });
     await expect(client.terminal(id)).rejects.toThrow("attach failed");
@@ -296,16 +305,16 @@ describe("OpenClaw native task projections and custody", () => {
   });
   it("opens the native desktop without stopping or pausing work", async () => {
     const { client, request } = fixture();
-    request.mockImplementation(async method => method === "selfme.scene.observe" ? { wsPath: "/desktop/observe?token=fixture", control: true, expiresAtMs: 123, vncPassword: "native-vnc" } : {});
+    request.mockImplementation(async method => method === "agent-lab.scene.observe" ? { wsPath: "/desktop/observe?token=fixture", control: true, expiresAtMs: 123, vncPassword: "native-vnc" } : {});
     expect(await client.desktop(id)).toEqual({ url: "ws://127.0.0.1:1234/desktop/observe?token=fixture", control: true, expiresAt: 123, password: "native-vnc" });
-    expect(request.mock.calls.map(([name]) => name)).toEqual(["selfme.scene.prepare", "selfme.scene.observe"]);
+    expect(request.mock.calls.map(([name]) => name)).toEqual(["agent-lab.scene.prepare", "agent-lab.scene.observe"]);
     client.shutdown();
   });
   it("reads a narrow, validated terminal input state independently of task history", async () => {
     const { client, request } = fixture();
     request.mockResolvedValue({ busy: true, inputAllowed: false });
     expect(await client.terminalAccess(id)).toEqual({ busy: true, inputAllowed: false });
-    expect(request).toHaveBeenCalledWith("selfme.terminal.status", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" });
+    expect(request).toHaveBeenCalledWith("agent-lab.terminal.status", { task: "c0ec83da-66be-4f17-a2c2-01dc02c89f00" });
     request.mockResolvedValue({}); await expect(client.terminalAccess(id)).rejects.toThrow("尚未就绪");
     client.shutdown();
   });

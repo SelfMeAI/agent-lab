@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { harnessNodeExecutable } from "./harness-node";
 
 describe("headless harness Node executable", () => {
-  it.each(["SelfMe Lab", "Electron"])("uses the background Helper for %s, independently of npm/app names", async name => {
+  it.each(["Agent Lab", "Electron"])("uses the background Helper for %s, independently of npm/app names", async name => {
     await mkdir(".work", { recursive: true });
     const scratch = await mkdtemp(join(".work", "helper-path-"));
     const contents = join(scratch, `${name}.app`, "Contents");
@@ -22,7 +22,7 @@ describe("headless harness Node executable", () => {
     } finally { await rm(scratch, { recursive: true, force: true }); }
   });
   it("fails closed on a malformed macOS app layout rather than launching a GUI process", () => {
-    expect(() => harnessNodeExecutable("/Applications/SelfMe Lab", "darwin")).toThrow(/完整/);
+    expect(() => harnessNodeExecutable("/Applications/Agent Lab", "darwin")).toThrow(/完整/);
   });
   it.each(["win32", "linux"] as const)("keeps the existing %s Node-mode launch", platform => {
     expect(harnessNodeExecutable("/path/to/executable", platform)).toBe("/path/to/executable");

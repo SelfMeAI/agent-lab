@@ -27,7 +27,7 @@ class ObserverGrantsTest(unittest.TestCase):
     def grant(self):
         deployment.app.dependency_overrides[deployment.check_session_api_key] = lambda: None
         with patch.object(deployment, "get_conversation_service", return_value=self.catalog), patch.object(deployment, "task_browser", return_value=self.browser):
-            response = self.client.post("/api/selfme/observer", json={"task": str(uuid4())})
+            response = self.client.post("/api/agent-lab/observer", json={"task": str(uuid4())})
         self.assertEqual(response.status_code, 200, response.text)
         value = response.json()
         self.assertFalse(value["control"])
@@ -40,9 +40,9 @@ class ObserverGrantsTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, 4401)
 
     def test_missing_expired_closed_and_replaced_resources_reject(self):
-        self.rejected("/selfme/observe?ticket=missing")
+        self.rejected("/agent-lab/observe?ticket=missing")
         deployment.tickets["expired"] = (time.time() - 1, self.browser, 30123)
-        self.rejected("/selfme/observe?ticket=expired")
+        self.rejected("/agent-lab/observe?ticket=expired")
         path = self.grant()
         self.browser.closed = True
         self.rejected(path)

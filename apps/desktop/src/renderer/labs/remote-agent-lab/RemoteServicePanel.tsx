@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from "react";
 import { remoteAgentIds, type RemoteAgentId, type RemoteModelConnection, type RemoteModelProtocol } from "../../../../../../packages/contracts/src/remote-agent";
-import brandMark from "../../../../../../assets/brand/selfme-lab-mark.png";
+import brandMark from "../../../../../../assets/brand/agent-lab-mark.png";
 import { remoteEngines, RemoteMark, ServiceStatus, type ServiceBusy, type ServiceStates } from "./RemoteAgentPage";
 import { remoteError } from "./service-presentation";
 import { knownRemoteVision } from "../../../../../../packages/remote-agent/src/model-capabilities";
@@ -60,9 +60,9 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
     let current = true;
     clearModels();
     setVisibleKey(false); setError(""); setNotice(""); setLogsOpen(false); setLogs("");
-    if (!ready || busy[engine] || !window.selfmeLab) { setLoading(false); return; }
+    if (!ready || busy[engine] || !window.agentLab) { setLoading(false); return; }
     setLoading(true);
-    void window.selfmeLab.getRemoteModelConnection(engine).then(value => {
+    void window.agentLab.getRemoteModelConnection(engine).then(value => {
       if (current) setDrafts(previous => ({ ...previous, [engine]: previous[engine].dirty ? previous[engine] : fromConnection(value) }));
     }).catch(cause => { if (current) setError(remoteError(cause)); }).finally(() => { if (current) setLoading(false); });
     return () => { current = false; ++lookupRevision.current; };
@@ -73,11 +73,11 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
     setDrafts(previous => ({ ...previous, [engine]: { ...previous[engine], [key]: value, dirty: true } })); setNotice("");
   }
   async function loadModels(): Promise<void> {
-    if (!window.selfmeLab || !ready || loading || saving || modelsLoading || busy[engine]) return;
+    if (!window.agentLab || !ready || loading || saving || modelsLoading || busy[engine]) return;
     const revision = ++lookupRevision.current;
     setModelsLoading(true); setModelNotice(""); setModelsOpen(false);
     try {
-      const found = await window.selfmeLab.listRemoteProviderModels(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, apiKey: draft.apiKey.trim() || undefined });
+      const found = await window.agentLab.listRemoteProviderModels(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, apiKey: draft.apiKey.trim() || undefined });
       if (!alive.current || revision !== lookupRevision.current) return;
       setModels(found); setModelSearch(""); setModelsOpen(found.length > 0);
       setModelNotice(found.length ? `已获取 ${found.length} 个模型，可搜索选择或手动填写。` : "接口未返回模型，请手动填写 Model ID。");
@@ -87,18 +87,18 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
     } finally { if (alive.current && revision === lookupRevision.current) setModelsLoading(false); }
   }
   async function save(event: FormEvent): Promise<void> {
-    event.preventDefault(); if (!window.selfmeLab || saving || loading || modelsLoading || !ready) return;
+    event.preventDefault(); if (!window.agentLab || saving || loading || modelsLoading || !ready) return;
     setSaving(true); setError(""); setNotice("");
     try {
-      const value = await window.selfmeLab.saveRemoteModelConnection(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, model: draft.model, apiKey: draft.apiKey || undefined });
+      const value = await window.agentLab.saveRemoteModelConnection(engine, { protocol: draft.protocol, baseUrl: draft.baseUrl, model: draft.model, apiKey: draft.apiKey || undefined });
       if (alive.current) { setDrafts(previous => ({ ...previous, [engine]: fromConnection(value) })); setNotice("已保存到服务端 · 后续新任务使用此连接"); }
     } catch (cause) { if (alive.current) setError(remoteError(cause)); }
     finally { if (alive.current) setSaving(false); }
   }
   async function loadLogs(): Promise<void> {
-    if (!window.selfmeLab || logsLoading) return;
+    if (!window.agentLab || logsLoading) return;
     const selected = engine; setLogsLoading(true);
-    try { const value = await window.selfmeLab.getRemoteServiceLogs(selected); if (alive.current) setLogs(value || "暂无服务日志"); }
+    try { const value = await window.agentLab.getRemoteServiceLogs(selected); if (alive.current) setLogs(value || "暂无服务日志"); }
     catch (cause) { if (alive.current) setLogs(remoteError(cause)); }
     finally { if (alive.current) setLogsLoading(false); }
   }

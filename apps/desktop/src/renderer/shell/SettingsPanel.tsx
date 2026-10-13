@@ -26,8 +26,8 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
   const canDiscoverModels = isAgentRuntimeId(runtimeId);
   const matchingModels = models.filter((id) => id.toLowerCase().includes(modelSearch.trim().toLowerCase()));
   useEffect(() => {
-    if ((!isAgentRuntimeId(runtimeId) && runtimeId !== "jev") || !window.selfmeLab) return;
-    void window.selfmeLab.getProviderStatus(runtimeId).then((status) => {
+    if ((!isAgentRuntimeId(runtimeId) && runtimeId !== "jev") || !window.agentLab) return;
+    void window.agentLab.getProviderStatus(runtimeId).then((status) => {
       setProvider(status);
       setBaseUrl(status.baseUrl);
       if (status.model) setModel(status.model);
@@ -49,13 +49,13 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
   }
 
   async function loadModels(): Promise<void> {
-    if (!window.selfmeLab || !canDiscoverModels) return;
+    if (!window.agentLab || !canDiscoverModels) return;
     const revision = ++modelLookupRevision.current;
     setLoadingModels(true);
     setModelLookupMessage(null);
     setModelListOpen(false);
     try {
-      const found = await window.selfmeLab.listProviderModels(runtimeId, { baseUrl, apiKey: apiKey.trim() || undefined });
+      const found = await window.agentLab.listProviderModels(runtimeId, { baseUrl, apiKey: apiKey.trim() || undefined });
       if (revision !== modelLookupRevision.current) return;
       setModels(found);
       setModelSearch("");
@@ -72,11 +72,11 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!window.selfmeLab) return;
+    if (!window.agentLab) return;
     setSaving(true);
     setError(null);
     try {
-      const status = await window.selfmeLab.saveProvider(runtimeId ?? "", { baseUrl, model: hasModelField ? model : undefined, apiKey: apiKey.trim() || undefined });
+      const status = await window.agentLab.saveProvider(runtimeId ?? "", { baseUrl, model: hasModelField ? model : undefined, apiKey: apiKey.trim() || undefined });
       setProvider(status);
       setApiKey("");
       onProviderSaved();
@@ -144,7 +144,7 @@ export function SettingsPanel({ info, runtimeId, onClose, onProviderSaved }: Set
             <button className="settings-panel__save" disabled={saving} type="submit">{saving ? "保存中…" : runtimeId === "jev" ? "保存设置" : "保存并连接"}</button>
           </form>
         </> : <>
-          <p>SelfMe Lab 桌面实验平台</p>
+          <p>Agent Lab 桌面实验平台</p>
           <dl><dt>版本</dt><dd>{info?.version ?? "开发预览"}</dd><dt>平台</dt><dd>{info?.platform ?? "Browser preview"}</dd><dt>架构</dt><dd>Electron + TypeScript</dd></dl>
         </>}
         </div>

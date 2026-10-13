@@ -3,11 +3,11 @@
   "id": "openclaw",
   "name": "OpenClaw",
   "stage": "capability-validation",
-  "deployment": { "dockerfile": "deployment.Dockerfile", "image": "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30" },
+  "deployment": { "dockerfile": "deployment.Dockerfile", "image": "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30" },
   "build": {
     "source": "gateway",
     "dockerfile": "Dockerfile",
-    "image": "selfme-lab/openclaw:2026.9.9-source-bcfc88812a35",
+    "image": "agent-lab/openclaw:2026.9.9-source-bcfc88812a35",
     "args": {
       "OPENCLAW_EXTENSIONS": "browser,cua-computer",
       "OPENCLAW_DOCKER_BUILD_VERSION": "2026.9.9",

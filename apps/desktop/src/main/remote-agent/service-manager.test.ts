@@ -4,7 +4,7 @@ import { remoteDeployments } from "./deployment";
 
 function container() {
   return {
-    Config: { Image: OPENHANDS_IMAGE, Labels: { "ai.selfme.lab.owner": "test-owner" } },
+    Config: { Image: OPENHANDS_IMAGE, Labels: { "ai.agent-lab.desktop.owner": "test-owner" } as Record<string, string> },
     State: { Running: true },
     Mounts: [{ Type: "volume", Name: "test-private-volume", Destination: "/workspace" }],
     HostConfig: { Mounts: [] as Array<{ Type: string; Source: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> },
@@ -14,7 +14,7 @@ function container() {
 
 describe("development service ownership", () => {
   it("recovers browser locks only with an owned volume not referenced by another container", () => {
-    const labels = { "ai.selfme.lab.owner": "owner" };
+    const labels = { "ai.agent-lab.desktop.owner": "owner" };
     expect(() => assertExclusiveServiceVolume(labels, "owner", [], "managed")).not.toThrow();
     expect(() => assertExclusiveServiceVolume(labels, "owner", ["managed"], "managed")).not.toThrow();
     expect(() => assertExclusiveServiceVolume(null, "owner", [], "managed")).toThrow("不属于");
@@ -27,7 +27,7 @@ describe("development service ownership", () => {
     expect(containerEndpoint(stopped, "test-owner", "test-private-volume")).toBeNull();
   });
   it("refuses unrelated containers, host workspaces and public ports", () => {
-    const other = container(); other.Config.Labels["ai.selfme.lab.owner"] = "other";
+    const other = container(); other.Config.Labels["ai.agent-lab.desktop.owner"] = "other";
     expect(() => containerEndpoint(other, "test-owner", "test-private-volume")).toThrow();
     const mount = container(); mount.Mounts[0].Type = "bind";
     expect(() => containerEndpoint(mount, "test-owner", "test-private-volume")).toThrow();
@@ -43,7 +43,7 @@ describe("development service ownership", () => {
     claw.Config.Image = remoteDeployments.openclaw.image;
     claw.Mounts[0].Destination = "/home/node/.openclaw";
     claw.Mounts.push({ Type: "volume", Name: "test-private-volume", Destination: "/home/node" });
-    claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".selfme-desktop/home", NoCopy: true } });
+    claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".agent-lab-desktop/home", NoCopy: true } });
     claw.NetworkSettings.Ports = { "18789/tcp": [{ HostIp: "127.0.0.1", HostPort: "19000" }] };
     expect(containerEndpoint(claw, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
     expect(() => containerEndpoint(claw, "test-owner", "test-private-volume", "openhands")).toThrow();
@@ -53,7 +53,7 @@ describe("development service ownership", () => {
     claw.Config.Image = remoteDeployments.openclaw.image;
     claw.Mounts[0].Destination = "/home/node/.openclaw";
     claw.Mounts.push({ Type: "volume", Name: "test-private-volume", Destination: "/home/node" });
-    claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".selfme-desktop/home", NoCopy: true } });
+    claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".agent-lab-desktop/home", NoCopy: true } });
     claw.NetworkSettings.Ports = { "18789/tcp": [{ HostIp: "127.0.0.1", HostPort: "19000" }] };
     for (const patch of [{ Type: "bind" }, { Name: "foreign" }]) {
       const changed = structuredClone(claw); Object.assign(changed.Mounts[1], patch);
@@ -71,7 +71,15 @@ describe("development service ownership", () => {
   it("accepts only known owned prior images for a volume-preserving deployment upgrade", () => {
     const prior = container(); prior.Config.Image = remoteDeployments.openhands.legacyImages[1];
     expect(containerEndpoint(prior, "test-owner", "test-private-volume")).toBe("http://127.0.0.1:18000");
-    prior.Config.Image = "selfme-lab/openhands-agent-server:unrelated";
+    prior.Config.Image = "agent-lab/openhands-agent-server:unrelated";
+    expect(() => containerEndpoint(prior, "test-owner", "test-private-volume")).toThrow("不属于");
+  });
+  it("adopts exact previously pinned images and owner labels without relaxing mount isolation", () => {
+    const prior = container();
+    prior.Config.Image = "selfme-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab9";
+    prior.Config.Labels = { "ai.selfme.lab.owner": "test-owner" };
+    expect(containerEndpoint(prior, "test-owner", "test-private-volume")).toBe("http://127.0.0.1:18000");
+    prior.Config.Labels["ai.agent-lab.desktop.owner"] = "foreign";
     expect(() => containerEndpoint(prior, "test-owner", "test-private-volume")).toThrow("不属于");
   });
 });

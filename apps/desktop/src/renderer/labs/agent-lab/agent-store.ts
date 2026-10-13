@@ -252,11 +252,11 @@ export const agentStores = {
 let unsubscribeBridge: (() => void) | null = null;
 
 export function attachAgentEvents(): () => void {
-  if (!unsubscribeBridge && window.selfmeLab) {
-    const unsubscribeRun = window.selfmeLab.onRunEvent((event) => {
+  if (!unsubscribeBridge && window.agentLab) {
+    const unsubscribeRun = window.agentLab.onRunEvent((event) => {
       if (isAgentRuntimeId(event.runtimeId)) agentStores[event.runtimeId].ingest(event);
     });
-    const unsubscribeQueue = window.selfmeLab.onAgentQueueChange(({ sessionId, queue }) => {
+    const unsubscribeQueue = window.agentLab.onAgentQueueChange(({ sessionId, queue }) => {
       for (const store of Object.values(agentStores)) store.setQueue(sessionId, queue);
     });
     unsubscribeBridge = () => { unsubscribeRun(); unsubscribeQueue(); };

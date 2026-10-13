@@ -21,10 +21,12 @@ from openhands.agent_server.persistence import get_settings_store
 from model_discovery import discover_models
 from task_browser import close_task_browsers, task_browser
 from input_queue import InputQueues
+from legacy_state import migrate_owned_volume, private_file
 
+migrate_owned_volume()
 app = create_app()
-router = APIRouter(prefix="/api/selfme", dependencies=[Depends(check_session_api_key)])
-tasks = Path("/workspace/selfme/tasks")
+router = APIRouter(prefix="/api/agent-lab", dependencies=[Depends(check_session_api_key)])
+tasks = Path("/workspace/agent-lab/tasks")
 tickets: dict[str, tuple[float, object, int]] = {}
 native_lifespan = app.router.lifespan_context
 
@@ -35,7 +37,7 @@ async def queue_lifespan(application):
         try:
             yield
         finally:
-            if queues := getattr(application.state, "selfme_inputs", None):
+            if queues := getattr(application.state, "agent_lab_inputs", None):
                 await queues.close()
 
 
@@ -48,9 +50,9 @@ async def input_service(request, task):
     service = await get_conversation_service(request).get_event_service(UUID(task))
     if service is None:
         raise HTTPException(404, "任务不存在或已删除")
-    queues = getattr(app.state, "selfme_inputs", None)
+    queues = getattr(app.state, "agent_lab_inputs", None)
     if queues is None:
-        queues = app.state.selfme_inputs = InputQueues("/workspace/.selfme-inputs/queue.sqlite")
+        queues = app.state.agent_lab_inputs = InputQueues("/workspace/.agent-lab-inputs/queue.sqlite")
     try:
         queues.ensure(task)
     except ValueError:
@@ -123,7 +125,7 @@ def identity(value: str) -> str:
 
 
 def relative_file(value: str) -> str:
-    if "\x00" in value or "\\" in value or value.startswith("/") or any(p == ".." or p.startswith(".selfme-") for p in value.split("/")):
+    if "\x00" in value or "\\" in value or value.startswith("/") or any(p == ".." or private_file(p) for p in value.split("/")):
         raise HTTPException(400, "文件路径无效")
     return value
 
@@ -162,7 +164,7 @@ async def files(task: str, path: str = "", op: str = "get"):
         entries = sorted(file.iterdir(), key=lambda item: (not item.is_dir(), item.name))
         result = []
         for item in entries[:500]:
-            if item.is_symlink() or item.name.startswith(".selfme-"):
+            if item.is_symlink() or private_file(item.name):
                 continue
             info = item.stat()
             result.append({"path": str(item.relative_to(task_root(task))), "name": item.name, "directory": item.is_dir(), "size": info.st_size, "modifiedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(info.st_mtime))})
@@ -172,7 +174,7 @@ async def files(task: str, path: str = "", op: str = "get"):
     if op == "preview":
         # Separate document renderer. Never execute a conversation/tool/model,
         # write back to the source, or pass native model keys to the helper.
-        environment = {key: os.environ[key] for key in ("PATH", "LANG", "SELFME_DOCUMENT_PREVIEW_URL") if key in os.environ}
+        environment = {key: os.environ[key] for key in ("PATH", "LANG", "AGENT_LAB_DOCUMENT_PREVIEW_URL") if key in os.environ}
         process = await asyncio.create_subprocess_exec("node", "/opt/document-preview/office-preview-cli.mjs", str(file), env=environment, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         try:
             output, error = await asyncio.wait_for(process.communicate(), timeout=75)
@@ -203,7 +205,7 @@ async def upload(request: Request, task: str, path: str):
     directory = task_root(task)
     (directory / "uploads").mkdir(exist_ok=True)
     destination = target(task, path)
-    temporary = directory / "uploads" / (".selfme-upload-" + secrets.token_hex(16))
+    temporary = directory / "uploads" / (".agent-lab-upload-" + secrets.token_hex(16))
     reserved = False
     size = 0
     try:
@@ -264,10 +266,10 @@ async def observer(request: Request):
         raise HTTPException(429, "观察连接过多，请关闭旧窗口后重试")
     token = secrets.token_urlsafe(32)
     tickets[token] = (now + 60, browser, port)
-    return {"wsPath": "/selfme/observe?ticket=" + token, "expiresAt": int((now + 60) * 1000), "control": False}
+    return {"wsPath": "/agent-lab/observe?ticket=" + token, "expiresAt": int((now + 60) * 1000), "control": False}
 
 
-@app.websocket("/selfme/observe")
+@app.websocket("/agent-lab/observe")
 async def observe(socket: WebSocket):
     # One-use grant minted by an authenticated HTTP request. RFB is loopback
     # only, and x11vnc itself rejects keyboard/mouse input in -viewonly mode.

@@ -23,7 +23,7 @@ describe("DSH ACP content extraction", () => {
 describe("bundled DSH ACP", () => {
   it("loads the selected model through the profile overlay", async () => {
     const root = fileURLToPath(new URL("../../../", import.meta.url));
-    const homeDirectory = await mkdtemp(join(tmpdir(), "selfme-dsh-model-"));
+    const homeDirectory = await mkdtemp(join(tmpdir(), "agent-lab-dsh-model-"));
     const patchPath = join(homeDirectory, "model.patch.yml");
     try {
       await writeFile(patchPath, dshModelOverlay("gateway-model"));
@@ -37,14 +37,14 @@ describe("bundled DSH ACP", () => {
     }
   }, 35000);
 
-  it.skipIf(!process.env.SELFME_DSH_SMOKE)("starts a real ACP session without a global Node or DSH install", async () => {
+  it.skipIf(!process.env.AGENT_LAB_DSH_SMOKE)("starts a real ACP session without a global Node or DSH install", async () => {
     const root = fileURLToPath(new URL("../../../", import.meta.url));
     const homeDirectory = join(root, ".work", "dsh-acp-smoke-home");
     await mkdir(homeDirectory, { recursive: true });
     const adapter = new DshAdapter({
-      entryPoint: process.env.SELFME_DSH_ENTRY_POINT ?? join(root, "runtimes", "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
+      entryPoint: process.env.AGENT_LAB_DSH_ENTRY_POINT ?? join(root, "runtimes", "dsh", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
       homeDirectory,
-      nodeExecutable: process.env.SELFME_DSH_NODE_EXECUTABLE ?? process.execPath,
+      nodeExecutable: process.env.AGENT_LAB_DSH_NODE_EXECUTABLE ?? process.execPath,
       steeringLoader: join(root, "runtimes/dsh/steering-loader.mjs"),
       provider: async () => ({ baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" }),
     });

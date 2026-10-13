@@ -8,7 +8,6 @@ runtimes/kimi-code/bin/
 services/remote-agent/*/upstream/
 .cache/
 .work/
-design/review/
 out/
 release/
 dist/

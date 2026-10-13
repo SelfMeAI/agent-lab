@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import definition from "../../../../../services/remote-agent/document-preview/service.json";
+import { ownedResource } from "../application-identity";
 
 type Command = (args: string[], timeout?: number) => Promise<string>;
 type Network = { Internal: boolean; Driver: string; Labels?: Record<string, string> };
@@ -9,8 +10,8 @@ type PreviewContainer = {
   Mounts: unknown[];
   NetworkSettings: { Networks: Record<string, unknown>; Ports: Record<string, unknown> };
 };
-const ownerLabel = "ai.selfme.lab.owner";
-const revisionLabel = "ai.selfme.lab.deployment";
+const ownerLabel = "ai.agent-lab.desktop.owner";
+const revisionLabel = "ai.agent-lab.desktop.deployment";
 const starts = new Map<string, Promise<void>>();
 export const documentPreviewDefinition = definition;
 
@@ -20,9 +21,9 @@ export class DocumentPreviewService {
   readonly network: string;
   readonly url: string;
   readonly revision = createHash("sha256").update(JSON.stringify(definition)).digest("hex").slice(0, 16);
-  constructor(readonly owner: string, private readonly command: Command) {
-    this.name = `selfme-lab-document-preview-${owner}`;
-    this.network = `selfme-lab-document-preview-${owner}-network`;
+  constructor(readonly owner: string, private readonly command: Command, private readonly namespace = "agent-lab") {
+    this.name = `${namespace}-document-preview-${owner}`;
+    this.network = `${namespace}-document-preview-${owner}-network`;
     this.url = `http://${this.name}:${definition.port}`;
   }
   private async inspect<T>(kind: "network" | "container", name: string): Promise<T | null> {
@@ -36,7 +37,7 @@ export class DocumentPreviewService {
       catch (error) { if (!/already exists/i.test(String(error))) throw error; }
       current = await this.inspect<Network>("network", this.network);
     }
-    if (!current || current.Labels?.[ownerLabel] !== this.owner || !current.Internal || current.Driver !== "bridge") throw new Error("办公文档预览网络不符合隔离规则，未作修改");
+    if (!current || !ownedResource(current.Labels, this.owner) || !current.Internal || current.Driver !== "bridge") throw new Error("办公文档预览网络不符合隔离规则，未作修改");
   }
   start(): Promise<void> {
     const existing = starts.get(this.owner); if (existing) return existing;
@@ -44,7 +45,7 @@ export class DocumentPreviewService {
     starts.set(this.owner, pending); return pending;
   }
   private assertOwned(current: PreviewContainer): void {
-    if (current.Config.Labels?.[ownerLabel] !== this.owner || current.Config.Image !== definition.image || current.Mounts.length || Object.keys(current.NetworkSettings.Networks).length !== 1 || !current.NetworkSettings.Networks[this.network] || Object.values(current.NetworkSettings.Ports).some(Boolean)) throw new Error("办公文档预览容器不符合隔离规则，未作修改");
+    if (!ownedResource(current.Config.Labels, this.owner) || current.Config.Image !== definition.image || current.Mounts.length || Object.keys(current.NetworkSettings.Networks).length !== 1 || !current.NetworkSettings.Networks[this.network] || Object.values(current.NetworkSettings.Ports).some(Boolean)) throw new Error("办公文档预览容器不符合隔离规则，未作修改");
   }
   private async startOwned(): Promise<void> {
     await this.ensureNetwork();
@@ -70,7 +71,7 @@ export class DocumentPreviewService {
   }
   async stopIfUnused(): Promise<void> {
     for (const engine of ["openhands", "openclaw"]) {
-      const running = await this.inspect<{ State: { Running: boolean } }>("container", `selfme-lab-${engine}-${this.owner}`);
+      const running = await this.inspect<{ State: { Running: boolean } }>("container", `${this.namespace}-${engine}-${this.owner}`);
       if (running?.State.Running) return;
     }
     const current = await this.inspect<PreviewContainer>("container", this.name);

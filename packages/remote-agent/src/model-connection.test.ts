@@ -48,13 +48,13 @@ describe("remote native model connection", () => {
     ["https://api.deepseek.com", "unknown-model", undefined],
     ["https://other.example", "deepseek-v4-pro", undefined],
   ])("configures OpenClaw automatically without making unknown models text-only: %s / %s", async (baseUrl, model, input) => {
-    const native = { hash: "fixture-version", config: { agents: { defaults: { model: { primary: "selfme/deepseek-v4-pro" } } }, models: { providers: { selfme: { api: "openai-completions", baseUrl: "https://api.deepseek.com", apiKey: "fixture", models: [{ id: "deepseek-v4-pro", input: ["text"] }] } } } } };
+    const native = { hash: "fixture-version", config: { agents: { defaults: { model: { primary: "agent_lab/deepseek-v4-pro" } } }, models: { providers: { agent_lab: { api: "openai-completions", baseUrl: "https://api.deepseek.com", apiKey: "fixture", models: [{ id: "deepseek-v4-pro", input: ["text"] }] } } } } };
     const rpc = vi.spyOn(gateway, "openClawRpc").mockResolvedValue(native);
     const client = new RemoteModelClient("openclaw", async () => "http://127.0.0.1:1234", async () => ({ sessionApiKey: "fixture", device: gateway.createOpenClawIdentity() }));
     const result = await client.save({ protocol: "openai", baseUrl, model });
     const params = rpc.mock.calls.find(args => args[3] === "config.patch")?.[4] as { raw: string; replacePaths?: string[] };
-    const definition = JSON.parse(params.raw).models.providers.selfme.models[0];
-    expect(params.replacePaths).toEqual("input" in definition ? ["models.providers.selfme.models[].input"] : undefined);
+    const definition = JSON.parse(params.raw).models.providers.agent_lab.models[0];
+    expect(params.replacePaths).toEqual("input" in definition ? ["models.providers.agent_lab.models[].input"] : undefined);
     if (input) { expect(definition.input).toEqual(input); expect(result.supportsImages).toBe(input.includes("image")); }
     else {
       if (model === "deepseek-v4-pro") expect(definition.input).toBeNull();
@@ -87,7 +87,7 @@ describe("remote native model connection", () => {
     expect(await client.listModels({ protocol: "openai", baseUrl: "https://api.deepseek.com" })).toEqual(["model-a", "model-b"]);
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://127.0.0.1:1234/api/selfme/models"); expect(options.method).toBe("POST");
+    expect(url).toBe("http://127.0.0.1:1234/api/agent-lab/models"); expect(options.method).toBe("POST");
     expect(options.headers["X-Session-API-Key"]).toBe("fixture-session");
     expect(JSON.parse(options.body)).toEqual({ protocol: "openai", baseUrl: "https://api.deepseek.com" });
   });

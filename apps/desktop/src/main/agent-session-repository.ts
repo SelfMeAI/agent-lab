@@ -140,7 +140,7 @@ export class AgentSessionRepository {
         this.addQueueMessage(event.sessionId, { id: event.messageId, text: event.text ?? "", createdAt: event.at, mode: "steer", state: "unconfirmed", detail: "上次发送未确认，请查看对话后决定是否重发" }, true);
         this.pauseQueue(event.sessionId, true);
       }
-      this.append(event.sessionId, { runtimeId: event.runtimeId, runId: event.runId, sequence: 0, at: new Date().toISOString(), source: "SelfMe Lab",
+      this.append(event.sessionId, { runtimeId: event.runtimeId, runId: event.runId, sequence: 0, at: new Date().toISOString(), source: "Agent Lab",
         kind: "delivery", messageId: event.messageId, deliveryState: "unconfirmed", text: "上次连接已中断，未确认接入；不会自动重发" });
     }
   }

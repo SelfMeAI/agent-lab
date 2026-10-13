@@ -37,7 +37,7 @@ export class KimiAdapter extends AcpAdapter {
         env.KIMI_MODEL_API_KEY = provider.apiKey;
         env.KIMI_DISABLE_TELEMETRY = "1";
         env.ELECTRON_RUN_AS_NODE = "1";
-        env.SELFME_ACP_STEERING = "1";
+        env.AGENT_LAB_ACP_STEERING = "1";
         return { executable: options.nodeExecutable, args: ["--import", options.steeringLoader, options.entryPoint, "acp"], env, secret: provider.apiKey };
       },
     });

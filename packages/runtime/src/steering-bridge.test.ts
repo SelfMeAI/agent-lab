@@ -12,10 +12,10 @@ describe("version-pinned ACP extensions", () => {
     const module = await import(pathToFileURL(join(root, "runtimes", runtime, "steering-loader.mjs")).href);
     const source = await readFile(join(root, "runtimes", runtime, "node_modules", entry), "utf8");
     const patched = module[exportName](source) as string;
-    expect(patched).toContain('onRequest("_selfme/steer"');
-    expect(patched).toContain("selfmeSteer(params)");
+    expect(patched).toContain('onRequest("_agent_lab/steer"');
+    expect(patched).toContain("agentLabSteer(params)");
     if (runtime === "kimi-code") expect(patched).toContain("driver.cancelRequested = true;\n\t\t\tconst turnId = driver.turnId;");
-    expect(() => module[exportName](source.replace("selfmeSteer", "changed").replace(".onNotification(methods.agent.session.cancel,", ".onNotification(changed,"))).toThrow(/signature changed/);
+    expect(() => module[exportName](source.replace("agentLabSteer", "changed").replace(".onNotification(methods.agent.session.cancel,", ".onNotification(changed,"))).toThrow(/signature changed/);
     expect(() => module[exportName](patched)).toThrow(/signature changed/);
   });
 });

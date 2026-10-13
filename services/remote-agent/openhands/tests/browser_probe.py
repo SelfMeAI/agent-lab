@@ -49,7 +49,7 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 desktop = None
 executor = None
 try:
-    if os.environ.get("SELFME_DESKTOP_PROBE") == "1":
+    if os.environ.get("AGENT_LAB_DESKTOP_PROBE") == "1":
         from desktop_fixture import DesktopFixture
         desktop = DesktopFixture()
         desktop.start()

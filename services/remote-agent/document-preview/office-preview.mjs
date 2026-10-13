@@ -37,7 +37,7 @@ export async function convertOffice(path, baseUrl, request = fetch) {
   const extension = extname(path).toLowerCase();
   if (!extensions.has(extension)) throw new DocumentPreviewError(400, '此格式不支持办公文档预览，可以下载原文件。');
   // Only the dedicated private renderer; never accept a user-supplied URL.
-  if (!/^http:\/\/selfme-lab-document-preview-[a-f0-9]{16}:3000$/.test(baseUrl ?? '')) throw new DocumentPreviewError(503, '办公文档预览组件未就绪，请更新并重启远端服务；原文件仍可下载。');
+  if (!/^http:\/\/(?:agent-lab|selfme-lab)-document-preview-[a-f0-9]{16}:3000$/.test(baseUrl ?? '')) throw new DocumentPreviewError(503, '办公文档预览组件未就绪，请更新并重启远端服务；原文件仍可下载。');
   const bytes = await inputBytes(path);
   if (!validSignature(bytes, extension)) throw new DocumentPreviewError(400, previewFailure(400));
   const form = new FormData();

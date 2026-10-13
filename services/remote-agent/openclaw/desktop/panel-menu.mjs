@@ -14,7 +14,7 @@ export function simplifyPanelSource(source, kind) {
     : /(\nstatic void\s+panel_window_menu_popup\s*\([^)]*\)\s*\{)/g;
   const matches = [...source.matchAll(marker)];
   if (matches.length !== 1) throw new Error(`Xfce panel ${kind} source has changed`);
-  return source.replace(marker, `$1\n  /* SelfMe Lab: no desktop-shell settings menu. */\n  return${kind === 'plugin' ? ' TRUE' : ''};`);
+  return source.replace(marker, `$1\n  /* Agent Lab: no desktop-shell settings menu. */\n  return${kind === 'plugin' ? ' TRUE' : ''};`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

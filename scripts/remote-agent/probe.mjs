@@ -18,14 +18,14 @@ const lock = await readLock(engine);
 const definition = JSON.parse(await readFile(join(projectRoot, "services", "remote-agent", engine, "service.json"), "utf8"));
 const source = lock.sources.find(source => source.id === definition.build.source);
 let image = definition.build.image;
-const actual = await run("docker", ["image", "inspect", "--format", '{{index .Config.Labels "ai.selfme.lab.source.commit"}}', image], projectRoot, { capture: true });
+const actual = await run("docker", ["image", "inspect", "--format", '{{index .Config.Labels "ai.agent-lab.desktop.source.commit"}}', image], projectRoot, { capture: true });
 if (actual !== source.commit) throw new Error("测试镜像不是锁定源码构建的镜像");
 if (process.argv.includes("--desktop")) {
   const baseline = image;
-  image = `selfme-lab/openhands-desktop-probe:${source.version}-source-${source.commit.slice(0, 12)}`;
+  image = `agent-lab/openhands-desktop-probe:${source.version}-source-${source.commit.slice(0, 12)}`;
   const tests = join(projectRoot, "services", "remote-agent", engine, "tests");
   await run("docker", ["build", "--progress=plain", "--file", join(tests, "desktop-probe.Dockerfile"), "--tag", image,
-    "--build-arg", `SOURCE_IMAGE=${baseline}`, "--label", `ai.selfme.lab.source.commit=${source.commit}`, tests], projectRoot, { timeout: 600_000 });
+    "--build-arg", `SOURCE_IMAGE=${baseline}`, "--label", `ai.agent-lab.desktop.source.commit=${source.commit}`, tests], projectRoot, { timeout: 600_000 });
 }
 const input = await readFile(join(projectRoot, "services", "remote-agent", engine, "tests", "browser_probe.py"));
 

@@ -1,4 +1,4 @@
-ARG SOURCE_IMAGE=selfme-lab/openclaw:2026.9.9-source-bcfc88812a35
+ARG SOURCE_IMAGE=agent-lab/openclaw:2026.9.9-source-bcfc88812a35
 FROM ${SOURCE_IMAGE} AS panel-build
 USER root
 # Pinned upstream desktop component; no fork of the agent/harness.
@@ -18,23 +18,24 @@ RUN ./configure --prefix=/usr --libdir=/usr/lib/$(dpkg-architecture -qDEB_HOST_M
 FROM ${SOURCE_IMAGE}
 USER root
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
-    XDG_DATA_HOME=/home/node/.openclaw/.selfme-desktop/data
+    XDG_DATA_HOME=/home/node/.openclaw/.agent-lab-desktop/data
 # Curated desktop shell; task and provider state stays in its native volume.
 RUN sed -i 's|URIs: http://deb.debian.org/|URIs: https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 update \
     && apt-get -o Acquire::Retries=2 -o Acquire::https::Timeout=30 install -y --no-install-recommends xfdesktop4 thunar desktop-base librsvg2-common xfce4-terminal tmux wmctrl xdotool fonts-noto-color-emoji gvfs libglib2.0-bin xdg-user-dirs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-COPY plugin /opt/selfme/plugin
-COPY --from=model-discovery /provider-models.ts /opt/selfme/plugin/provider-models.ts
-COPY --from=model-discovery /terminal-response.ts /opt/selfme/plugin/terminal-response.ts
-COPY --from=model-discovery /openclaw/connection.ts /opt/selfme/plugin/native/openclaw/connection.ts
-COPY --from=model-discovery /openclaw/gateway.ts /opt/selfme/plugin/native/openclaw/gateway.ts
-COPY --from=model-discovery /transport/endpoint.ts /opt/selfme/plugin/native/transport/endpoint.ts
-COPY bootstrap /opt/selfme/bootstrap
+COPY plugin /opt/agent-lab/plugin
+COPY --from=model-discovery /provider-models.ts /opt/agent-lab/plugin/provider-models.ts
+COPY --from=model-discovery /identity.ts /opt/agent-lab/plugin/identity.ts
+COPY --from=model-discovery /terminal-response.ts /opt/agent-lab/plugin/terminal-response.ts
+COPY --from=model-discovery /openclaw/connection.ts /opt/agent-lab/plugin/native/openclaw/connection.ts
+COPY --from=model-discovery /openclaw/gateway.ts /opt/agent-lab/plugin/native/openclaw/gateway.ts
+COPY --from=model-discovery /transport/endpoint.ts /opt/agent-lab/plugin/native/transport/endpoint.ts
+COPY bootstrap /opt/agent-lab/bootstrap
 COPY --from=document-preview /office-preview.mjs /opt/document-preview/office-preview.mjs
-COPY desktop /opt/selfme/desktop
+COPY desktop /opt/agent-lab/desktop
 COPY --from=panel-build /panel-root/usr/bin/xfce4-panel /usr/bin/xfce4-panel
 COPY --from=panel-build /panel-root/usr/lib/ /usr/lib/
-COPY --from=panel-build /panel-source/xfce4-panel-4.18.2/COPYING /opt/selfme/desktop/LICENSE.xfce4-panel
-RUN chown -R node:node /opt/selfme
+COPY --from=panel-build /panel-source/xfce4-panel-4.18.2/COPYING /opt/agent-lab/desktop/LICENSE.xfce4-panel
+RUN chown -R node:node /opt/agent-lab
 USER node

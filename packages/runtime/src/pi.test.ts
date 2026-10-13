@@ -13,7 +13,7 @@ afterEach(async () => {
 
 describe("Pi file-tool workspace boundary", () => {
   it("normalizes safe paths and rejects traversal and symlink escapes", async () => {
-    root = await mkdtemp(join(tmpdir(), "selfme-pi-path-"));
+    root = await mkdtemp(join(tmpdir(), "agent-lab-pi-path-"));
     const workspaceDirectory = join(root, "workspace");
     const outside = join(root, "outside");
     await mkdir(workspaceDirectory);

@@ -5,11 +5,11 @@ const id = "c0ec83da-66be-4f17-a2c2-01dc02c89f00";
 afterEach(() => vi.unstubAllGlobals());
 describe("remote task-scoped HTTP", () => {
   it("accepts own native ids and rejects malformed ids", () => {
-    expect(remoteTaskId(id)).toBe(id); expect(remoteTaskId("agent:main:selfme:" + id)).toBe(id);
+    expect(remoteTaskId(id)).toBe(id); expect(remoteTaskId("agent:main:agent-lab:" + id)).toBe(id);
     for (const value of ["../../task", id + "/file", "not-a-task", ""]) expect(() => remoteTaskId(value)).toThrow();
   });
   it("rejects traversal, absolute paths, hidden control files and backslashes", () => {
-    for (const path of ["../secret", "a/../../x", "/etc/passwd", "a\\b", "a/\0b", ".selfme-workspace", "a/.selfme-upload-x"]) expect(() => remoteFilePath(path)).toThrow();
+    for (const path of ["../secret", "a/../../x", "/etc/passwd", "a\\b", "a/\0b", ".agent-lab-workspace", "a/.agent-lab-upload-x"]) expect(() => remoteFilePath(path)).toThrow();
     expect(remoteFilePath("uploads/普通 文件.txt")).toBe("uploads/普通 文件.txt"); expect(remoteFilePath("")).toBe("");
   });
   it("keeps credentials in request headers and encodes native task/file scope", async () => {
@@ -25,7 +25,7 @@ describe("remote task-scoped HTTP", () => {
     let endpoint = "http://127.0.0.1:1234";
     const fetcher = vi.fn().mockResolvedValue(new Response("{}")); vi.stubGlobal("fetch", fetcher);
     const http = new RemoteHttp("openclaw", async () => endpoint, async () => "key");
-    await http.request("/selfme-lab/files"); endpoint = "http://127.0.0.1:5678"; http.reset(); await http.request("/selfme-lab/files");
+    await http.request("/agent-lab/files"); endpoint = "http://127.0.0.1:5678"; http.reset(); await http.request("/agent-lab/files");
     expect(fetcher.mock.calls[0][1].headers.Authorization).toBe("Bearer key"); expect(fetcher.mock.calls[1][0]).toContain(":5678/");
   });
   it("requests Office rendering only through the authenticated, task-scoped file API", async () => {

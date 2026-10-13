@@ -128,11 +128,11 @@ class TaskBrowserExecutor(BrowserToolExecutor):
             config.setdefault("window_size", {"width": 1280, "height": 800})
             config.setdefault("viewport", {"width": 1280, "height": 720})
             # The task marker becomes DISPLAY only in Chromium's own launcher.
-            args = [arg for arg in config.pop("args", []) if not arg.startswith("--selfme-x11-display=")]
+            args = [arg for arg in config.pop("args", []) if not arg.startswith("--agent-lab-x11-display=")]
             super().__init__(**{
                 **config, "headless": False, "chromium_sandbox": False,
-                "executable_path": "/opt/selfme/chromium-task",
-                "args": [*args, "--disable-gpu", "--disable-dev-shm-usage", "--selfme-x11-display=" + self.display.name],
+                "executable_path": "/opt/agent-lab/chromium-task",
+                "args": [*args, "--disable-gpu", "--disable-dev-shm-usage", "--agent-lab-x11-display=" + self.display.name],
             })
         except BaseException:
             self.display.close()
@@ -173,8 +173,8 @@ class TaskBrowserExecutor(BrowserToolExecutor):
                 self._reset_browser()
                 self.display.close()
                 self.display.start()
-                self._config["args"] = [arg for arg in self._config["args"] if not arg.startswith("--selfme-x11-display=")]
-                self._config["args"].append("--selfme-x11-display=" + self.display.name)
+                self._config["args"] = [arg for arg in self._config["args"] if not arg.startswith("--agent-lab-x11-display=")]
+                self._config["args"].append("--agent-lab-x11-display=" + self.display.name)
             elif recovered:
                 self._reset_browser()
             if not self.display.vnc or self.display.vnc.poll() is not None:

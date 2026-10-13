@@ -4,7 +4,7 @@ export function replaceOnce(source, before, after) {
   return source.replace(before, after);
 }
 
-export const parseSteeringSource = `function selfmeParseSteering(params) {
+export const parseSteeringSource = `function agentLabParseSteering(params) {
   if (!params || typeof params.sessionId !== "string" || typeof params.messageId !== "string"
     || !/^[a-zA-Z0-9-]{1,100}$/.test(params.messageId) || typeof params.text !== "string"
     || !params.text.trim() || params.text.length > 100000) throw new Error("Invalid steering request");

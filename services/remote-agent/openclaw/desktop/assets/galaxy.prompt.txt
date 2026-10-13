@@ -2,7 +2,7 @@ Tool: OpenAI built-in image generation. Generated 2026-10-10.
 Asset: galaxy.png — OpenClaw virtual desktop wallpaper.
 
 Use case: photorealistic-natural
-Asset type: widescreen 16:9 virtual Linux desktop wallpaper, production background for SelfMe Lab
+Asset type: widescreen 16:9 virtual Linux desktop wallpaper, production background for Agent Lab
 Primary request: a clean, quiet and refined galaxy/star-sky wallpaper that makes the desktop feel like a real computer, deep but not oppressive.
 Scene/backdrop: spacious blue night sky, subtle diffuse Milky Way dust visible as an exceptionally faint broad diagonal band, a scattering of tiny crisp stars with a few gently luminous pinpoints.
 Style/medium: restrained photographic night-sky texture, understated professional operating-system wallpaper, no illustration-like effects.

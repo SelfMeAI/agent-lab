@@ -28,7 +28,7 @@ export class RemoteModelClient {
     const response = await fetch(`${endpoint}${path}`, { method, headers: { "X-Session-API-Key": keys.sessionApiKey, ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) {
-      if (path === "/api/selfme/models") {
+      if (path === "/api/agent-lab/models") {
         const value = await response.json().catch(() => ({})) as { detail?: unknown };
         throw new Error(typeof value.detail === "string" ? value.detail : `获取模型列表失败（${response.status}）`);
       }
@@ -51,8 +51,8 @@ export class RemoteModelClient {
     if (input.apiKey && (input.apiKey.length > 4096 || /[\r\n\0]/u.test(input.apiKey))) throw new Error("API Key 格式无效");
     const value = { protocol: input.protocol, baseUrl: input.baseUrl, ...(input.apiKey?.trim() ? { apiKey: input.apiKey.trim() } : {}) };
     const result = this.engine === "openhands"
-      ? await this.hands<{ models: string[] }>("/api/selfme/models", "POST", value)
-      : await this.claw<{ models: string[] }>("selfme.models.list", value);
+      ? await this.hands<{ models: string[] }>("/api/agent-lab/models", "POST", value)
+      : await this.claw<{ models: string[] }>("agent-lab.models.list", value);
     if (!Array.isArray(result?.models)) throw new Error("接口未返回标准模型列表，请手动填写模型 ID");
     return [...new Set(result.models.filter(id => typeof id === "string" && id.length > 0 && id.length <= 200 && !/[\s\x00-\x1f]/u.test(id)))].sort((a, b) => a.localeCompare(b));
   }
@@ -64,9 +64,9 @@ export class RemoteModelClient {
       ...(typeof llm?.capability_overrides?.supports_vision === "boolean" ? { supportsImages: llm.capability_overrides.supports_vision } : {}) };
   }
   private clawConnection(snapshot: ClawConfig): RemoteModelConnection {
-    const provider = snapshot.config?.models?.providers?.["selfme"];
+    const provider = snapshot.config?.models?.providers?.["agent_lab"];
     const primary = snapshot.config?.agents?.defaults?.model?.primary;
-    const model = primary?.startsWith("selfme/") ? primary.slice(7) : provider?.models?.[0]?.id ?? "";
+    const model = primary?.startsWith("agent_lab/") ? primary.slice("agent_lab/".length) : provider?.models?.[0]?.id ?? "";
     const input = provider?.models?.find(row => row.id === model)?.input;
     return { protocol: provider?.api === "anthropic-messages" ? "anthropic" : "openai", baseUrl: provider?.baseUrl ?? "", model, configured: Boolean(provider?.apiKey), ...(input ? { supportsImages: input.includes("image") } : {}) };
   }
@@ -89,15 +89,15 @@ export class RemoteModelClient {
     if (!snapshot.hash) throw new Error("OpenClaw 未返回配置版本，未写入设置");
     // Null is an unset only when merging an existing ID-keyed row; a new row
     // must omit input. Leave the same unknown connection's native settings alone.
-    const existingModel = snapshot.config?.models?.providers?.selfme?.models?.some(row => row.id === value.model);
+    const existingModel = snapshot.config?.models?.providers?.agent_lab?.models?.some(row => row.id === value.model);
     const model = { id: value.model, name: value.model, ...(confirmedImages !== undefined
       ? { input: confirmedImages ? ["text", "image"] : ["text"] }
       : !sameConnection && existingModel ? { input: null } : {}) };
-    const patch = { models: { providers: { selfme: { baseUrl: value.baseUrl,
+    const patch = { models: { providers: { agent_lab: { baseUrl: value.baseUrl,
       api: value.protocol === "anthropic" ? "anthropic-messages" : "openai-completions",
-      ...(value.apiKey ? { apiKey: value.apiKey } : {}), models: [model] } } }, agents: { defaults: { model: { primary: `selfme/${value.model}` } } } };
+      ...(value.apiKey ? { apiKey: value.apiKey } : {}), models: [model] } } }, agents: { defaults: { model: { primary: `agent_lab/${value.model}` } } } };
     await this.claw("config.patch", { raw: JSON.stringify(patch), baseHash: snapshot.hash,
-      ...("input" in model ? { replacePaths: ["models.providers.selfme.models[].input"] } : {}),
+      ...("input" in model ? { replacePaths: ["models.providers.agent_lab.models[].input"] } : {}),
     });
     // config.patch can legitimately reload the gateway; the write acknowledgement
     // is authoritative. A later GET verifies native state without duplicate writes.

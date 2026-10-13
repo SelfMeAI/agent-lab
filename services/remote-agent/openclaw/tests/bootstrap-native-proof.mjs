@@ -14,5 +14,5 @@ export function useBuiltLauncher(source) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const source = await readFile("/app/scripts/dev/computer-use-gateway-live-proof.ts", "utf8");
-  await writeFile("/app/scripts/dev/selfme-gateway-desktop-proof.ts", useBuiltLauncher(source), { flag: "wx" });
+  await writeFile("/app/scripts/dev/agent-lab-gateway-desktop-proof.ts", useBuiltLauncher(source), { flag: "wx" });
 }

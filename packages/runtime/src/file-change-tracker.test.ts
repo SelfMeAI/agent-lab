@@ -6,7 +6,7 @@ import { FileChangeTracker } from "./file-change-tracker";
 
 describe("DSH file change tracking", () => {
   it("returns an actual before/after diff for edits, even when the ACP start event arrives late", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "selfme-diff-test-"));
+    const workspace = mkdtempSync(join(tmpdir(), "agent-lab-diff-test-"));
     try {
       writeFileSync(join(workspace, "sample.txt"), "旧标题\n保持这一行\n");
       const path = realpathSync(join(workspace, "sample.txt"));
@@ -26,7 +26,7 @@ describe("DSH file change tracking", () => {
   });
 
   it("does not inspect paths outside the selected workspace", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "selfme-diff-test-"));
+    const workspace = mkdtempSync(join(tmpdir(), "agent-lab-diff-test-"));
     try {
       const tracker = new FileChangeTracker(workspace);
       tracker.start("edit-1", "edit", { file_path: "../outside.txt" });

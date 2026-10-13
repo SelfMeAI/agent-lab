@@ -1,13 +1,16 @@
 import type { RemoteAgentId, RemoteFilePage, RemoteUploadedFile } from "../../../contracts/src/remote-agent";
 import { remoteEndpoint } from "./endpoint";
+import { isLabPrivateFile, labOpenClawTaskId } from "../identity";
 export class RemoteHttpError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
 export function remoteTaskId(id: string): string {
-  const match = /(?:^|:selfme:)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(id);
+  const native = labOpenClawTaskId(id);
+  if (native) return native;
+  const match = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(id);
   if (!match) throw new Error("任务标识无效"); return match[1];
 }
 export function remoteFilePath(path: string): string {
-  if (typeof path !== "string" || path.includes("\0") || path.includes("\\") || path.startsWith("/") || path.split("/").some(part => part === ".." || part.startsWith(".selfme-"))) throw new Error("文件路径无效");
+  if (typeof path !== "string" || path.includes("\0") || path.includes("\\") || path.startsWith("/") || path.split("/").some(part => part === ".." || isLabPrivateFile(part))) throw new Error("文件路径无效");
   return path;
 }
 export class RemoteHttp {
@@ -28,7 +31,7 @@ export class RemoteHttp {
   }
   private fileUrl(id: string, path: string, list = false): string {
     const query = new URLSearchParams({ task: remoteTaskId(id), path: remoteFilePath(path), ...(list ? { op: "list" } : {}) });
-    return `${this.engine === "openhands" ? "/api/selfme" : "/selfme-lab"}/files?${query}`;
+    return `${this.engine === "openhands" ? "/api/agent-lab" : "/agent-lab"}/files?${query}`;
   }
   listFiles(id: string, path = ""): Promise<RemoteFilePage> { return this.json(this.fileUrl(id, path, true)); }
   async upload(id: string, path: string, bytes: Uint8Array): Promise<RemoteUploadedFile> {

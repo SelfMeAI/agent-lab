@@ -47,8 +47,8 @@ export function XiangqiWorkspace({ onOpenSettings, providerRevision }: Props): J
 
   useEffect(() => {
     let active = true;
-    if (!window.selfmeLab) return;
-    void window.selfmeLab.getProviderStatus("jev").then((value) => { if (active) setProvider(value); }).catch(() => { if (active) setProvider(null); });
+    if (!window.agentLab) return;
+    void window.agentLab.getProviderStatus("jev").then((value) => { if (active) setProvider(value); }).catch(() => { if (active) setProvider(null); });
     return () => { active = false; };
   }, [providerRevision]);
 
@@ -90,8 +90,8 @@ export function XiangqiWorkspace({ onOpenSettings, providerRevision }: Props): J
     setWarning(null);
     setStatus(`${sideName(side)}决策中…`);
     try {
-      if (!window.selfmeLab) throw new Error("桌面端接口不可用");
-      const result = await window.selfmeLab.decideJevMove(fen, style);
+      if (!window.agentLab) throw new Error("桌面端接口不可用");
+      const result = await window.agentLab.decideJevMove(fen, style);
       if (generation !== requestGeneration.current || game.current.fen() !== fen) return;
       const valid = (game.current.moves({ verbose: true }) as unknown as Move[]).some((move) => move.from === result.move.from && move.to === result.move.to);
       if (!valid) throw new Error("返回着法未通过本地棋规校验");

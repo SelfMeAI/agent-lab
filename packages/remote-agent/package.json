@@ -1,5 +1,5 @@
 {
-  "name": "@selfme-lab/remote-agent",
+  "name": "@agent-lab/remote-agent",
   "private": true,
   "version": "0.1.0",
   "types": "./src/index.ts",

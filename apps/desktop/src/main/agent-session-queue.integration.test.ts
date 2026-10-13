@@ -16,14 +16,14 @@ import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
-const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
-const queueMarker = "SELFME_FOLLOW_UP_QUEUE_826";
-const steerMarker = "SELFME_STEER_CURRENT_TURN_973";
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const nodeExecutable = process.env.AGENT_LAB_STEERING_NODE_EXECUTABLE ?? process.execPath;
+const queueMarker = "AGENT_LAB_FOLLOW_UP_QUEUE_826";
+const steerMarker = "AGENT_LAB_STEER_CURRENT_TURN_973";
 
 describe("real bundled harnesses: queued turn versus mid-turn Steer", () => {
   const cases = (["codex", "dsh", "pi", "kimi-code", "qwen-code", "claude-code"] as const).flatMap(id => [{ id, cancel: false }, { id, cancel: true }]);
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(cases)("$id queue and Steer (cancel=$cancel)", async ({ id, cancel }) => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1").each(cases)("$id queue and Steer (cancel=$cancel)", async ({ id, cancel }) => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/queue-native-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);

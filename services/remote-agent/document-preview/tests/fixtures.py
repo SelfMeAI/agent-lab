@@ -23,7 +23,7 @@ def properties(**values):
 def generate(output):
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="fixture-profile-", dir=output) as profile:
-        name = "selfme_fixture_" + uuid4().hex
+        name = "agent_lab_fixture_" + uuid4().hex
         process = subprocess.Popen(["soffice", "-env:UserInstallation=" + Path(profile).as_uri(), "--headless", "--nologo", "--norestore", "--nodefault", "--accept=pipe,name=" + name + ";urp;StarOffice.ServiceManager"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         documents = []
         try:

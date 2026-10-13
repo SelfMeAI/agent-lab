@@ -108,7 +108,7 @@ export class CodexAdapter implements HarnessAdapter {
     await mkdir(this.options.homeDirectory, { recursive: true, mode: 0o700 });
     const config = [
       `model = ${toml(provider.model)}`,
-      'model_provider = "selfme_lab"',
+      'model_provider = "agent_lab"',
       'approval_policy = "on-request"',
       'sandbox_mode = "workspace-write"',
       "",
@@ -119,10 +119,10 @@ export class CodexAdapter implements HarnessAdapter {
       "enabled = true",
       "disable_in_process_fallback = true",
       "",
-      "[model_providers.selfme_lab]",
-      'name = "SelfMe Lab provider"',
+      "[model_providers.agent_lab]",
+      'name = "Agent Lab provider"',
       `base_url = ${toml(provider.baseUrl)}`,
-      'env_key = "SELFME_CODEX_API_KEY"',
+      'env_key = "AGENT_LAB_CODEX_API_KEY"',
       'wire_api = "responses"',
       "",
     ].join("\n");
@@ -133,7 +133,7 @@ export class CodexAdapter implements HarnessAdapter {
       env: {
         ...process.env,
         CODEX_HOME: this.options.homeDirectory,
-        SELFME_CODEX_API_KEY: provider.apiKey,
+        AGENT_LAB_CODEX_API_KEY: provider.apiKey,
         PATH: `${join(runtimeRoot, "codex-path")}${delimiter}${process.env.PATH ?? ""}`,
       },
       stdio: ["pipe", "pipe", "pipe"],
@@ -161,20 +161,20 @@ export class CodexAdapter implements HarnessAdapter {
 
     try {
       await this.request("initialize", {
-        clientInfo: { name: "selfme_lab", title: "SelfMe Lab", version: "0.1.0" },
+        clientInfo: { name: "agent_lab", title: "Agent Lab", version: "0.1.0" },
         capabilities: { experimentalApi: true },
       }, 30000);
       this.notify("initialized", {});
       const threadSettings = {
         cwd: workspace,
         model: provider.model,
-        modelProvider: "selfme_lab",
+        modelProvider: "agent_lab",
         approvalPolicy: "on-request",
         sandbox: "workspace-write",
       };
       const result = await this.request(resumeRef ? "thread/resume" : "thread/start", resumeRef
         ? { ...threadSettings, threadId: resumeRef }
-        : { ...threadSettings, serviceName: "selfme_lab" }, 45000);
+        : { ...threadSettings, serviceName: "agent_lab" }, 45000);
       const threadId = string(object(result.thread).id);
       if (!threadId) throw new Error("Codex 未返回 thread.id");
       this.threadId = threadId;
@@ -329,7 +329,7 @@ export class CodexAdapter implements HarnessAdapter {
       return;
     }
     if (method !== "item/commandExecution/requestApproval" && method !== "item/fileChange/requestApproval") {
-      this.write({ id: requestId, error: { code: -32601, message: "SelfMe Lab does not support this request" } });
+      this.write({ id: requestId, error: { code: -32601, message: "Agent Lab does not support this request" } });
       this.emit("error", { text: `Codex 请求了尚未支持的交互：${method}` });
       return;
     }

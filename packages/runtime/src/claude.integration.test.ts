@@ -8,10 +8,10 @@ import { ClaudeAdapter } from "./claude";
 import { anthropic, type Obj } from "./test-support/mock-model";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
 
 describe("official Claude native runtime", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1")("streams without duplication, edits with native approval and diffs, accepts answers, stops and resumes", async () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1")("streams without duplication, edits with native approval and diffs, accepts answers, stops and resumes", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/claude-native-"));
     const workspace = join(scratch, "workspace"); await mkdir(workspace);
@@ -92,7 +92,7 @@ describe("official Claude native runtime", () => {
     }
   }, 60000);
 
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1")("incorporates Steer in the active native loop, not by restarting a turn", async () => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1")("incorporates Steer in the active native loop, not by restarting a turn", async () => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/claude-steer-")), workspace = join(scratch, "workspace"); await mkdir(workspace);
     const events: RunEvent[] = [], errors: string[] = [], requests: Obj[] = [];

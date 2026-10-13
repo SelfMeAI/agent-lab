@@ -9,7 +9,7 @@ export async function configureDesktop(home = '/home/node') {
   if (home === '/home/node') await setTerminalAccess();
   // Standard GIO Trash on the SAME persistent filesystem as the task files.
   // No custom delete interception, metadata rewriting, or automatic emptying.
-  for (const relative of ['.openclaw', '.openclaw/.selfme-desktop', '.openclaw/.selfme-desktop/data', '.openclaw/.selfme-desktop/data/Trash', '.openclaw/.selfme-desktop/data/Trash/files', '.openclaw/.selfme-desktop/data/Trash/info', '.openclaw/.selfme-desktop/Desktop']) {
+  for (const relative of ['.openclaw', '.openclaw/.agent-lab-desktop', '.openclaw/.agent-lab-desktop/data', '.openclaw/.agent-lab-desktop/data/Trash', '.openclaw/.agent-lab-desktop/data/Trash/files', '.openclaw/.agent-lab-desktop/data/Trash/info', '.openclaw/.agent-lab-desktop/Desktop']) {
     const directory = join(home, relative);
     try { await mkdir(directory, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
     const info = await lstat(directory);
@@ -32,7 +32,7 @@ export async function configureDesktop(home = '/home/node') {
   const directoriesFile = join(home, '.config', 'user-dirs.dirs');
   let directories = '';
   try { directories = await readFile(directoriesFile, 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const desktopEntry = 'XDG_DESKTOP_DIR="$HOME/.openclaw/.selfme-desktop/Desktop"';
+  const desktopEntry = 'XDG_DESKTOP_DIR="$HOME/.openclaw/.agent-lab-desktop/Desktop"';
   directories = /^XDG_DESKTOP_DIR=.*$/m.test(directories) ? directories.replace(/^XDG_DESKTOP_DIR=.*$/m, desktopEntry) : directories + (directories && !directories.endsWith('\n') ? '\n' : '') + desktopEntry + '\n';
   await writeFile(directoriesFile, directories, { mode: 0o600 });
 }

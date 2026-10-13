@@ -172,7 +172,7 @@ export class AgentSessionController {
       }
       this.forward(id, {
         runtimeId, runId: randomUUID(), sequence: 0, at: new Date().toISOString(),
-        source: "SelfMe Lab", kind: "user", text,
+        source: "Agent Lab", kind: "user", text,
         ...(pending ? { messageId: pending.id, deliveryMode: "queue" as const, deliveryState: "submitting" as const } : {}),
       });
       const adapter = this.live.get(id)!.adapter;
@@ -184,7 +184,7 @@ export class AgentSessionController {
       }
       if (pending) {
         this.forward(id, { runtimeId, runId: this.live.get(id)?.runId ?? "session", sequence: 0, at: new Date().toISOString(),
-          source: "SelfMe Lab", kind: "delivery", messageId: pending.id, deliveryState: "incorporated" });
+          source: "Agent Lab", kind: "delivery", messageId: pending.id, deliveryState: "incorporated" });
       }
     } catch (error) {
       if (pending && this.repository.queueMessage(id, pending.id)) {
@@ -194,7 +194,7 @@ export class AgentSessionController {
         this.repository.updateQueueMessage(id, pending.id, { state: hasUserEvent ? "unconfirmed" : "queued", detail: "发送未确认，请查看对话后决定是否重发" });
         this.repository.pauseQueue(id, true);
         if (hasUserEvent) this.forward(id, { runtimeId, runId: this.live.get(id)?.runId ?? "session", sequence: 0, at: new Date().toISOString(),
-          source: "SelfMe Lab", kind: "delivery", messageId: pending.id, deliveryState: "unconfirmed", text: "发送未确认，请查看对话后决定是否重发" });
+          source: "Agent Lab", kind: "delivery", messageId: pending.id, deliveryState: "unconfirmed", text: "发送未确认，请查看对话后决定是否重发" });
         else this.queueChanged(id);
       }
       throw error;
@@ -235,7 +235,7 @@ export class AgentSessionController {
       if (pending) this.repository.updateQueueMessage(id, messageId, { state: "sending", mode: "steer", detail: undefined });
       else this.repository.addQueueMessage(id, { id: messageId, text, createdAt: new Date().toISOString(), mode: "steer", state: "sending" });
       this.queueChanged(id);
-      const base = { runtimeId: record.runtimeId, runId: live.runId ?? "session", sequence: 0, at: new Date().toISOString(), source: "SelfMe Lab", messageId };
+      const base = { runtimeId: record.runtimeId, runId: live.runId ?? "session", sequence: 0, at: new Date().toISOString(), source: "Agent Lab", messageId };
       this.forward(id, { ...base, kind: "user", text, deliveryMode: "steer", deliveryState: "submitting" });
       try { await live.adapter.steer(text, messageId); }
       catch (error) {

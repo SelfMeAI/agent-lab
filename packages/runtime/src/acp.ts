@@ -153,7 +153,7 @@ export class AcpAdapter implements HarnessAdapter {
     try {
       await this.request("initialize", {
         protocolVersion: 1,
-        clientInfo: { name: "selfme-lab", version: "0.1.0" },
+        clientInfo: { name: "agent-lab", version: "0.1.0" },
         clientCapabilities: this.id === "kimi-code" ? { elicitation: { form: {} } } : {},
       }, 30000);
       const session = resumeRef
@@ -207,7 +207,7 @@ export class AcpAdapter implements HarnessAdapter {
       return;
     }
     try {
-      await this.request("_selfme/steer", { sessionId: this.sessionId, text, messageId }, 15000);
+      await this.request("_agent_lab/steer", { sessionId: this.sessionId, text, messageId }, 15000);
       this.steering.accepted(messageId);
     } catch (error) { const failure = steeringError(error, this.secret); this.steering.rejected(messageId, failure); throw failure; }
   }
@@ -345,7 +345,7 @@ export class AcpAdapter implements HarnessAdapter {
   private handleUpdate(params: JsonObject): void {
     const update = object(params.update);
     const kind = string(update.sessionUpdate) ?? "update";
-    if (kind === "selfme_steering") {
+    if (kind === "agent_lab_steering") {
       const id = string(update.messageId);
       if (id && update.state === "incorporated") this.steering.incorporated(id);
       else if (id) this.steering.unconfirmed(id, string(update.detail) ?? "未确认接入本轮任务");

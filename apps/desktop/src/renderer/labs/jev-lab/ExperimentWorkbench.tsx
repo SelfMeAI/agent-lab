@@ -31,8 +31,8 @@ export function ExperimentWorkbench({ experimentId, onOpenSettings, providerRevi
 
   useEffect(() => {
     let active = true;
-    if (!window.selfmeLab) return;
-    void window.selfmeLab.getProviderStatus("jev")
+    if (!window.agentLab) return;
+    void window.agentLab.getProviderStatus("jev")
       .then((status) => { if (active) setProvider(status); })
       .catch(() => { if (active) setProvider(null); });
     return () => { active = false; };
@@ -61,8 +61,8 @@ export function ExperimentWorkbench({ experimentId, onOpenSettings, providerRevi
     setResult(null);
     setError(null);
     try {
-      if (!window.selfmeLab) throw new Error("桌面端接口不可用");
-      const decision = await window.selfmeLab.runJevExperiment(experimentId, state);
+      if (!window.agentLab) throw new Error("桌面端接口不可用");
+      const decision = await window.agentLab.runJevExperiment(experimentId, state);
       setResult(decision);
     } catch (cause) {
       setError(readableError(cause));

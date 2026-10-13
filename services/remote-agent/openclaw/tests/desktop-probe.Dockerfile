@@ -17,5 +17,5 @@ COPY bootstrap-native-proof.mjs /proof-bootstrap.mjs
 RUN node /proof-bootstrap.mjs
 USER node
 WORKDIR /app
-ENTRYPOINT ["node", "--import", "./scripts/tsx.mjs", "scripts/dev/selfme-gateway-desktop-proof.ts"]
+ENTRYPOINT ["node", "--import", "./scripts/tsx.mjs", "scripts/dev/agent-lab-gateway-desktop-proof.ts"]
 CMD ["--artifacts", "/proof"]

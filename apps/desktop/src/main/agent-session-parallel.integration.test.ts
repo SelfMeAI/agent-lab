@@ -16,16 +16,16 @@ import { AgentSessionRepository } from "./agent-session-repository";
 import { AppConfigStore } from "./app-config";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const runtimeRoot = process.env.SELFME_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
-const nodeExecutable = process.env.SELFME_STEERING_NODE_EXECUTABLE ?? process.execPath;
+const runtimeRoot = process.env.AGENT_LAB_STEERING_RUNTIME_ROOT ?? join(root, "runtimes");
+const nodeExecutable = process.env.AGENT_LAB_STEERING_NODE_EXECUTABLE ?? process.execPath;
 
 describe("real bundled harnesses: independent concurrent sessions", () => {
-  it.runIf(process.env.SELFME_STEERING_INTEGRATION === "1").each(["codex", "dsh", "pi", "kimi-code", "qwen-code", "claude-code"] as const)("%s runs two sessions, cancels only one, and drains the other in background", async id => {
+  it.runIf(process.env.AGENT_LAB_STEERING_INTEGRATION === "1").each(["codex", "dsh", "pi", "kimi-code", "qwen-code", "claude-code"] as const)("%s runs two sessions, cancels only one, and drains the other in background", async id => {
     await mkdir(join(root, ".work"), { recursive: true });
     const scratch = await mkdtemp(join(root, ".work/parallel-native-"));
     const workspaces = { A: join(scratch, "workspace-a"), B: join(scratch, "workspace-b") };
     await Promise.all(Object.values(workspaces).map(path => mkdir(path)));
-    const markers = { A: "SELFME_PARALLEL_A_437", B: "SELFME_PARALLEL_B_961" };
+    const markers = { A: "AGENT_LAB_PARALLEL_A_437", B: "AGENT_LAB_PARALLEL_B_961" };
     const requests: Record<"A" | "B", Obj[]> = { A: [], B: [] };
     const releases: Partial<Record<"A" | "B", () => void>> = {};
     const gates = Object.fromEntries((["A", "B"] as const).map(key => [key, new Promise<void>(resolve => { releases[key] = resolve; })])) as Record<"A" | "B", Promise<void>>;

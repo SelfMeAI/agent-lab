@@ -3,6 +3,6 @@ Type=Application
 Name=Files
 Name[zh_CN]=文件
 Icon=folder
-Exec=/usr/local/bin/node /opt/selfme/desktop/launch.mjs files
+Exec=/usr/local/bin/node /opt/agent-lab/desktop/launch.mjs files
 Terminal=false
 StartupNotify=true

@@ -32,10 +32,10 @@ export class PiUserQuestions {
 
   get isPending(): boolean { return this.pending.size > 0; }
 
-  tool(): ToolDefinition<typeof parameters, { type: "selfmeUserQuestions"; summary: string }> {
+  tool(): ToolDefinition<typeof parameters, { type: "agentLabUserQuestions"; summary: string }> {
     return {
       name: "ask_user_question", label: "向你提问", executionMode: "sequential",
-      description: "SelfMe user-question extension for Pi. Ask the user when a choice or clarification is needed before proceeding. Supports 1-4 questions, single/multiple choices and free-text Other. Never invent a user's answer. Do not add an Other option yourself. Cancellation is not consent or permission to perform an operation.",
+      description: "Agent Lab user-question extension for Pi. Ask the user when a choice or clarification is needed before proceeding. Supports 1-4 questions, single/multiple choices and free-text Other. Never invent a user's answer. Do not add an Other option yourself. Cancellation is not consent or permission to perform an operation.",
       promptSnippet: "Ask the user for necessary choices or clarification using the desktop question card",
       parameters,
       execute: async (toolCallId, params, signal) => {
@@ -44,7 +44,7 @@ export class PiUserQuestions {
         const answers = await this.ask(toolCallId, questions, signal);
         const summary = answers ? questions.map(q => `${q.header || q.question}：${answers[q.id].join("、")}`).join("\n") : "已取消回答";
         return { content: [{ type: "text", text: JSON.stringify({ answers: answers ?? {}, cancelled: answers === null }) }],
-          details: { type: "selfmeUserQuestions", summary } };
+          details: { type: "agentLabUserQuestions", summary } };
       },
     };
   }

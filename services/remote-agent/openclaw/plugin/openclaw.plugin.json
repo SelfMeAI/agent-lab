@@ -1,7 +1,7 @@
 {
-  "id": "selfme-lab",
-  "name": "SelfMe Lab Remote Files",
-  "description": "Authenticated transfer for private SelfMe Lab task workspaces.",
+  "id": "agent-lab",
+  "name": "Agent Lab Remote Files",
+  "description": "Authenticated transfer for private Agent Lab task workspaces.",
   "activation": { "onStartup": true },
   "contracts": { "gatewayMethodDispatch": ["authenticated-request"] },
   "configSchema": { "type": "object", "additionalProperties": false, "properties": {} }

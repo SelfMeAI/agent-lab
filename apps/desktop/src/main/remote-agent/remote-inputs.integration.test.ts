@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { RemoteServiceCredentials } from "./credentials";
@@ -12,9 +13,9 @@ import type { RemoteTaskSnapshot } from "../../../../../packages/contracts/src/r
 
 const exec = promisify(execFile);
 type Proof = Record<string, { waiting: boolean; calls: Array<{ steer: boolean; first: boolean; second: boolean }> }>;
-describe.skipIf(process.env.SELFME_REMOTE_INPUT_INTEGRATION !== "1")("native remote mid-turn inputs", () => {
+describe.skipIf(process.env.AGENT_LAB_REMOTE_INPUT_INTEGRATION !== "1")("native remote mid-turn inputs", () => {
   for (const engine of ["openclaw", "openhands"] as const) it(`${engine}: real Steer, whole-turn Queue, retained Stop and closed-client delivery`, async () => {
-    const root = resolve(".work/remote-agent", "input-integration-" + engine + "-" + randomUUID());
+    const root = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)), ".work/remote-agent", "input-integration-" + engine + "-" + randomUUID());
     const credentials = new RemoteServiceCredentials(root, { encrypt: async value => Buffer.from(value), decrypt: async value => value.toString() }, engine);
     const container = new RemoteAgentContainer(root, () => credentials.get(), engine);
     const connection = { endpoint: () => container.requireEndpoint(), credentials: () => credentials.get() };
@@ -23,13 +24,13 @@ describe.skipIf(process.env.SELFME_REMOTE_INPUT_INTEGRATION !== "1")("native rem
     const client = controller.client(engine);
     try {
       expect((await container.start()).phase).toBe("ready");
-      await exec("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile("scripts/remote-agent/fixtures/input-provider.mjs", "utf8")]);
+      await exec("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile(new URL("../../../../../scripts/remote-agent/fixtures/input-provider.mjs", import.meta.url), "utf8")]);
       const models = new RemoteModelClient(engine, connection.endpoint, connection.credentials);
       await models.save({ protocol: "openai", baseUrl: "http://127.0.0.1:8945/v1", apiKey: "inputs-fixture", model: "inputs-fixture" });
       await ready();
       if (engine === "openclaw") {
         const cfg = await controller.claw.request<{ hash: string }>("config.get");
-        await controller.claw.request("config.patch", { baseHash: cfg.hash, raw: JSON.stringify({ models: { providers: { selfme: { request: { allowPrivateNetwork: true } } } }, tools: { codeMode: false } }) }); await ready();
+        await controller.claw.request("config.patch", { baseHash: cfg.hash, raw: JSON.stringify({ models: { providers: { agent_lab: { request: { allowPrivateNetwork: true } } } }, tools: { codeMode: false } }) }); await ready();
       }
       const task = await client.create(); await client.open(task.id);
       expect(await client.inputQueue(task.id)).toMatchObject({ mode: "queue", items: [] });
@@ -92,7 +93,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INPUT_INTEGRATION !== "1")("native rem
       await client.control(stopped.id, "stop"); await release(stopScenario);
       expect(await client.inputQueue(stopped.id)).toMatchObject({ paused: true, items: [{ text: "AFTER_TURN_ONE" }] });
       controller.reset(); await container.restart();
-      await exec("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile("scripts/remote-agent/fixtures/input-provider.mjs", "utf8")]);
+      await exec("docker", ["exec", "--detach", container.name, "node", "--input-type=module", "-e", await readFile(new URL("../../../../../scripts/remote-agent/fixtures/input-provider.mjs", import.meta.url), "utf8")]);
       await expect.poll(() => client.open(stopped.id), { timeout: 15_000 }).toMatchObject({ connection: "connected" });
       expect(await client.inputQueue(stopped.id)).toMatchObject({ paused: true, items: [{ text: "AFTER_TURN_ONE" }] });
       await client.control(stopped.id, "resume");
@@ -127,7 +128,7 @@ describe.skipIf(process.env.SELFME_REMOTE_INPUT_INTEGRATION !== "1")("native rem
     } finally {
       controller.shutdown(); await container.stop();
       await exec("docker", ["rm", container.name]); await exec("docker", ["volume", "rm", container.volume]);
-      await exec("docker", ["network", "rm", `selfme-lab-document-preview-${container.owner}-network`]);
+      await exec("docker", ["network", "rm", `agent-lab-document-preview-${container.owner}-network`]);
       await rm(root, { recursive: true, force: true });
     }
     async function ready() { await expect.poll(async () => (await container.state()).phase, { timeout: 35_000, interval: 800 }).toBe("ready"); }

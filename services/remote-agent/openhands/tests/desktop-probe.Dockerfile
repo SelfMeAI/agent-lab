@@ -7,4 +7,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY desktop_fixture.py /proof-code/desktop_fixture.py
 USER openhands
-ENV PYTHONPATH=/proof-code SELFME_DESKTOP_PROBE=1
+ENV PYTHONPATH=/proof-code AGENT_LAB_DESKTOP_PROBE=1

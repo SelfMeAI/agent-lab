@@ -36,7 +36,7 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
     alive.current = true;
     let timer: ReturnType<typeof setTimeout>;
     async function refresh(): Promise<void> {
-      const bridge = window.selfmeLab;
+      const bridge = window.agentLab;
       if (bridge) await Promise.all(remoteAgentIds.map(async id => {
         try {
           const state = await bridge.getRemoteServiceState(id);
@@ -50,14 +50,14 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
   }, []);
 
   async function control(id: RemoteAgentId, action: "start" | "stop" | "restart"): Promise<void> {
-    if (!window.selfmeLab || actionLocks.current.has(id)) return;
+    if (!window.agentLab || actionLocks.current.has(id)) return;
     actionLocks.current.add(id); setBusy(previous => ({ ...previous, [id]: true })); setErrors(previous => ({ ...previous, [id]: "" }));
     try {
-      const state = await window.selfmeLab.controlRemoteService(id, action);
+      const state = await window.agentLab.controlRemoteService(id, action);
       if (alive.current) { setStates(previous => ({ ...previous, [id]: state })); setRevision(previous => previous + 1); }
     } catch (cause) {
       if (alive.current) setErrors(previous => ({ ...previous, [id]: remoteError(cause) }));
-      try { const state = await window.selfmeLab.getRemoteServiceState(id); if (alive.current) setStates(previous => ({ ...previous, [id]: state })); } catch { /* primary error visible */ }
+      try { const state = await window.agentLab.getRemoteServiceState(id); if (alive.current) setStates(previous => ({ ...previous, [id]: state })); } catch { /* primary error visible */ }
     } finally {
       actionLocks.current.delete(id);
       if (alive.current) setBusy(previous => ({ ...previous, [id]: false }));

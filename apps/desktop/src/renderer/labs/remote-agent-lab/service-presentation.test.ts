@@ -13,6 +13,6 @@ describe("truthful remote service presentation", () => {
     expect(remoteServiceLabel({ ...state, phase: "starting" })).toBe("正在启动…");
   });
   it("removes IPC wrapper wording, not the actual useful error", () => {
-    expect(remoteError(new Error("Error invoking remote method 'selfme:remote-model-get': Error: 服务认证失败"))).toBe("服务认证失败");
+    expect(remoteError(new Error("Error invoking remote method 'agent-lab:remote-model-get': Error: 服务认证失败"))).toBe("服务认证失败");
   });
 });

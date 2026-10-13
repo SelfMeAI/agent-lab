@@ -61,7 +61,7 @@ describe("native question request expiry", () => {
     const request = (requestId: number): void => {
       if (id === "codex") internals.handleServerRequest({ id: requestId, params: { questions: [{ ...nativeQuestions[0], id: "game", isOther: true }] } }, "item/tool/requestUserInput");
       else {
-        const message = id === "dsh" ? { id: requestId, method: "_selfme/user-question", params: { questions: [{ ...nativeQuestions[0], id: "game" }] } }
+        const message = id === "dsh" ? { id: requestId, method: "_agent_lab/user-question", params: { questions: [{ ...nativeQuestions[0], id: "game" }] } }
           : id === "kimi-code" ? { id: requestId, method: "elicitation/create", params: { mode: "form", message: "游戏？", requestedSchema: { type: "object", properties: { game: { type: "string", oneOf: [{ const: "2048" }] } } } } }
             : { id: requestId, method: "session/request_permission", params: { options: [{ optionId: "submit", kind: "allow_once", name: "Submit" }], toolCall: { _meta: { qwenInteractionKind: "user_question", qwenQuestions: nativeQuestions } } } };
         internals.handleLine(internals.child, JSON.stringify(message));

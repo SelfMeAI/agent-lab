@@ -26,7 +26,7 @@ export class OpenHandsTasks {
   }
   async create(): Promise<RemoteTask> {
     const id = randomUUID();
-    const workspace = await this.http.json<{ root: string }>("/api/selfme/workspace", "POST", { id });
+    const workspace = await this.http.json<{ root: string }>("/api/agent-lab/workspace", "POST", { id });
     // Encrypted round-trip stays in the main process -> same server, not the renderer.
     const settings = await this.http.json<{ agent_settings: Record<string, unknown>; llm_api_key_is_set: boolean }>("/api/settings", "GET", undefined, { "X-Expose-Secrets": "encrypted" });
     if (!settings.llm_api_key_is_set) throw new Error("请先保存 OpenHands 的模型连接");
@@ -137,7 +137,7 @@ export class OpenHandsTasks {
   }
   async inputQueue(id: string): Promise<RemoteInputQueue> {
     remoteTaskId(id); const view = this.views.get(id), revision = view?.snapshot.queue?.revision;
-    const next = this.applyQueue(id, await this.http.json(`/api/selfme/inputs?task=${id}`));
+    const next = this.applyQueue(id, await this.http.json(`/api/agent-lab/inputs?task=${id}`));
     // User events are canonical native history, even when their live callback
     // was omitted. Never invent a submitted row for a still-pending input.
     if (view && revision !== undefined && revision !== next.revision) await this.inputHistory(id, view);
@@ -159,13 +159,13 @@ export class OpenHandsTasks {
         this.emit(structuredClone(view.snapshot));
       }
   }
-  async inputMode(id: string, mode: RemoteInputMode): Promise<RemoteInputQueue> { remoteTaskId(id); return this.applyQueue(id, await this.http.json("/api/selfme/inputs/mode", "POST", { task: id, mode })); }
-  async inputAction(id: string, messageId: string, action: "remove" | "steer"): Promise<RemoteInputQueue> { remoteTaskId(id); return this.applyQueue(id, await this.http.json(`/api/selfme/inputs/${action}`, "POST", { task: id, messageId })); }
+  async inputMode(id: string, mode: RemoteInputMode): Promise<RemoteInputQueue> { remoteTaskId(id); return this.applyQueue(id, await this.http.json("/api/agent-lab/inputs/mode", "POST", { task: id, mode })); }
+  async inputAction(id: string, messageId: string, action: "remove" | "steer"): Promise<RemoteInputQueue> { remoteTaskId(id); return this.applyQueue(id, await this.http.json(`/api/agent-lab/inputs/${action}`, "POST", { task: id, messageId })); }
   async send(id: string, prompt: string, files: RemoteUploadedFile[] = [], options?: RemoteSendOptions): Promise<void> {
     remoteTaskId(id); if (!prompt.trim() && !files.length) throw new Error("请输入消息或上传文件");
     const view = this.views.get(id);
     const input = remoteSendOptions(options ?? { mode: view?.snapshot.queue?.mode ?? "queue", requestId: randomUUID() });
-    this.applyQueue(id, await this.http.json("/api/selfme/inputs/send", "POST", { task: id, text: prompt, files, ...input }));
+    this.applyQueue(id, await this.http.json("/api/agent-lab/inputs/send", "POST", { task: id, text: prompt, files, ...input }));
     if (view && !view.snapshot.queue?.items.some(item => item.id === input.requestId)) await this.inputHistory(id, view);
     if (view) { view.snapshot.error = undefined; this.emit(structuredClone(view.snapshot)); }
     // Naming failure must not turn an accepted message into a duplicate retry.
@@ -173,7 +173,7 @@ export class OpenHandsTasks {
       if (handsTask(result).title === "新任务") { const title = prompt.trim().slice(0, 36) || files[0]?.name || "文件任务"; await this.http.json(`/api/conversations/${id}`, "PATCH", { title }); if (view) { view.snapshot.task.title = title; this.emit(structuredClone(view.snapshot)); } }
     }).catch(() => {});
   }
-  async control(id: string, action: "stop" | "resume"): Promise<void> { remoteTaskId(id); this.applyQueue(id, await this.http.json("/api/selfme/inputs/control", "POST", { task: id, action })); }
+  async control(id: string, action: "stop" | "resume"): Promise<void> { remoteTaskId(id); this.applyQueue(id, await this.http.json("/api/agent-lab/inputs/control", "POST", { task: id, action })); }
   async approve(id: string, requestId: string, decision: "once" | "always" | "reject"): Promise<void> {
     remoteTaskId(id);
     const view = this.views.get(id);
@@ -181,7 +181,7 @@ export class OpenHandsTasks {
     if (decision === "always") await this.http.json(`/api/conversations/${id}/confirmation_policy`, "POST", { policy: { kind: "NeverConfirm" } });
     await this.http.json(`/api/conversations/${id}/events/respond_to_confirmation`, "POST", { accept: decision !== "reject", reason: "用户拒绝此操作" });
   }
-  async delete(id: string): Promise<void> { remoteTaskId(id); await this.control(id, "stop"); await this.http.json("/api/selfme/inputs/clear", "POST", { task: id }); await this.http.json(`/api/conversations/${id}`, "DELETE"); this.close(id); }
+  async delete(id: string): Promise<void> { remoteTaskId(id); await this.control(id, "stop"); await this.http.json("/api/agent-lab/inputs/clear", "POST", { task: id }); await this.http.json(`/api/conversations/${id}`, "DELETE"); this.close(id); }
   close(id: string): void { this.opening.delete(id); const view = this.views.get(id); if (!view) return; view.closed = true; clearTimeout(view.retry); view.socket?.close(); this.views.delete(id); }
   shutdown(): void { this.opening.clear(); for (const id of this.views.keys()) this.close(id); this.http.reset(); }
 }
