@@ -5,9 +5,13 @@ import { dirname, join } from "node:path";
 import { run } from "./process.mjs";
 
 export async function sha256(path) {
-  const hash = createHash("sha256");
+  return digest(path, "sha256", "hex");
+}
+
+export async function digest(path, algorithm, encoding) {
+  const hash = createHash(algorithm);
   for await (const chunk of createReadStream(path)) hash.update(chunk);
-  return hash.digest("hex");
+  return hash.digest(encoding);
 }
 
 export async function hasChecksum(path, expected) {
@@ -17,7 +21,19 @@ export async function hasChecksum(path, expected) {
 
 export async function downloadVerified(url, path, expected) {
   if (!/^[a-f0-9]{64}$/.test(expected) || new URL(url).protocol !== "https:") throw new Error("下载必须使用 HTTPS 和固定 SHA-256");
-  if (await hasChecksum(path, expected)) return path;
+  return downloadChecked(url, path, async file => hasChecksum(file, expected));
+}
+
+export async function downloadNpmArchive(url, path, integrity) {
+  if (!url.startsWith("https://registry.npmjs.org/") || !/^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity)) throw new Error("npm 运行包必须来自官方 registry 且具有固定 SHA-512 SRI");
+  return downloadChecked(url, path, async file => {
+    try { return `sha512-${await digest(file, "sha512", "base64")}` === integrity; }
+    catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  });
+}
+
+async function downloadChecked(url, path, valid) {
+  if (await valid(path)) return path;
   await mkdir(dirname(path), { recursive: true });
   const partial = `${path}.part`;
   let resume = false;
@@ -26,7 +42,7 @@ export async function downloadVerified(url, path, expected) {
   // settings, and do not promote a partial archive until its digest matches.
   await run("curl", ["--fail", "--location", "--proto", "=https", "--proto-redir", "=https",
     "--retry", "3", "--connect-timeout", "30", ...(resume ? ["--continue-at", "-"] : []), "--output", partial, url], { timeout: 1_800_000 });
-  if (!(await hasChecksum(partial, expected))) {
+  if (!(await valid(partial))) {
     await rm(partial, { force: true });
     throw new Error(`下载校验失败，未安装：${new URL(url).pathname.split("/").at(-1)}`);
   }

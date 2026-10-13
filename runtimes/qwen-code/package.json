@@ -2,6 +2,9 @@
   "name": "agent-lab-qwen-runtime",
   "private": true,
   "version": "0.1.0",
+  "allowScripts": {
+    "@qwen-code/audio-capture@0.24.6": true
+  },
   "dependencies": {
     "@qwen-code/qwen-code": "0.24.6"
   }

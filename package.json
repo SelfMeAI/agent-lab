@@ -3,6 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "allowScripts": {
+    "electron@44.4.5": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.6": true,
+    "@google/genai": false,
+    "fsevents": false
+  },
   "workspaces": [
     "apps/desktop",
     "packages/*"

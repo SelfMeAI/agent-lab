@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "description": "Pinned official Kimi Code runtime with an app-owned ACP steering bridge",
+  "allowScripts": {
+    "node-pty@1.1.0": true,
+    "@moonshot-ai/kimi-code": false
+  },
   "dependencies": {
     "@moonshot-ai/kimi-code": "2.1.1"
   }

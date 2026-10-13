@@ -24,6 +24,7 @@ extraResources:
     to: claude
     filter:
       - "**/*"
+      - "!node_modules/**/*"
   - from: ../../runtimes/steering-bridge.mjs
     to: steering-bridge.mjs
   - from: ../../runtimes/dsh/steering-loader.mjs
