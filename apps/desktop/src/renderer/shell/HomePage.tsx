@@ -3,6 +3,7 @@ import type { LabId } from "../../../../../packages/contracts/src/index";
 import { goToLab } from "../app/navigation";
 import { labs } from "../labs/registry";
 import { LabIcon } from "./LabIcon";
+import { LabIndexHeader } from "./LabIndexHeader";
 
 const homeSubtitles: Record<LabId, string> = {
   "agent-lab": "本地 Harness 实验",
@@ -13,8 +14,8 @@ const homeSubtitles: Record<LabId, string> = {
 
 export function HomePage(): JSX.Element {
   return (
-    <main className="home-content">
-      <h1 className="page-title">LAB INDEX</h1>
+    <main className="home-content lab-index-layout">
+      <LabIndexHeader title="LAB INDEX" />
       <section className="lab-grid" aria-label="实验室">
         {labs.map((lab) => (
           <button

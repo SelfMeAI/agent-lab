@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type JSX } from "react
 import { isRemoteAgentId, remoteAgentIds, type RemoteAgentId, type RemoteServiceState } from "../../../../../../packages/contracts/src/remote-agent";
 import { goToLab } from "../../app/navigation";
 import { LabIcon } from "../../shell/LabIcon";
+import { LabIndexHeader } from "../../shell/LabIndexHeader";
 import type { LabPageProps } from "../types";
 import { RemoteServicePanel } from "./RemoteServicePanel";
 import { remoteError, remoteServiceLabel } from "./service-presentation";
@@ -64,16 +65,17 @@ export function RemoteAgentPage({ viewId }: LabPageProps): JSX.Element {
     }
   }
 
-  return <div className={`remote-page${engine ? " remote-page--workspace" : ""}`}>
-    <header className="remote-heading">
-      <LabIcon labId="remote-agent-lab" className="remote-heading__icon" />
-      <div className="remote-heading__copy"><h1>REMOTE AGENT LAB</h1>{!engine && <p>远端智能体实验室</p>}</div>
-      {engine && <span className={`remote-heading__engine remote-heading__engine--${engine}`}>{remoteEngines[engine].name}</span>}
-      <button className="remote-button remote-service-entry" type="button" onClick={() => setPanel(true)}>
+  const serviceEntry = <button className="remote-button remote-service-entry" type="button" onClick={() => setPanel(true)}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m12 3 2 3 3.5-.2.2 3.5 3 2-3 2-.2 3.5-3.5-.2-2 3-2-3-3.5.2-.2-3.5-3-2 3-2 .2-3.5 3.5.2Z" /><circle cx="12" cy="12" r="3" /></svg>
         {engine ? `服务 · ${states[engine]?.phase === "ready" ? "已连接" : "未连接"}` : "服务管理"}
-      </button>
-    </header>
+      </button>;
+  return <div className={`remote-page${engine ? " remote-page--workspace" : " remote-page--index lab-index-layout"}`}>
+    {engine ? <header className="remote-heading">
+      <LabIcon labId="remote-agent-lab" className="remote-heading__icon" />
+      <div className="remote-heading__copy"><h1>REMOTE AGENT LAB</h1></div>
+      <span className={`remote-heading__engine remote-heading__engine--${engine}`}>{remoteEngines[engine].name}</span>
+      {serviceEntry}
+    </header> : <LabIndexHeader title="REMOTE AGENT LAB" subtitle="远端智能体实验室" labId="remote-agent-lab" actions={serviceEntry} />}
     {!engine ? <>
       <section className="remote-engine-grid" aria-label="选择远端智能体">
         {remoteAgentIds.map(id => <button key={id} type="button" className="remote-engine-card" style={{ "--remote-engine": remoteEngines[id].color } as CSSProperties} onClick={() => goToLab("remote-agent-lab", id)}>

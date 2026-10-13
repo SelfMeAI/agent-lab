@@ -7,6 +7,8 @@ describe("four-lab home", () => {
   it("renders one entry and Chinese subtitle for each retained lab", () => {
     const html = renderToStaticMarkup(createElement(HomePage));
     expect(html.match(/data-lab-id=/g)).toHaveLength(4);
+    expect(html).toContain("home-content lab-index-layout");
+    expect(html).toContain("lab-index-heading");
     for (const [id, subtitle] of [
       ["agent-lab", "本地 Harness 实验"],
       ["remote-agent-lab", "远程 Agent 实验"],

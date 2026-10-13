@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type JSX } from "react";
 import { isAgentRuntimeId, type RuntimeStatus } from "../../../../../../packages/contracts/src/index";
 import { goToLab } from "../../app/navigation";
 import { LabIcon } from "../../shell/LabIcon";
+import { LabIndexHeader } from "../../shell/LabIndexHeader";
 import type { LabPageProps } from "../types";
 import { AgentWorkspace } from "./AgentWorkspace";
 import "./agent-lab.css";
@@ -27,8 +28,8 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
 
   if (!isAgentRuntimeId(viewId)) {
     return (
-      <section className="agent-index">
-        <h1>AGENT LAB</h1>
+      <section className="agent-index lab-index-layout" style={{ "--index-accent": lab.accent } as CSSProperties}>
+        <LabIndexHeader title="AGENT LAB" subtitle="本地 Harness 实验" labId={lab.id} />
         <div className="agent-index__group"><h2>HARNESS RUNTIMES</h2><span /></div>
         <div className="agent-grid">
           {lab.views.map((item) => {
