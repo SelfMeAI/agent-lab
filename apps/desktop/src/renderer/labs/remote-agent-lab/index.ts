@@ -4,7 +4,6 @@ import { RemoteAgentPage } from "./RemoteAgentPage";
 export const remoteAgentLab: LabModule = {
   id: "remote-agent-lab",
   title: "REMOTE AGENT LAB",
-  group: "runtimes",
   accent: "#39dce3",
   symbol: "≋",
   Page: RemoteAgentPage,

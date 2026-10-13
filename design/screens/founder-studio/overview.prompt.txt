@@ -1,8 +1,0 @@
-Use case: ui-mockup / Founder Studio direction desk (approved)
-References: output/imagegen/lab-ui/01-lab-home.png (approved Lab Home, Founder Studio identity and starfield); output/imagegen/lab-ui/13-harness-forge-design.png (shared desktop shell); output/imagegen/brand/selfme-lab-mark.png (exact brand mark)
-
-Create one 16:9 native desktop screen in the existing SelfMe Lab visual family: near-black starfield, fine technical lines, readable white type, restrained coral Founder Studio accent. Keep the exact SelfMe brand mark and the coral Founder Studio open-square/up-right-arrow identity. Do not reuse Harness Forge's amber accent.
-
-This is an internal decision workbench for SelfMe's possible business directions, not a generic startup dashboard or chat app. Three joined regions express the workflow: DIRECTIONS (illustrative candidate list, one selected, capture idea), selected DIRECTION (who/job, core hypothesis, open questions, factual/unknown evidence), and CURRENT JUDGMENT (exploring/not committed, rationale, next validation, decision history and link to Lab evidence). Use AI Desktop as clearly marked example content; do not imply it is a committed product direction. Avoid fabricated scores, market metrics, research conclusions, or prior decisions.
-
-Generated with the built-in OpenAI image-generation tool. Application code unchanged.

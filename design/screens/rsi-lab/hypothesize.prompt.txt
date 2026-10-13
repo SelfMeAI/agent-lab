@@ -1,6 +1,0 @@
-Use case: ui-mockup / RSI Lab HYPOTHESIZE stage
-Edit target: output/imagegen/lab-ui/17-rsi-lab-observe.png
-
-Preserve the SelfMe Lab shell, RSI mark, dark blue desktop visual system, three joined work regions, and EVOLUTION CYCLE navigation. Select only HYPOTHESIZE. Show the observed three duplicate reads of src/brief.md, then a falsifiable session-local-cache hypothesis H-012-B, predictions (handoff summary 3 to 2 reads, holdout 6 to 6, approval unchanged), and a test plan with failure conditions. Record protected boundaries and rejected cross-task-cache alternative c12-a. This is a completed hypothesis stage, not a source edit, execution, or promotion.
-
-Generated with the built-in OpenAI image-generation tool; example data is fictional design content.

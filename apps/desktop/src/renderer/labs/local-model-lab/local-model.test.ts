@@ -15,7 +15,7 @@ function fixtureRun(model: string, id = model): LocalModelRun {
     outputs: [{ model, digest: "real-digest", parameterSize: "1B", quantization: "Q4", status: "complete", text: `${model} 的回答`, thinking: "", error: null,
       metrics: { firstOutputMs: 10, durationMs: 1234, loadMs: 10, inputTokens: 11, outputTokens: 12, tokensPerSecond: 12.34 } }] };
 }
-const lab: LabModule = { id: "local-model-lab", title: "LOCAL MODEL LAB", group: "runtimes", accent: "#c7d1de", symbol: "", purpose: "", views: [] };
+const lab: LabModule = { id: "local-model-lab", title: "LOCAL MODEL LAB", accent: "#c7d1de", symbol: "", purpose: "", views: [], Page: () => null };
 beforeEach(() => vi.resetModules());
 afterEach(() => vi.unstubAllGlobals());
 describe("local model desktop presentation and state", () => {

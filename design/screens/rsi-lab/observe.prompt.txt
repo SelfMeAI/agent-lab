@@ -1,8 +1,0 @@
-Use case: ui-mockup / RSI Lab OBSERVE stage
-Reference: output/imagegen/lab-ui/16-rsi-lab-cycle-overview.png
-
-Create the matching peer stage screen. Preserve the exact SelfMe Lab / RSI Lab shell, background, material, typography, and horizontal navigation. OBSERVE alone is selected; its green check indicates the stage completed. OVERVIEW and the other stages are unselected; PROMOTE remains awaiting. Label the common rail EVOLUTION CYCLE, not CYCLE OVERVIEW.
-
-Below the rail, replace overview content with three joined regions: SOURCE RUNS (immutable baseline traces and the selected handoff-summary run), OBSERVE / CYCLE 012 (completed outcome, observed signal, three repeated read events on src/brief.md, and a factual read-pattern table), and PROVENANCE & LIMITS (baseline trace, read-only snapshot, next stage, trace links). Use numerical read counts for all rows; no approval state in a read-count cell. The observation does not edit code or promote a candidate. Keep the screen compact, crisp, and clearly part of the same desktop app. Example trace data is fictional design content, not a real benchmark or implemented result.
-
-Generated and precision-corrected with the built-in OpenAI image-generation tool. No third-party base URL or project API key was used.

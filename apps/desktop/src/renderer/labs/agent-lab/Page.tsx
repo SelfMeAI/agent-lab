@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties, type JSX } from "react";
 import { isAgentRuntimeId, type RuntimeStatus } from "../../../../../../packages/contracts/src/index";
 import { goToLab } from "../../app/navigation";
 import { LabIcon } from "../../shell/LabIcon";
-import { PendingLabPage } from "../shared/PendingLabPage";
 import type { LabPageProps } from "../types";
 import { AgentWorkspace } from "./AgentWorkspace";
 import "./agent-lab.css";
@@ -26,7 +25,7 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
     if (window.selfmeLab) void window.selfmeLab.listRuntimes().then(setRuntimeStatuses).catch(() => setRuntimeStatuses([]));
   }, []);
 
-  if (!viewId) {
+  if (!isAgentRuntimeId(viewId)) {
     return (
       <section className="agent-index">
         <h1>AGENT LAB</h1>
@@ -34,7 +33,7 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
         <div className="agent-grid">
           {lab.views.map((item) => {
             const status = runtimeStatuses.find((entry) => entry.id === item.id);
-            const label = status?.availability === "ready" ? "READY" : status?.availability === "missing" ? "SETUP" : "PLANNED";
+            const label = status?.availability === "ready" ? "READY" : status ? "SETUP" : "CHECKING";
             return <button className="agent-tile" key={item.id} onClick={() => goToLab(lab.id, item.id)} style={{ "--tile-accent": accents[item.id] } as CSSProperties} type="button">
               <LabIcon runtimeId={item.id} className="agent-tile__icon" />
               <span className="agent-tile__text"><strong>{item.label.toUpperCase()}</strong><small>{descriptions[item.id] ?? "Harness 接入实验"}</small><em>{label}</em></span>
@@ -46,12 +45,5 @@ export function AgentLabPage({ lab, viewId, onOpenSettings, providerRevision }: 
     );
   }
 
-  if (isAgentRuntimeId(viewId)) return <AgentWorkspace runtimeId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
-
-  return (
-    <div className="agent-pending">
-      <div className="agent-pending__heading"><LabIcon runtimeId={viewId} /><h1>{lab.views.find((item) => item.id === viewId)?.label.toUpperCase()} LAB</h1></div>
-      <PendingLabPage lab={lab} viewId={viewId} />
-    </div>
-  );
+  return <AgentWorkspace runtimeId={viewId} onOpenSettings={onOpenSettings} providerRevision={providerRevision} />;
 }

@@ -2,7 +2,7 @@
 .agent-lab-page--workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
 .agent-index { width: min(100%, 1880px); margin: 0 auto; padding: 40px 10px 64px; }
-.agent-index h1, .agent-index h2, .agent-tile, .dsh-workspace, .agent-pending { font-family: Menlo, "SFMono-Regular", monospace; font-weight: 400; }
+.agent-index h1, .agent-index h2, .agent-tile, .dsh-workspace { font-family: Menlo, "SFMono-Regular", monospace; font-weight: 400; }
 .agent-index h1 { margin: 0 0 28px; font-size: clamp(32px, 2.8vw, 42px); letter-spacing: .05em; }
 .agent-index__group { display: flex; align-items: center; gap: 22px; margin: 0 0 18px; }
 .agent-index__group h2 { margin: 0; font-size: clamp(19px, 1.7vw, 25px); letter-spacing: .04em; white-space: nowrap; }
@@ -17,10 +17,6 @@
 .agent-tile__text em { color: var(--tile-accent); font-size: 10px; font-style: normal; letter-spacing: .08em; }
 .agent-tile__arrow { width: 29px; height: 22px; flex: 0 0 29px; }
 
-.agent-pending { width: min(100%, 1500px); margin: 0 auto; padding: 28px 15px; }
-.agent-pending__heading { display: flex; align-items: center; gap: 22px; margin-bottom: 28px; }
-.agent-pending__heading svg { width: 58px; height: 58px; color: #b9ddf0; }
-.agent-pending__heading h1 { margin: 0; font-size: 42px; font-weight: 400; }
 
 .dsh-workspace { position: relative; width: min(100%, 1980px); height: 100%; min-height: 0; margin: 0 auto; display: flex; flex-direction: column; }
 .dsh-workspace__masthead { min-height: 82px; flex: 0 0 82px; display: flex; align-items: center; gap: 22px; }

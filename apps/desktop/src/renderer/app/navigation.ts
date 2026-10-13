@@ -4,12 +4,10 @@ import type { LabModule } from "../labs/types";
 export interface LabRoute {
   lab?: LabModule;
   viewId?: string;
-  atlas?: boolean;
 }
 
 export function parseHash(hash: string): LabRoute {
   const [category, labId, viewId] = hash.replace(/^#\/?/, "").split("/");
-  if (category === "atlas") return { atlas: true };
   if (category !== "lab") return {};
   const lab = labById(labId ?? "");
   if (!lab) return {};
@@ -18,10 +16,6 @@ export function parseHash(hash: string): LabRoute {
 
 export function goHome(): void {
   window.location.hash = "#/";
-}
-
-export function goToAtlas(): void {
-  window.location.hash = "#/atlas";
 }
 
 export function goToLab(labId: string, viewId?: string): void {

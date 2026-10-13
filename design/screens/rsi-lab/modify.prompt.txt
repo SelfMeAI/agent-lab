@@ -1,6 +1,0 @@
-Use case: ui-mockup / RSI Lab MODIFY stage
-Edit target: output/imagegen/lab-ui/18-rsi-lab-hypothesize.png
-
-Preserve the common shell and peer stage navigation; select only MODIFY. Show candidate c12-b created from hypothesis H-012-B and immutable Core Loop v0.3. Display a read-only illustrative diff for harnesses/core-loop/src/tool-router.ts (+18, -5), centered on a session-local read cache keyed by canonical path and content revision, plus write invalidation. Show allowed mutation scope, protected baseline/evaluator/credentials, one changed file, and next stage SANDBOX. No actual source file is implied to exist; this is only a design mockup.
-
-Generated with the built-in OpenAI image-generation tool.

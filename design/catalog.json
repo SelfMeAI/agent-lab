@@ -3,7 +3,6 @@
   "kind": "visual-reference",
   "notes": "设计稿用于风格与布局参考；功能入口以当前实现为准，示例数据不作为产品数据。",
   "screens": [
-    { "id": "home.index", "legacyNumber": 1, "file": "screens/home/index.png" },
     { "id": "agent.index", "legacyNumber": 2, "file": "screens/agent-lab/index.png" },
     { "id": "agent.codex.workspace", "legacyNumber": 3, "file": "screens/agent-lab/codex/workspace.png" },
     { "id": "agent.dsh.workspace", "legacyNumber": 4, "file": "screens/agent-lab/dsh/workspace.png" },
@@ -19,17 +18,6 @@
     { "id": "local-model.ollama.playground", "legacyNumber": 10, "file": "screens/local-model-lab/ollama/playground.png" },
     { "id": "local-model.ollama.compare", "legacyNumber": 11, "file": "screens/local-model-lab/ollama/compare.png" },
     { "id": "jev.xiangqi.workspace", "legacyNumber": 12, "file": "screens/jev-lab/xiangqi/workspace.png" },
-    { "id": "jev.experiments.workbench", "legacyNumber": 24, "file": "screens/jev-lab/experiments/workbench.png" },
-    { "id": "forge.design", "legacyNumber": 13, "file": "screens/harness-forge/design.png" },
-    { "id": "forge.run", "legacyNumber": 14, "file": "screens/harness-forge/run.png" },
-    { "id": "forge.compare", "legacyNumber": 15, "file": "screens/harness-forge/compare.png" },
-    { "id": "rsi.overview", "legacyNumber": 16, "file": "screens/rsi-lab/overview.png" },
-    { "id": "rsi.observe", "legacyNumber": 17, "file": "screens/rsi-lab/observe.png" },
-    { "id": "rsi.hypothesize", "legacyNumber": 18, "file": "screens/rsi-lab/hypothesize.png" },
-    { "id": "rsi.modify", "legacyNumber": 19, "file": "screens/rsi-lab/modify.png" },
-    { "id": "rsi.sandbox", "legacyNumber": 20, "file": "screens/rsi-lab/sandbox.png" },
-    { "id": "rsi.evaluate", "legacyNumber": 21, "file": "screens/rsi-lab/evaluate.png" },
-    { "id": "rsi.promote", "legacyNumber": 22, "file": "screens/rsi-lab/promote.png" },
-    { "id": "founder.overview", "legacyNumber": 23, "file": "screens/founder-studio/overview.png" }
+    { "id": "jev.experiments.workbench", "legacyNumber": 24, "file": "screens/jev-lab/experiments/workbench.png" }
   ]
 }

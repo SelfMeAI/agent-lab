@@ -4,7 +4,6 @@ import { AgentLabPage } from "./Page";
 export const agentLab: LabModule = {
   id: "agent-lab",
   title: "AGENT LAB",
-  group: "runtimes",
   accent: "#c9ed65",
   symbol: "◎",
   purpose: "独立接入并观察本地 Harness 的真实工作过程。",

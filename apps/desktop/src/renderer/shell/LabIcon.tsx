@@ -23,15 +23,6 @@ export function LabIcon({ labId, runtimeId, className }: LabIconProps): JSX.Elem
     case "jev-lab":
       art = <><path d="M32 12v36M32 31 14 22M32 31l18-9" /><circle cx="32" cy="9" r="5" /><circle cx="13" cy="20" r="5" /><circle cx="51" cy="20" r="5" /><circle cx="32" cy="53" r="5" /></>;
       break;
-    case "harness-forge":
-      art = <><path d="m22 16-16 16 16 16m20-32 16 16-16 16M39 11 25 53" /></>;
-      break;
-    case "rsi-lab":
-      art = <><path d="M53 28a22 22 0 0 0-39-10l-5 7M11 17v10h10M11 36a22 22 0 0 0 39 10l5-7M53 47V37H43" /></>;
-      break;
-    case "founder-studio":
-      art = <><path d="M35 9H10v45h45V29M30 9h25v25M55 9 28 36" /></>;
-      break;
     case "dsh":
       art = <><path d="M32 5 54 18v28L32 59 10 46V18Z M32 5v15m22-2-13 8m13 20-13-8M32 59V44M10 46l13-8M10 18l13 8" /><circle cx="32" cy="32" r="11" /><circle cx="32" cy="32" r="3" /></>;
       break;

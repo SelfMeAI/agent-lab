@@ -4,7 +4,6 @@ import { LocalModelPage } from "./Page";
 export const localModelLab: LabModule = {
   id: "local-model-lab",
   title: "LOCAL MODEL LAB",
-  group: "runtimes",
   accent: "#c7d1de",
   symbol: "⬡",
   purpose: "通过 Ollama 测试和对照本地开源模型。",

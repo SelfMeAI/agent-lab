@@ -1,6 +1,0 @@
-Use case: ui-mockup / RSI Lab PROMOTE human review gate
-Edit target: output/imagegen/lab-ui/21-rsi-lab-evaluate.png
-
-Preserve the common shell and peer stage navigation; select PROMOTE, but keep its circle hollow because approval is pending. Show lineage from immutable Core Loop v0.3 through rejected c12-a to awaiting-review c12-b. Repeat exact baseline/candidate values (3/2, 6/6, approved/approved), list output diff, patch, and holdout trace for human inspection, and show an unchecked review confirmation. REJECT remains available; PROMOTE CANDIDATE is disabled until review. The candidate is not promoted and no quality verdict exists yet. A precision edit corrected the comparison table to single baseline and candidate values and changed the lineage label to LINEAGE.
-
-Generated and corrected with the built-in OpenAI image-generation tool; all records are fictional design content.

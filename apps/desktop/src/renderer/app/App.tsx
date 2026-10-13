@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties, type JSX } from "react";
 import type { AppInfo } from "../../../../../packages/contracts/src/index";
 import { isAgentRuntimeId } from "../../../../../packages/contracts/src/index";
 import { LabPage } from "../labs/LabPage";
-import { AtlasPage } from "../atlas/AtlasPage";
 import { HomePage } from "../shell/HomePage";
 import { SettingsPanel } from "../shell/SettingsPanel";
 import { TopBar } from "../shell/TopBar";
@@ -38,9 +37,9 @@ export function App(): JSX.Element {
 
   return (
     <div className={`app-shell${macDesktop ? " app-shell--mac" : ""}`} style={{ "--space-art": `url(${starfield})` } as CSSProperties}>
-      <TopBar inLab={Boolean(route.lab || route.atlas)} showSettings={agentWorkspace || jevView || localModelView} onBack={() => localModelView ? goHome() : route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
-      <div className={`app-viewport${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}${jevExperiment ? " app-viewport--jev-experiment" : ""}${localModelView ? " app-viewport--local-model" : ""}${remoteView ? " app-viewport--remote" : ""}`} key={`${route.atlas ? "atlas" : route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
-        {route.atlas ? <AtlasPage /> : route.lab ? <LabPage lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
+      <TopBar inLab={Boolean(route.lab)} showSettings={agentWorkspace || jevView || localModelView} onBack={() => localModelView ? goHome() : route.lab && route.viewId ? goToLab(route.lab.id) : goHome()} onOpenSettings={() => setSettingsOpen(true)} />
+      <div className={`app-viewport${!route.lab ? " app-viewport--home" : ""}${agentWorkspace ? " app-viewport--workspace" : ""}${jevWorkspace ? " app-viewport--jev-workspace" : ""}${jevExperiment ? " app-viewport--jev-experiment" : ""}${localModelView ? " app-viewport--local-model" : ""}${remoteView ? " app-viewport--remote" : ""}`} key={`${route.lab?.id ?? "home"}:${route.viewId ?? "index"}`}>
+        {route.lab ? <LabPage lab={route.lab} viewId={route.viewId} onOpenSettings={() => setSettingsOpen(true)} providerRevision={providerRevision} /> : <HomePage />}
       </div>
       {settingsOpen && (localModelView ? <LocalModelSettings onClose={() => setSettingsOpen(false)} /> : <SettingsPanel info={info} runtimeId={route.lab?.id === "agent-lab" ? route.viewId : jevView ? "jev" : undefined} onClose={() => setSettingsOpen(false)} onProviderSaved={() => setProviderRevision((value) => value + 1)} />)}
     </div>

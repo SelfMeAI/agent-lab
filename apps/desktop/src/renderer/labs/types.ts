@@ -10,5 +10,5 @@ export interface LabPageProps {
 
 export interface LabModule extends LabDefinition {
   purpose: string;
-  Page?: ComponentType<LabPageProps>;
+  Page: ComponentType<LabPageProps>;
 }

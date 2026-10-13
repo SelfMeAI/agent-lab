@@ -7,12 +7,7 @@ export type LabId =
   | "agent-lab"
   | "remote-agent-lab"
   | "local-model-lab"
-  | "jev-lab"
-  | "harness-forge"
-  | "rsi-lab"
-  | "founder-studio";
-
-export type LabGroup = "overviews" | "runtimes" | "engines";
+  | "jev-lab";
 
 export interface LabView {
   id: string;
@@ -24,7 +19,6 @@ export interface LabView {
 export interface LabDefinition {
   id: LabId;
   title: string;
-  group: LabGroup;
   accent: string;
   symbol: string;
   views: readonly LabView[];
