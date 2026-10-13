@@ -79,6 +79,11 @@ function applyEvent(snapshot: ConversationSnapshot, event: AgentSessionEvent): C
     entry.messageId === event.messageId && entry.deliveryMode
       ? { ...entry, deliveryState: event.deliveryState, deliveryDetail: event.text } : entry) };
   if (event.kind === "status" && event.raw && typeof event.raw === "object" && "sessionUpdate" in event.raw && event.raw.sessionUpdate === "usage_update") return snapshot;
+  // Previously persisted startup notices remain in the event log, but this
+  // explicitly enabled question feature should not add a card on every reopen.
+  if (event.runtimeId === "codex" && event.kind === "status" && !event.phase && event.title === "Codex 提示"
+    && event.text?.startsWith("Under-development features enabled: default_mode_request_user_input.")
+    && event.text.includes("suppress_unstable_features_warning")) return snapshot;
   if (event.kind === "status" && event.phase) {
     let entries = ["idle", "ready", "error", "cancelling"].includes(event.phase) ? snapshot.entries.filter(entry => entry.kind !== "approval") : snapshot.entries;
     if (event.phase === "ready" && snapshot.phase === "starting") entries = entries.map(entry => entry.kind === "error"

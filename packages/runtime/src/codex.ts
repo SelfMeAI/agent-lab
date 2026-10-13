@@ -111,6 +111,7 @@ export class CodexAdapter implements HarnessAdapter {
       'model_provider = "agent_lab"',
       'approval_policy = "on-request"',
       'sandbox_mode = "workspace-write"',
+      "suppress_unstable_features_warning = true",
       "",
       "[features]",
       "default_mode_request_user_input = true",

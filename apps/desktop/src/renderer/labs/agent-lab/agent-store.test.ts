@@ -16,6 +16,35 @@ function event(sessionId: string, eventIndex: number, extra: Partial<AgentSessio
 }
 
 describe("agent transcript updates", () => {
+  it("omits the known Codex question-feature startup notice live and on history replay without changing the stored events", () => {
+    const store = createAgentStore("codex");
+    store.setCatalog({ sessions: [{ ...session("a"), runtimeId: "codex" }], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    const warning = "Under-development features enabled: default_mode_request_user_input. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /old-profile/config.toml.";
+    const notice = event("a", 1, { runtimeId: "codex", source: "Codex", kind: "status", title: "Codex 提示", text: warning, raw: { message: warning } });
+    const message = event("a", 2, { runtimeId: "codex", source: "Codex", kind: "message", text: "工作完成" });
+    const original = JSON.stringify(notice);
+    store.ingest(notice); store.ingest(message);
+    expect(store.getSnapshot().entries.map(row => row.text)).toEqual(["工作完成"]);
+    store.loadHistory("a", [notice, message]);
+    expect(store.getSnapshot().entries.map(row => row.text)).toEqual(["工作完成"]);
+    expect(JSON.stringify(notice)).toBe(original);
+    expect(store.getSnapshot().phase).toBe("ready");
+  });
+  it("preserves other Codex warnings, real errors and quoted startup text in user or assistant messages", () => {
+    const store = createAgentStore("codex");
+    store.setCatalog({ sessions: [{ ...session("a"), runtimeId: "codex" }], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });
+    const warning = "Under-development features enabled: default_mode_request_user_input. To suppress this warning, set suppress_unstable_features_warning = true.";
+    const history = [
+      event("a", 1, { runtimeId: "codex", kind: "status", title: "Codex 提示", text: "配置项已弃用", raw: {} }),
+      event("a", 2, { runtimeId: "codex", kind: "status", title: "Codex 提示", text: warning.replace("default_mode_request_user_input.", "another_feature."), raw: {} }),
+      event("a", 3, { runtimeId: "codex", kind: "status", title: "Codex 提示", text: warning.replace("default_mode_request_user_input.", "default_mode_request_user_input, another_feature."), raw: {} }),
+      event("a", 4, { runtimeId: "codex", kind: "user", text: warning }),
+      event("a", 5, { runtimeId: "codex", kind: "message", text: warning }),
+      event("a", 6, { runtimeId: "codex", kind: "error", title: "Codex 提示", text: warning }),
+    ];
+    store.loadHistory("a", history);
+    expect(store.getSnapshot().entries.map(row => row.kind)).toEqual(["status", "status", "status", "user", "message", "error"]);
+  });
   it("retains old connection errors as history only after a successful reconnect, also on replay", () => {
     const store = createAgentStore("dsh");
     store.setCatalog({ sessions: [session("a"), session("b")], deletedSessions: [], selectedSessionId: "a", lastWorkspace: null });

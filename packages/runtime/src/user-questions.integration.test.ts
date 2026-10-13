@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
@@ -77,6 +77,12 @@ describe("real harness human-question round trips (Pi uses Agent Lab's SDK custo
     }
     try {
       await adapter.start(workspace);
+      if (id === "codex") {
+        const config = await readFile(join(homeDirectory, "config.toml"), "utf8");
+        expect(config).toMatch(/^suppress_unstable_features_warning = true$/m);
+        expect(config.indexOf("suppress_unstable_features_warning")).toBeLessThan(config.indexOf("[features]"));
+        expect(config).toMatch(/^default_mode_request_user_input = true$/m);
+      }
       const first = events.length; await adapter.send("先问我选择什么游戏和支持哪些平台，再根据答案继续。不要操作文件。");
       const asked = (await question(first)).approval!;
       expect(asked.questions).toHaveLength(id === "codex" ? 1 : 2);
@@ -103,6 +109,7 @@ describe("real harness human-question round trips (Pi uses Agent Lab's SDK custo
       const stopping = (await question(third)).approval!;
       await adapter.cancel(); await end(third);
       await expect(adapter.respondApproval(stopping.requestId, stopping.options[0].optionId, answers)).rejects.toThrow(/失效/);
+      if (id === "codex") expect(events.some(event => event.title === "Codex 提示" && event.text?.startsWith("Under-development features enabled:"))).toBe(false);
     } finally {
       await adapter.stop(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
       await rm(scratch, { recursive: true, force: true });
