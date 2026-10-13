@@ -67,7 +67,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 .app-shell--mac { --topbar-height: 52px; }
 .app-shell--mac .topbar { padding-left: 96px; }
 .app-shell--mac .brand { font-size: 15px; }
-.app-shell--mac .brand img { width: 29px; height: 29px; flex-basis: 29px; }
+.app-shell--mac .brand img { width: 39px; height: 28px; flex-basis: 39px; }
 
 .brand, .topbar-actions, .icon-button { -webkit-app-region: no-drag; }
 
@@ -86,7 +86,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   letter-spacing: .065em;
 }
 
-.brand img { display: block; width: 35px; height: 35px; max-height: calc(var(--topbar-height) - 24px); flex: 0 0 35px; object-fit: contain; }
+.brand img { display: block; width: 45px; height: 32px; max-height: calc(var(--topbar-height) - 24px); flex: 0 0 45px; object-fit: contain; }
 
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
 
@@ -243,7 +243,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   .topbar { padding: 0 18px; }
   .app-shell--mac .topbar { padding-left: 86px; }
   .brand { font-size: 15px; }
-  .brand img { width: 32px; height: 32px; flex-basis: 32px; }
+  .brand img { width: 39px; height: 28px; flex-basis: 39px; }
   .lab-grid { grid-template-columns: 1fr; }
   .lab-card { min-height: 124px; }
   .lab-card__copy strong { font-size: 18px; }
