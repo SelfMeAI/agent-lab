@@ -18,7 +18,8 @@ describe("private remote development deployment", () => {
       .toBe("[已隐藏] [已隐藏] token=[已隐藏] api_key: [已隐藏] normal log");
   });
   it("keeps the previous desktop deployment eligible for a volume-preserving upgrade", () => {
-    expect(remoteDeployments.openclaw.image).toBe("agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30");
+    expect(remoteDeployments.openclaw.image).toBe("agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab31");
+    expect(remoteDeployments.openclaw.legacyImages).toContain("agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab30");
     expect(remoteDeployments.openclaw.legacyImages).toContain("agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab26");
     expect(remoteDeployments.openclaw.legacyImages).toContain("agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab25");
     expect(remoteDeployments.openclaw.legacyImages).toContain("agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab24");

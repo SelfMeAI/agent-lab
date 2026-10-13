@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RemoteTaskSnapshot } from "../../../../../../packages/contracts/src/remote-agent";
-import { activeRemoteFailure, remoteFailureSummary, remoteTaskLabels } from "./task-presentation";
+import { activeRemoteFailure, remoteComposerHint, remoteFailureSummary, remoteTaskLabels } from "./task-presentation";
 
 const snapshot: RemoteTaskSnapshot = {
   task: { id: "task", title: "Task", status: "error", createdAt: "2026-10-10T03:00:00Z", updatedAt: "2026-10-10T04:00:00Z" }, connection: "connected",
@@ -8,6 +8,22 @@ const snapshot: RemoteTaskSnapshot = {
     { id: "user-new", role: "user", text: "New" }, { id: "new-failure", role: "assistant", text: "", failure: { message: "New", runId: "new" } }],
 };
 describe("remote interrupted-turn presentation", () => {
+  it("does not show a permanent explanation in a normal composer", () => {
+    expect(remoteComposerHint()).toBeUndefined();
+    for (const status of ["idle", "running", "waiting", "paused", "completed"] as const) {
+      expect(remoteComposerHint({ ...snapshot, task: { ...snapshot.task, status } })).toBeUndefined();
+    }
+  });
+  it("preserves connection, interrupted-turn and retained-input hints in their existing priority", () => {
+    const queue = { mode: "queue" as const, paused: true, revision: 1, items: [{ id: "input", text: "下一步", at: "2026-10-13T00:00:00Z", state: "queued" as const, files: [] }] };
+    expect(remoteComposerHint({ ...snapshot, connection: "reconnecting", queue })).toBe("正在同步远端状态");
+    expect(remoteComposerHint({ ...snapshot, connection: "disconnected" })).toBe("正在同步远端状态");
+    expect(remoteComposerHint({ ...snapshot, queue })).toBe("待发消息已保留 · 点击继续后发送");
+    expect(remoteComposerHint(snapshot)).toBe("本轮已中断 · 可以发送新要求或继续任务");
+    expect(remoteComposerHint({ ...snapshot, queue: { ...queue, items: [] } })).toBe("本轮已中断 · 可以发送新要求或继续任务");
+    expect(remoteComposerHint({ ...snapshot, task: { ...snapshot.task, status: "paused" }, queue: { ...queue, items: [] } })).toBe("可以发送新要求，或继续当前任务");
+    expect(remoteComposerHint({ ...snapshot, task: { ...snapshot.task, status: "running" }, queue: { ...queue, paused: false } })).toBeUndefined();
+  });
   it("explains the last execution, not an unusable session", () => {
     expect(remoteTaskLabels.error).toBe("本轮中断");
   });

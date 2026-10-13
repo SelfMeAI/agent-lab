@@ -22,6 +22,8 @@ describe("remote scene presentation", () => {
         expect(empty).not.toMatch(/远端现场|执行现场/);
         expect(empty).toContain("Preview<span> · 预览</span>");
         expect(empty).not.toContain(" · 产物");
+        expect(empty).not.toContain("人工终端");
+        if (engine === "openclaw") expect(empty).toContain("Terminal<span> · 终端</span>");
         const disconnected = renderToStaticMarkup(createElement(RemoteScene, { engine, taskId: "current-task", available: false }));
         expect(disconnected).toContain("连接远端服务后查看工作区");
         for (const label of engine === "openclaw" ? ["Desktop", "Terminal", "Files", "Preview"] : ["Browser", "Files", "Preview"]) expect(empty).toContain(label);

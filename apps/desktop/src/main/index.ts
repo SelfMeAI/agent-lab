@@ -235,8 +235,8 @@ void app.whenReady().then(async () => {
   ipcMain.handle("agent-lab:remote-task-preview", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.preview(engine, id, path); });
   ipcMain.handle("agent-lab:remote-task-download", (event, engine, id, path) => { taskClient(event, engine, id); return remoteTasks!.download(engine, id, path); });
   ipcMain.handle("agent-lab:remote-task-desktop", (event, engine, id) => { taskClient(event, engine, id); return remoteTasks!.desktop(engine, id); });
-  ipcMain.handle("agent-lab:remote-terminal-access", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入人工终端"); return remoteTasks!.claw.terminalAccess(id); });
-  const terminalClient = (event: IpcMainInvokeEvent, engine: unknown, id: unknown) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入人工终端"); return remoteTasks!.claw; };
+  ipcMain.handle("agent-lab:remote-terminal-access", (event, engine, id) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入交互终端"); return remoteTasks!.claw.terminalAccess(id); });
+  const terminalClient = (event: IpcMainInvokeEvent, engine: unknown, id: unknown) => { taskClient(event, engine, id); if (engine !== "openclaw") throw new Error("此引擎未接入交互终端"); return remoteTasks!.claw; };
   ipcMain.handle("agent-lab:remote-terminal-open", (event, engine, id) => terminalClient(event, engine, id).terminal(id));
   ipcMain.handle("agent-lab:remote-terminal-input", (event, engine, id, terminalId, data) => { const client = terminalClient(event, engine, id); if (typeof data !== "string" || data.length > 65_536) throw new Error("终端输入无效"); return client.terminalInput(id, terminalId, data); });
   ipcMain.handle("agent-lab:remote-terminal-resize", (event, engine, id, terminalId, cols, rows) => { const client = terminalClient(event, engine, id); if (![cols, rows].every(value => Number.isInteger(value) && value >= 2 && value <= 500)) throw new Error("终端尺寸无效"); return client.terminalResize(id, terminalId, cols, rows); });

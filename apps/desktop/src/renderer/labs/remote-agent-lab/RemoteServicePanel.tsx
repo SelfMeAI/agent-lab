@@ -125,7 +125,7 @@ export function RemoteServicePanel({ initialEngine, states, busy, errors, onCont
             </div>;
           })}</div>
           {confirm ? <div className="remote-confirm" role="alert"><p>{confirm.action === "stop" ? "停止" : "重启"} {remoteEngines[confirm.id].name} 会中断当前执行，服务端数据不会删除。</p><div><button type="button" className="remote-button" onClick={() => setConfirm(null)}>取消</button><button type="button" className="remote-button remote-button--danger" onClick={() => { const action = confirm; setConfirm(null); void onControl(action.id, action.action); }}>确认{confirm.action === "stop" ? "停止" : "重启"}</button></div></div>
-            : <p className="remote-panel__hint">ⓘ 停止或重启会影响当前任务，关闭应用不停止远端服务。</p>}
+            : <p className="remote-panel__hint">ⓘ 关闭应用不会停止服务。</p>}
           <section className="remote-model-section" aria-labelledby="remote-model-heading">
             <h3 id="remote-model-heading">模型连接</h3>
             <div className="remote-model-tabs" role="tablist" aria-label="选择服务的模型连接">{remoteAgentIds.map(id => <button type="button" key={id} role="tab" aria-selected={engine === id} disabled={saving} onClick={() => { if (engine !== id) { clearModels(); setEngine(id); } }}>{remoteEngines[id].name}</button>)}</div>

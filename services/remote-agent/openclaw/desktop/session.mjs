@@ -38,9 +38,13 @@ export function terminalViewPattern(task) {
   terminalIdentity(task);
   return '^' + process.execPath.replaceAll('.', '\\.') + ' /opt/agent-lab/desktop/terminal-attach\\.mjs ' + task + ' desktop$';
 }
+export function terminalWindowTitle(task) {
+  terminalIdentity(task);
+  return '终端 · ' + task.slice(0, 8);
+}
 export function terminalWindowArgv(task) {
   const identity = terminalIdentity(task);
-  return ['--disable-server', '--title', '人工终端 · ' + task.slice(0, 8), '--working-directory', identity.cwd, '--hide-menubar', '--hide-toolbar', '--geometry', '110x30', '--command', terminalArgv(task, true).join(' ')];
+  return ['--disable-server', '--title', terminalWindowTitle(task), '--working-directory', identity.cwd, '--hide-menubar', '--hide-toolbar', '--geometry', '110x30', '--command', terminalArgv(task, true).join(' ')];
 }
 async function setInputPresentation(name, access) {
   const current = name === 'agent-lab-' + access?.task;
@@ -93,7 +97,7 @@ async function terminalWindow(task) {
     if (String(error.stderr).includes('Cannot get client list properties')) return { stdout: '' };
     throw error;
   });
-  return stdout.split('\n').find(line => /人工终端/.test(line) && line.endsWith(' · ' + task.slice(0, 8)))?.split(/\s+/)[0];
+  return stdout.split('\n').find(line => line.endsWith(' ' + terminalWindowTitle(task)))?.split(/\s+/)[0];
 }
 /** Only an explicit desktop launcher opens or raises the terminal window. */
 export async function showTerminal(task) {
@@ -128,7 +132,7 @@ async function openTerminalWindow(task) {
 }
 export async function disposeTerminal(task) {
   const identity = terminalIdentity(task);
-  try { const { stdout } = await run('wmctrl', ['-l']); for (const line of stdout.split('\n')) if (/人工终端/.test(line) && line.endsWith(' · ' + task.slice(0, 8))) await run('wmctrl', ['-ic', line.split(/\s+/)[0]]); }
+  try { const { stdout } = await run('wmctrl', ['-l']); for (const line of stdout.split('\n')) if (line.endsWith(' ' + terminalWindowTitle(task))) await run('wmctrl', ['-ic', line.split(/\s+/)[0]]); }
   catch { /* The desktop may already have stopped. */ }
   try { await run('tmux', ['-S', socket, 'kill-session', '-t', identity.name]); }
   catch { /* Already closed, or container restarted. */ }

@@ -25,7 +25,6 @@
 .remote-task-delete { position: absolute; top: 8px; right: 3px; width: 21px; height: 21px; color: #879ba7; border: 0; background: #09131b; border-radius: 4px; opacity: 0; transition: opacity .15s; font-size: 18px; }
 .remote-task-row:hover .remote-task-delete, .remote-task-delete:focus-visible { opacity: 1; }
 .remote-task-delete:hover:not(:disabled) { color: #f5a399; }
-.remote-task-rail > footer { border-top: 1px solid #263c4666; padding: 11px 12px; font-size: 10px; color: #66818e; flex-shrink: 0; }
 .remote-conversation { position: relative; }
 .remote-conversation__heading h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .remote-task-label { color: #8da6b3; display: inline-flex; gap: 6px; align-items: center; font-size: 10px; white-space: nowrap; }

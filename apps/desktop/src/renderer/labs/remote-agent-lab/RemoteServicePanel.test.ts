@@ -10,6 +10,8 @@ describe("remote model connection settings", () => {
     const html = renderToStaticMarkup(createElement(RemoteServicePanel, { initialEngine, states: { openhands: state, openclaw: state }, busy: {}, errors: {}, onControl: async () => {}, onClose() {} }));
     expect(html).toContain("获取模型"); expect(html).toContain('id="remote-model-id"'); expect(html).toContain("输入模型 ID");
     expect(html).toContain("保存连接"); expect(html).toContain("图像能力"); expect(html).toContain("待确认"); expect(html).not.toContain('type="checkbox"'); expect(html).not.toContain("sk-");
+    expect(html.match(/关闭应用不会停止服务/g)).toHaveLength(1);
+    expect(html).not.toContain("关闭应用不停止远端服务");
   });
   it.each([
     ["https://api.deepseek.com", "deepseek-flash", "支持", "true"],

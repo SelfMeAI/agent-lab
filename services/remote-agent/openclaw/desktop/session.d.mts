@@ -5,6 +5,7 @@ export function terminalIdentity(task: unknown): Identity;
 export function checkedTask(task: string): Promise<Identity>;
 export function setDesktopTask(task: string): Promise<Identity>;
 export function terminalArgv(task: string, desktop?: boolean): string[];
+export function terminalWindowTitle(task: string): string;
 export function terminalWindowArgv(task: string): string[];
 export function terminalViewPattern(task: string): string;
 export function tmuxArgv(): string[];

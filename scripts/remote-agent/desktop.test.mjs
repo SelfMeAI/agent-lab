@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { configureDesktop } from '../../services/remote-agent/openclaw/desktop/configure.mjs';
-import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
+import { terminalIdentity, terminalArgv, terminalWindowArgv, terminalWindowTitle, terminalViewPattern, tmuxArgv } from '../../services/remote-agent/openclaw/desktop/session.mjs';
 import { simplifyPanelSource } from '../../services/remote-agent/openclaw/desktop/panel-menu.mjs';
 import { prepareDesktopHome } from '../../services/remote-agent/openclaw/bootstrap/persistent-home.mjs';
 const task = 'c0ec83da-66be-4f17-a2c2-01dc02c89f00';
@@ -39,6 +39,9 @@ test('the desktop terminal has one real shell attachment, not a projected agent 
   assert.doesNotMatch('xfce4-terminal --command ' + command, pattern);
   assert.doesNotMatch(command.replace(/ desktop$/, ' external'), pattern);
   const argv = terminalWindowArgv(task);
+  assert.equal(terminalWindowTitle(task), '终端 · c0ec83da');
+  assert.equal(argv[argv.indexOf('--title') + 1], terminalWindowTitle(task));
+  assert.throws(() => terminalWindowTitle(task + '; command'));
   assert.equal(argv.filter(value => value === '--command').length, 1);
   assert.ok(!argv.includes('--tab'));
   assert.ok(!argv.some(value => value.startsWith('--startup-id')));

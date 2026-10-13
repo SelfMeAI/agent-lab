@@ -136,7 +136,7 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/REATTACHED_retained\r?\n/);
           expect((await windowState()).active).toBe(focus);
           // Closing the GUI attachment must not kill or reopen the shared shell.
-          await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { execFileSync } from 'node:child_process';const id=process.argv[1];const row=execFileSync('wmctrl',['-l'],{encoding:'utf8'}).split('\\n').find(line=>line.endsWith('人工终端 · '+id.slice(0,8)));if(row)execFileSync('wmctrl',['-ic',row.split(/\\s+/)[0]]);", remoteTaskId(task.id)]);
+          await execDesktop("docker", ["exec", "-e", 'DISPLAY=' + scene.display, container.name, "node", "--input-type=module", "-e", "import { execFileSync } from 'node:child_process';const id=process.argv[1];const row=execFileSync('wmctrl',['-l'],{encoding:'utf8'}).split('\\n').find(line=>line.endsWith('终端 · '+id.slice(0,8)));if(row)execFileSync('wmctrl',['-ic',row.split(/\\s+/)[0]]);", remoteTaskId(task.id)]);
           await expect.poll(async () => (await windowState()).window, { timeout: 5000 }).toBe(false);
           await tasks.claw.terminalInput(task.id, reopened.id, "printf '\\nAFTER_GUI_CLOSE_%s\\n' \"$AGENT_LAB_SHARED_SHELL\"\r");
           await expect.poll(() => stripVTControlCharacters(terminalEvents.map(event => event.data ?? "").join("")), { timeout: 5000 }).toMatch(/AFTER_GUI_CLOSE_retained\r?\n/);
@@ -295,7 +295,7 @@ async function sharedTerminalOnDesktop(container: string, display: string, task:
       const task = process.argv[1], socket = '/home/node/.cache/agent-lab/terminal.sock';
       const clients = execFileSync('tmux', ['-S', socket, 'list-clients', '-t', 'agent-lab-' + task, '-F', '#{client_tty}'], {encoding:'utf8'}).trim().split('\\n');
       const windows = execFileSync('wmctrl', ['-l'], {encoding:'utf8'});
-      console.log(JSON.stringify({clients:clients.length, window:windows.includes('人工终端 · ' + task.slice(0,8))}));
+      console.log(JSON.stringify({clients:clients.length, window:windows.includes('终端 · ' + task.slice(0,8))}));
     `, task]);
     return JSON.parse(stdout);
   }, { timeout: 10_000 }).toMatchObject({ clients: 2, window: true });
@@ -307,7 +307,7 @@ async function desktopTerminalState(container: string, display: string, task: st
     import { execFileSync } from 'node:child_process';
     const task = process.argv[1];
     let listing = ''; try { listing = execFileSync('wmctrl', ['-l'], {encoding:'utf8',stdio:['ignore','pipe','pipe']}); } catch (error) { if (!String(error.stderr).includes('Cannot get client list properties')) throw error; }
-    const window = listing.split('\\n').find(line => /人工终端/.test(line) && line.endsWith(' · ' + task.slice(0,8)))?.split(/\\s+/)[0];
+    const window = listing.split('\\n').find(line => line.endsWith(' 终端 · ' + task.slice(0,8)))?.split(/\\s+/)[0];
     const active = execFileSync('xprop', ['-root', '_NET_ACTIVE_WINDOW'], {encoding:'utf8'}).trim();
     const visible = !!window && /Map State: IsViewable/.test(execFileSync('xwininfo', ['-id', window], {encoding:'utf8'}));
     const activeId = active.match(/0x[0-9a-f]+/i)?.[0];

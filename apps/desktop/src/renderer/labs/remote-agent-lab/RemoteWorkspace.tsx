@@ -8,7 +8,7 @@ import { RemotePendingInputs } from "./RemotePendingInputs";
 import { remoteError } from "./service-presentation";
 import { calendarDayKey, dateDividerLabel, exactTime, sessionTimeLabel } from "../agent-lab/conversation-time";
 import { observeTranscriptLayout } from "../agent-lab/transcript-layout";
-import { activeRemoteFailure, remoteTaskLabels } from "./task-presentation";
+import { activeRemoteFailure, remoteComposerHint, remoteTaskLabels } from "./task-presentation";
 import { mergeRemoteTaskCatalog, upsertRemoteTask } from "../../../../../../packages/remote-agent/src/task-order";
 import "./workspace.css";
 
@@ -29,6 +29,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
   const queuedSend = inputMode === "queue" && (busy || !!snapshot?.queue?.items.length);
   const failure = activeRemoteFailure(snapshot);
   const connectionLost = snapshot && snapshot.connection !== "connected";
+  const composerHint = remoteComposerHint(snapshot);
   const recovery: RemoteRecoveryActions = {
     disabled: !available || opening || acting || submitting || !!connectionLost,
     continueDisabled: !!prompt.trim() || !!files.length,
@@ -110,7 +111,6 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
     <aside className="remote-task-rail">
       <header><h2>任务</h2><button type="button" className="remote-icon-button" aria-label="新建远端任务" title="新建任务" disabled={!available || acting || opening} onClick={() => void create()}>+</button></header>
       <div className="remote-task-list">{tasks.map(task => <div key={task.id} className={`remote-task-row${selected === task.id ? " is-selected" : ""}`}><button type="button" className="remote-task-select" disabled={opening} onClick={() => void select(task.id)}><i className={`remote-task-dot is-${task.status}`} /><span><strong>{task.title}</strong><small>{remoteTaskLabels[task.status]}<time dateTime={task.updatedAt} title={exactTime(task.updatedAt) ?? undefined}>{sessionTimeLabel(task.updatedAt)}</time></small></span></button><button type="button" className="remote-task-delete" aria-label={`删除任务：${task.title}`} title="删除任务" disabled={acting || opening} onClick={() => void remove(task.id)}>×</button></div>)}{!tasks.length && <p className="remote-empty-note">新建任务，开始远端工作</p>}</div>
-      <footer>文件与任务保存在服务端</footer>
     </aside>
     <section className="remote-conversation"><header className="remote-conversation__heading"><h2 title={snapshot?.task.title}>{snapshot?.task.title ?? "远端任务"}</h2></header>
       <div ref={output} className="remote-transcript" onScroll={() => { const node = output.current!; follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 72; setAtBottom(follow.current); }}>
@@ -132,7 +132,7 @@ export function RemoteWorkspace({ engine, available, revision }: { engine: Remot
           <RemoteExecutionControl status={snapshot?.task.status} queuePaused={!!snapshot?.queue?.paused} disabled={acting || opening || submitting || !available || !!connectionLost} onControl={action => void run(() => bridge.controlRemoteTask(engine, selected, action))} />
           <button className="remote-send" type="submit" aria-label={queuedSend ? "Queue · 排队发送" : busy ? "Steer · 补充本轮" : "发送消息"} title={queuedSend ? "添加到待发区 · Enter 发送 · Shift+Enter 换行" : busy ? "补充当前轮 · Enter 发送 · Shift+Enter 换行" : "Enter 发送 · Shift+Enter 换行"} disabled={!snapshot || opening || acting || submitting || !available || (!prompt.trim() && !files.length)}>{submitting ? <span className="remote-spinner" /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="m3 10 18-7-7 18-3-8-8-3Z" /><path d="m11 13 10-10" /></svg>}</button>
         </div>
-        <small className={`remote-composer__hint${failure && !connectionLost ? " is-interrupted" : ""}`}>{connectionLost ? "正在同步远端状态" : snapshot?.queue?.paused && snapshot.queue.items.length ? "待发消息已保留 · 点击继续后发送" : failure ? "本轮已中断 · 可以发送新要求或继续任务" : snapshot?.queue?.paused ? "可以发送新要求，或继续当前任务" : "任务在远端执行 · 关闭应用不停止远端服务"}</small>
+        {composerHint && <small className={`remote-composer__hint${failure && !connectionLost ? " is-interrupted" : ""}`}>{composerHint}</small>}
       </form>
     </section>
     <RemoteScene key={selected || "empty"} engine={engine} taskId={selected} snapshot={snapshot} available={available && !opening} />

@@ -263,7 +263,7 @@ export default {
           assertCustody();
         };
         const assertInputPermission = () => {
-          if (activity.busy) throw new Error("智能体正在调用终端工具，人工终端暂不可输入；仍可查看输出");
+          if (activity.busy) throw new Error("智能体正在调用终端工具，终端暂不可输入；仍可查看输出");
         };
         assertInputPermission();
         assertInput();

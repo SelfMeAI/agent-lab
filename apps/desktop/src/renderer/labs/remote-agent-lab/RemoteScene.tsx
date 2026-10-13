@@ -12,7 +12,7 @@ import { isTerminalProtocolReply } from "../../../../../../packages/remote-agent
 import { remotePreviewKind } from "../../../../../../packages/remote-agent/src/file-preview";
 
 type Tab = "desktop" | "browser" | "terminal" | "files" | "preview";
-const tabLabels = { desktop: ["Desktop", "桌面"], browser: ["Browser", "浏览器"], terminal: ["Terminal", "人工终端"], files: ["Files", "文件"], preview: ["Preview", "预览"] };
+const tabLabels = { desktop: ["Desktop", "桌面"], browser: ["Browser", "浏览器"], terminal: ["Terminal", "终端"], files: ["Files", "文件"], preview: ["Preview", "预览"] };
 export function remoteFileSize(size: number): string { return size < 1024 ? size + " B" : size < 1024 * 1024 ? (size / 1024).toFixed(1) + " KB" : (size / 1024 / 1024).toFixed(1) + " MB"; }
 export function RemoteScene({ engine, taskId, snapshot, available }: { engine: RemoteAgentId; taskId: string; snapshot?: RemoteTaskSnapshot; available: boolean }): JSX.Element {
   const bridge = window.agentLab!;

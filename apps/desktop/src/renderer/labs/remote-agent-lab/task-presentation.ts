@@ -2,6 +2,15 @@ import type { RemoteFailure, RemoteItem, RemoteTaskSnapshot } from "../../../../
 
 export const remoteTaskLabels = { idle: "待命", running: "工作中", waiting: "待确认", paused: "已停止", completed: "已完成", error: "本轮中断" };
 
+/** Normal composition needs no permanent service explanation or reserved row. */
+export function remoteComposerHint(snapshot?: RemoteTaskSnapshot): string | undefined {
+  if (snapshot && snapshot.connection !== "connected") return "正在同步远端状态";
+  if (snapshot?.queue?.paused && snapshot.queue.items.length) return "待发消息已保留 · 点击继续后发送";
+  if (activeRemoteFailure(snapshot)) return "本轮已中断 · 可以发送新要求或继续任务";
+  if (snapshot?.queue?.paused) return "可以发送新要求，或继续当前任务";
+  return undefined;
+}
+
 /** Link recovery to the current native failure only; old failures remain history. */
 export function activeRemoteFailure(snapshot?: RemoteTaskSnapshot): { failure: RemoteFailure; itemId?: string } | undefined {
   if (!snapshot || snapshot.task.status !== "error") return;
