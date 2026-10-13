@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { ollamaExecutableRelativePath } from "../../../../runtimes/platform.mjs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { LocalModelStore, defaultLocalModelParameters } from "./local-model-store";
@@ -36,7 +37,7 @@ describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama rea
   it("pauses and cancels a real transfer, retries cached bytes, restores after restart, infers, deletes and re-downloads", async () => {
     const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true });
     const root = await mkdtemp(join(parent, "lifecycle-"));
-    const executable = process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama");
+    const executable = process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama", ollamaExecutableRelativePath());
     const model = "smollm2:135m-instruct-q4_K_M";
     let latest: LocalModelDownload | null = null, resumed = false;
     const resumedProgress: number[] = [], deltas: string[] = [];
@@ -96,7 +97,7 @@ describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama rea
 
   it.skipIf(process.env.RUN_HF_INTEGRATION !== "1")("downloads a public Hugging Face GGUF and runs it locally", async () => {
     const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true }); const root = await mkdtemp(join(parent, "hf-"));
-    const service = new LocalModelService(new LocalModelStore(root), process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama"), () => {});
+    const service = new LocalModelService(new LocalModelStore(root), process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama", ollamaExecutableRelativePath()), () => {});
     try {
       await service.init(); await service.pull("hf.co/LiquidAI/LFM2.5-350M-GGUF:Q4_0"); await waitForDownload(service);
       const installed = (await service.getState()).models[0]; expect(installed.name.toLowerCase()).toContain("lfm2.5-350m-gguf");
@@ -109,7 +110,7 @@ describe.skipIf(process.env.RUN_OLLAMA_INTEGRATION !== "1")("packaged Ollama rea
   it("downloads two models, streams independent experiments, compares, cancels, retries and reopens evidence", async () => {
     const parent = join(repositoryRoot, ".work/local-model-tests"); await mkdir(parent, { recursive: true }); const root = await mkdtemp(join(parent, "integration-"));
     const store = new LocalModelStore(root); const deltas: string[] = [];
-    const service = new LocalModelService(store, process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama/native/ollama"), (event) => { if (event.type === "run" && event.run.outputs[0].text) deltas.push(event.run.outputs[0].text); });
+    const service = new LocalModelService(store, process.env.OLLAMA_TEST_EXECUTABLE ?? join(repositoryRoot, "runtimes/ollama", ollamaExecutableRelativePath()), (event) => { if (event.type === "run" && event.run.outputs[0].text) deltas.push(event.run.outputs[0].text); });
     try {
       await service.init();
       await service.changeDirectory(join(homedir(), "Library/Application Support/Agent Lab/local-models"));

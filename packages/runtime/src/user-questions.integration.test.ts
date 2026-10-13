@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { executableName } from "../../../runtimes/platform.mjs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { RunEvent } from "../../contracts/src/index";
@@ -66,7 +67,7 @@ describe("real harness human-question round trips (Pi uses Agent Lab's SDK custo
     else if (id === "kimi-code") adapter = new KimiAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"), steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs") });
     else if (id === "dsh") adapter = new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
     else if (id === "pi") adapter = new PiAdapter({ homeDirectory, provider });
-    else adapter = new CodexAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "codex/bin/codex") });
+    else adapter = new CodexAdapter({ homeDirectory, provider, executable: join(runtimeRoot, "codex/bin", executableName("codex")) });
     adapter.onEvent(event => { events.push(event); if (event.kind === "error") errors.push(event.text ?? "Runtime error"); });
     async function question(after: number): Promise<RunEvent> {
       await vi.waitFor(() => { expect(errors).toEqual([]); expect(events.slice(after).some(e => e.approval?.questions !== undefined), JSON.stringify({ turn, requests: requests.length, lastInput: JSON.stringify(requests.at(-1)?.input ?? []).slice(-1800), events: events.slice(after).map(e => ({ kind: e.kind, phase: e.phase, text: e.text?.slice(0, 300), title: e.title, approval: e.approval })) })).toBe(true); }, { timeout: 6000 });

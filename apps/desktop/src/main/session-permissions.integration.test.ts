@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { executableName } from "../../../../runtimes/platform.mjs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRuntimeId, AgentSessionEvent } from "../../../../packages/contracts/src/index";
@@ -64,7 +65,7 @@ describe("real native session approval lifetime", () => {
       const homeDirectory = join(scratch, "homes", sid), permissions = repository.permissionStore(sid);
       if (id === "claude-code") return new ClaudeAdapter({ homeDirectory, provider, permissions, executable: join(runtimeRoot, "claude/bin/claude") });
       if (id === "pi") return new PiAdapter({ homeDirectory, provider, permissions });
-      if (id === "codex") return new CodexAdapter({ homeDirectory, provider, permissions, executable: join(runtimeRoot, "codex/bin/codex") });
+      if (id === "codex") return new CodexAdapter({ homeDirectory, provider, permissions, executable: join(runtimeRoot, "codex/bin", executableName("codex")) });
       if (id === "dsh") return new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
       if (id === "qwen-code") return new QwenAdapter({ homeDirectory: prepareQwenTestHome(homeDirectory), provider, permissions, nodeExecutable, entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js") });
       return new KimiAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "kimi-code/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"), steeringLoader: join(runtimeRoot, "kimi-code/steering-loader.mjs") });

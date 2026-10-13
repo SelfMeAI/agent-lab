@@ -3,12 +3,18 @@
   "tag": "rust-v0.153.4",
   "commit": "3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
   "version": "0.153.4",
-  "target": "darwin-arm64",
-  "sha256": {
-    "bin/codex": "11162e0504bf5eb70318cc982aded871e8a0c9bf97fe784d08eb69426c65f3e5",
-    "bin/codex-code-mode-host": "80f2a8c426b189593d0181d64e32d5c60ee684879cf78d99d4808d70a3af4ab8",
-    "codex-resources/codex-code-mode-host": "80f2a8c426b189593d0181d64e32d5c60ee684879cf78d99d4808d70a3af4ab8",
-    "codex-path/rg": "6ef40346bf31fcce79d9614c7745c198542925a0c7d4911e1ffe794c53392ac1"
+  "rustToolchain": "1.95.0",
+  "v8": {
+    "version": "150.4.0",
+    "profile": "ptrcomp_sandbox_release",
+    "artifacts": {
+      "aarch64-apple-darwin": { "archive": "00adbb48798848c77550441c68673a5e8529b8e1b73eabcdee232cb39b40f4a1", "binding": "ca5adf0cf89c9a70ad460ae73648b2fe89b74aa113b3cb7f757b6a02b758394f" },
+      "x86_64-apple-darwin": { "archive": "e0d9bb64e8b3a034c2930c83972f3f35760211148342fa0407b38250ef330856", "binding": "ca5adf0cf89c9a70ad460ae73648b2fe89b74aa113b3cb7f757b6a02b758394f" },
+      "x86_64-pc-windows-msvc": { "archive": "732ec5da4243aa166799780c8519a5eea6f32f6e47657a323342794dc3c239d6", "binding": "dabf78ba1faac127660db9862b1d0354175c71b8db2d4fcb5bacbd9c93576b16" },
+      "aarch64-pc-windows-msvc": { "archive": "54722842af36b74248c403ff531254efac6ff65d281198bab0c6350fc1188ad4", "binding": "dabf78ba1faac127660db9862b1d0354175c71b8db2d4fcb5bacbd9c93576b16" },
+      "x86_64-unknown-linux-gnu": { "archive": "a35c75d1f26e6a983885a45b33490a4ebe54f05050568b32b89cfb421b30b583", "binding": "7727826ae479bdb645e807239fb12d1f8e2e23de7a6cf16f5ee592690d1d8506" },
+      "aarch64-unknown-linux-gnu": { "archive": "d1517eed405468537029b005d5fe997ec74d5c8d351f916b3a6df20b7d2811ba", "binding": "7727826ae479bdb645e807239fb12d1f8e2e23de7a6cf16f5ee592690d1d8506" }
+    }
   },
-  "origin": "Built from the official source tree by the previous Native Lab project; binary hashes are checked during migration."
+  "notes": "Compile Codex and its Code Mode host from this pinned official source. V8 archive/bindings use the same checksummed official artifacts as upstream release builds. Generated per-host hashes live in build-receipt.json, not in this source lock. The release-tag workspace-version-only Cargo.lock normalization is deterministic; registry dependencies remain guarded by cargo --locked."
 }

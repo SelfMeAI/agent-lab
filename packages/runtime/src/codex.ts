@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { executableName } from "../../../runtimes/platform.mjs";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, join, delimiter } from "node:path";
@@ -73,7 +74,7 @@ export class CodexAdapter implements HarnessAdapter {
   async probe(): Promise<RuntimeStatus> {
     try {
       await access(this.options.executable);
-      await access(join(dirname(dirname(this.options.executable)), "codex-resources", "codex-code-mode-host"));
+      await access(join(dirname(dirname(this.options.executable)), "codex-resources", executableName("codex-code-mode-host")));
       return { id: this.id, label: this.label, availability: "ready", detail: "项目内编译的 Codex app-server" };
     } catch {
       return { id: this.id, label: this.label, availability: "missing", detail: "项目内 Codex 运行时尚未准备好" };

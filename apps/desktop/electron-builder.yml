@@ -1,5 +1,6 @@
 appId: ai.agent-lab.desktop
 productName: Agent Lab
+artifactName: Agent-Lab-${version}-${os}-${arch}.${ext}
 directories:
   output: ../../release
 files:
@@ -7,6 +8,14 @@ files:
   - package.json
   - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**/*"
 extraResources:
+  - from: ../../assets/brand/agent-lab-app-icon.png
+    to: brand/agent-lab-app-icon.png
+  - from: ../../LICENSE
+    to: licenses/Agent-Lab-LICENSE
+  - from: ../../NOTICE
+    to: licenses/Agent-Lab-NOTICE
+  - from: ../../THIRD_PARTY_NOTICES.txt
+    to: licenses/THIRD_PARTY_NOTICES.txt
   - from: ../../runtimes/ollama
     to: ollama
     filter:
@@ -52,4 +61,22 @@ mac:
   icon: ../../assets/brand/agent-lab-app-icon.png
   identity: null
   target:
-    - dir
+    - dmg
+    - zip
+win:
+  icon: ../../assets/brand/agent-lab-app-icon.png
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+linux:
+  icon: ../../assets/brand/agent-lab-app-icon.png
+  category: Development
+  executableName: agent-lab
+  target:
+    - AppImage
+    - deb

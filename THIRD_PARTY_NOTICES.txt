@@ -1,0 +1,97 @@
+Agent Lab — Third-party software and services
+============================================
+
+The Apache License 2.0 for Agent Lab covers this repository's original code.
+It does not replace the licenses or service terms of the components below.
+Names and logos identify integrations; no affiliation or endorsement is implied.
+
+Local agent integrations
+------------------------
+DSH 0.1.2-alpha.5 — MIT
+https://github.com/deepseek-ai/deepseek-harness
+Restored from pinned npm dependencies in runtimes/dsh/package-lock.json.
+The steering loader applies Agent Lab integration changes in memory; upstream
+package files and license notices remain intact.
+
+Codex 0.153.4 — Apache-2.0, with upstream NOTICE and third-party components
+https://github.com/openai/codex
+See runtimes/codex/UPSTREAM-LICENSE and UPSTREAM-NOTICE. The CLI, Code Mode host
+and platform helper executables are built from the locked official source.
+V8 150.4.0 archive/bindings are pinned official Codex release dependencies.
+Ripgrep is supplied by the pinned @vscode/ripgrep platform package; its upstream
+MIT/Unlicense notices are preserved in the prepared runtime.
+
+Pi coding agent 0.87.1 — MIT
+https://github.com/earendil-works/pi
+Used as an SDK dependency; its package and dependency notices accompany it.
+
+Kimi Code 2.1.1 — MIT
+https://github.com/MoonshotAI/kimi-code
+Restored from pinned npm dependencies. The Agent Lab steering loader applies
+integration changes in memory; upstream package notices are preserved.
+
+Qwen Code 0.24.6 — Apache-2.0
+https://github.com/QwenLM/qwen-code
+Restored from pinned npm dependencies; upstream package notices are preserved.
+
+Claude Agent SDK 0.3.283 / Claude Code executable 2.1.283 — Anthropic terms
+https://code.claude.com/docs/en/agent-sdk/overview#license-and-terms
+https://code.claude.com/docs/en/legal-and-compliance
+This executable is NOT open-source Agent Lab code. It is obtained unchanged
+from official SDK platform packages. See runtimes/claude/LICENSE.md. Use and
+redistribution remain subject to Anthropic's applicable terms. Users supply
+their own eligible connection and credentials; Agent Lab does not grant access
+to, resell or sublicense any third-party model service.
+
+Local model runtime
+-------------------
+Ollama 0.35.0 — MIT, with bundled third-party components
+https://github.com/ollama/ollama
+Official platform archives and SHA-256 digests are recorded in
+runtimes/ollama/runtime.json. All included license/notice files remain in the
+archive's original layout. Downloaded model weights have their own individual
+licenses and are not included in this repository or desktop installer.
+
+Self-deployed remote agents
+--------------------------
+OpenHands Software Agent SDK 1.53.0 — MIT
+https://github.com/OpenHands/software-agent-sdk
+The runtime image is built from the pinned SDK commit. The separately locked
+OpenHands app source is optional reference material; it is not the image used
+by Agent Lab. Upstream image/source notices continue to apply.
+
+OpenClaw 2026.9.9 — MIT
+https://github.com/openclaw/openclaw
+The service image is built from the pinned gateway commit plus Agent Lab's
+own deployment layer. Upstream notices continue to apply.
+
+Gotenberg 8.34.0 — MIT, with bundled third-party components
+https://github.com/gotenberg/gotenberg
+Pinned official image/digest in services/remote-agent/document-preview/service.json.
+LibreOffice, Chromium, Xfce, GNU utilities and other packages in the service
+images retain their own licenses. Container builds preserve their installed
+copyright/license files; desktop installers do not embed these images.
+
+JEV
+---
+Agent Lab's JEV experiments call an external TypeSafe decision API.
+The remote model/service is not included or relicensed by Agent Lab.
+Access, pricing and use are governed by the service provider's terms.
+The xiangqi rules library @weshell/xiangqi.js 1.0.3 is BSD-2-Clause.
+https://github.com/west-shell/xiangqi.js
+
+Application dependencies
+------------------------
+Electron, React, React DOM, TypeScript, Vite, electron-vite, xterm.js, noVNC,
+diff, react-markdown, remark-gfm and TypeBox retain their respective licenses.
+Versioned dependency trees are recorded in the committed package-lock.json
+files. Individual LICENSE/NOTICE files included in installed packages remain
+applicable. This overview is not a replacement for their full notices.
+
+Source-cache policy
+-------------------
+Upstream source, installed packages, runtime binaries and downloaded models
+are not committed to Git. Locks, integration code and restoration scripts are.
+When distributing modified components, keep their original notices and comply
+with their specific licenses. A model or service's availability is not a grant
+of redistribution rights to its weights, branding, credentials or service.

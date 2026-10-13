@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access } from "node:fs/promises";
+import { constants } from "node:fs";
+import { dockerCliCandidates } from "../../../../../runtimes/platform.mjs";
 import type { RemoteAgentId, RemoteServiceState } from "../../../../../packages/contracts/src/remote-agent";
 import { GatewayRequestError, openClawRpc } from "../../../../../packages/remote-agent/src/openclaw/gateway";
 import type { RemoteCredentials } from "./credentials";
@@ -74,15 +76,15 @@ export class RemoteAgentContainer {
 
   private async binary(): Promise<string> {
     if (this.docker) return this.docker;
-    for (const candidate of ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", "/Applications/Docker.app/Contents/Resources/bin/docker"]) {
-      try { await access(candidate); this.docker = candidate; return candidate; } catch { /* next supported location */ }
+    for (const candidate of dockerCliCandidates()) {
+      try { await access(candidate, process.platform === "win32" ? constants.F_OK : constants.X_OK); this.docker = candidate; return candidate; } catch { /* next supported location */ }
     }
-    throw new Error("未找到 Docker，请安装并启动 Docker Desktop");
+    throw new Error("未找到 Docker，请安装并启动 Docker Desktop 或 Docker Engine");
   }
   private async command(args: string[], env?: NodeJS.ProcessEnv, timeout = 30_000, includeStderr = false): Promise<string> {
     const executable = await this.binary();
     return new Promise((resolve, reject) => {
-      const child = spawn(executable, args, { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(executable, args, { env: { ...process.env, ...env }, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
       let stdout = ""; let stderr = ""; let combined = "";
       const timer = setTimeout(() => { child.kill(); reject(new Error("Docker 操作超时，请查看服务日志")); }, timeout);
       child.stdout.on("data", (value: Buffer) => { stdout = (stdout + value.toString()).slice(-128_000); combined = (combined + value.toString()).slice(-128_000); });

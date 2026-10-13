@@ -2,17 +2,22 @@
   "name": "agent-lab",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "workspaces": [
     "apps/desktop",
     "packages/*"
   ],
   "scripts": {
     "postinstall": "node scripts/ensure-dsh-runtime.mjs",
-    "predev": "node scripts/ensure-dsh-runtime.mjs && node scripts/ensure-kimi-runtime.mjs && node scripts/ensure-qwen-runtime.mjs && node scripts/ensure-claude-runtime.mjs && node scripts/ensure-ollama-runtime.mjs",
+    "predev": "node scripts/prepare-runtimes.mjs",
     "dev": "npm run dev --workspace @agent-lab/desktop",
     "build": "npm run build --workspace @agent-lab/desktop",
     "typecheck": "npm run typecheck --workspace @agent-lab/desktop",
     "test": "npm run test --workspace @agent-lab/desktop",
+    "test:scripts": "node --test scripts/lib/*.test.mjs scripts/*.test.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "check:source": "node scripts/check-source.mjs",
+    "prepare:runtimes": "node scripts/prepare-runtimes.mjs",
     "verify:codex": "node scripts/verify-codex-runtime.mjs",
     "build:codex": "node scripts/build-codex-runtime.mjs",
     "ensure:kimi": "node scripts/ensure-kimi-runtime.mjs",
@@ -23,10 +28,13 @@
     "remote:build": "node scripts/remote-agent/build.mjs",
     "remote:probe": "node scripts/remote-agent/probe.mjs",
     "test:remote": "node --test scripts/remote-agent/*.test.mjs",
-    "prepackage:mac": "node scripts/ensure-dsh-runtime.mjs && node scripts/verify-codex-runtime.mjs && node scripts/ensure-kimi-runtime.mjs && node scripts/ensure-qwen-runtime.mjs && node scripts/ensure-claude-runtime.mjs && node scripts/ensure-ollama-runtime.mjs",
-    "package:mac": "npm run package:mac --workspace @agent-lab/desktop"
+    "package": "node scripts/package-desktop.mjs",
+    "package:dir": "node scripts/package-desktop.mjs --dir",
+    "package:mac": "node scripts/package-desktop.mjs --platform mac",
+    "package:win": "node scripts/package-desktop.mjs --platform win",
+    "package:linux": "node scripts/package-desktop.mjs --platform linux"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.19.0"
   }
 }

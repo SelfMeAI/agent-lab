@@ -12,7 +12,7 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "package:mac": "npm run build && node ../../scripts/clean-mac-output.mjs before && electron-builder --mac --dir && node ../../scripts/clean-mac-output.mjs after"
+    "package": "node ../../scripts/package-desktop.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.283",

@@ -38,6 +38,8 @@ import type { RemoteCredentials } from "./remote-agent/credentials";
 import { applicationIdentity, applicationName } from "./application-identity";
 import { applicationMenuTemplate } from "./application-menu";
 import { labOpenClawTaskId } from "../../../../packages/remote-agent/src/identity";
+import { executableName, ollamaExecutableRelativePath } from "../../../../runtimes/platform.mjs";
+import { encryptCredential } from "./credential-encryption";
 
 let mainWindow: BrowserWindow | null = null;
 let sessions: AgentSessionController | null = null;
@@ -79,6 +81,7 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: "#070b10",
+    icon: app.isPackaged ? join(process.resourcesPath, "brand/agent-lab-app-icon.png") : join(__dirname, "../../../../assets/brand/agent-lab-app-icon.png"),
     show: false,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -121,14 +124,12 @@ function makeAdapter(runtimeId: AgentRuntimeId, sessionId: string): HarnessAdapt
     steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs"),
   });
   if (runtimeId === "codex") return new CodexAdapter({
-    executable: app.isPackaged
-      ? join(process.resourcesPath, "codex", "bin", "codex")
-      : join(__dirname, "../../../../runtimes/codex/bin/codex"),
+    executable: join(runtimeRoot, "codex", "bin", executableName("codex")),
     homeDirectory, provider: getCodexProvider, permissions,
   });
   if (runtimeId === "pi") return new PiAdapter({ homeDirectory, provider: getPiProvider, permissions });
   if (runtimeId === "claude-code") return new ClaudeAdapter({
-    executable: join(runtimeRoot, "claude", "bin", process.platform === "win32" ? "claude.exe" : "claude"),
+    executable: join(runtimeRoot, "claude", "bin", executableName("claude")),
     homeDirectory, provider: getClaudeProvider,
     permissions,
   });
@@ -155,7 +156,7 @@ void app.whenReady().then(async () => {
   await sessionRepository.init(appConfig.getLegacyFollowUpMode());
   await appConfig.clearLegacyFollowUpMode();
   const runtimeRoot = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../../runtimes");
-  localModels = new LocalModelService(new LocalModelStore(root), join(runtimeRoot, "ollama/native/ollama"),
+  localModels = new LocalModelService(new LocalModelStore(root), join(runtimeRoot, "ollama", ollamaExecutableRelativePath()),
     (event) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("agent-lab:local-model-event", event); }, undefined,
     () => session.defaultSession.resolveProxy("https://huggingface.co"), electronModelMetadataFetch);
   await localModels.init();
@@ -165,10 +166,7 @@ void app.whenReady().then(async () => {
   const remoteConnections = {} as Record<RemoteAgentId, { endpoint(): Promise<string>; credentials(): Promise<RemoteCredentials>; ensureDocumentPreview(): Promise<void> }>;
   const remoteServices = Object.fromEntries((["openhands", "openclaw"] as const).map(engine => {
     const credentials = new RemoteServiceCredentials(join(root, "remote-agent", "connections"), {
-      encrypt: async (value) => {
-        if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未创建服务凭据");
-        return safeStorage.encryptStringAsync(value);
-      },
+      encrypt: async (value) => encryptCredential(value, "系统凭据加密暂不可用，未创建服务凭据"),
       decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
     }, engine);
     const container = new RemoteAgentContainer(root, () => credentials.get(), engine);

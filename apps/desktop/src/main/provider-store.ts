@@ -1,4 +1,5 @@
 import { app, safeStorage } from "electron";
+import { encryptCredential } from "./credential-encryption";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -75,8 +76,7 @@ export async function saveDshProvider(input: { baseUrl: string; model?: string; 
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey && !process.env.DEEPSEEK_API_KEY?.trim()) throw new Error("请填写 API Key");
   const path = providerPath();
@@ -135,8 +135,7 @@ export async function saveCodexProvider(input: { baseUrl: string; model?: string
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 Codex API Key");
   const path = codexProviderPath();
@@ -185,8 +184,7 @@ export async function saveClaudeProvider(input: { baseUrl: string; model?: strin
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 Claude API Key");
   const path = join(app.getPath("userData"), "claude-provider.json");
@@ -243,8 +241,7 @@ export async function savePiProvider(input: { baseUrl: string; model?: string; a
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 Pi API Key");
   await writePiProvider({ baseUrl, model, encryptedApiKey });
@@ -309,8 +306,7 @@ export async function saveKimiProvider(input: { baseUrl: string; model?: string;
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 Kimi Code API Key");
   await writeKimiProvider({ baseUrl, model, encryptedApiKey });
@@ -362,8 +358,7 @@ export async function saveQwenProvider(input: { baseUrl: string; model?: string;
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 Qwen Code API Key");
   await writeQwenProvider({ baseUrl, model, encryptedApiKey });
@@ -415,8 +410,7 @@ export async function saveJevProvider(input: { baseUrl: string; model?: string; 
   let encryptedApiKey = previous.encryptedApiKey;
   if (apiKey) {
     if (apiKey.length > 4096 || /[\r\n\0]/u.test(apiKey)) throw new Error("API Key 格式无效");
-    if (!(await safeStorage.isAsyncEncryptionAvailable())) throw new Error("系统凭据加密暂不可用，未保存 API Key");
-    encryptedApiKey = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
+    encryptedApiKey = (await encryptCredential(apiKey)).toString("base64");
   }
   if (!encryptedApiKey) throw new Error("请填写 JEV API Key");
   const path = jevProviderPath();

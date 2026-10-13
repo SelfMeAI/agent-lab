@@ -1,0 +1,70 @@
+name: Native desktop packages
+
+# Heavyweight builds are opt-in. No secrets, auto-publishing or macOS/Windows
+# signing are configured; uploaded artifacts are CI test packages only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: mac
+          - os: macos-15-intel
+            platform: mac
+          - os: windows-2022
+            platform: win
+          - os: ubuntu-24.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Linux native build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev zstd
+      - name: Windows MSVC environment
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual Studio C++ Build Tools not found' }
+          Import-Module (Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          foreach ($name in @('PATH', 'INCLUDE', 'LIB', 'LIBPATH')) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal
+      - run: npm ci --no-audit --no-fund
+      - run: npm run prepare:runtimes
+      - run: npm run doctor -- --scope codex
+      - run: npm run build:codex -- --jobs 2
+      - run: npm run verify:codex
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package -- --platform ${{ matrix.platform }}
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: Agent-Lab-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+          retention-days: 14

@@ -9,6 +9,8 @@ vi.mock("electron", () => ({
   app: { getPath: () => state.userData },
   safeStorage: {
     isAsyncEncryptionAvailable: async () => true,
+    isEncryptionAvailable: () => true,
+    getSelectedStorageBackend: () => "gnome_libsecret",
     encryptStringAsync: async (value: string) => Buffer.from(`test-encrypted:${value}`),
     decryptStringAsync: async (value: Buffer) => ({ result: value.toString().replace(/^test-encrypted:/u, "") }),
   },

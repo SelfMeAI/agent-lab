@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { chat, responses, shellTool, prepareQwenTestHome, type Obj } from "./test-support/mock-model";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { executableName } from "../../../runtimes/platform.mjs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "../../contracts/src/index";
@@ -53,7 +54,7 @@ describe("real bundled harnesses: mid-turn steering", () => {
     const port = (server.address() as { port: number }).port;
     const provider = async () => ({ baseUrl: `http://127.0.0.1:${port}/v1`, model: "deepseek-v4-flash", apiKey: "sk-local-steering-check" });
     const homeDirectory = join(scratch, "home");
-    if (id === "codex") adapter = new CodexAdapter({ homeDirectory, executable: join(runtimeRoot, "codex/bin/codex"), provider });
+    if (id === "codex") adapter = new CodexAdapter({ homeDirectory, executable: join(runtimeRoot, "codex/bin", executableName("codex")), provider });
     else if (id === "pi") adapter = new PiAdapter({ homeDirectory, provider });
     else if (id === "dsh") adapter = new DshAdapter({ homeDirectory, provider, nodeExecutable, entryPoint: join(runtimeRoot, "dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"), steeringLoader: join(runtimeRoot, "dsh/steering-loader.mjs") });
     else if (id === "qwen-code") adapter = new QwenAdapter({ homeDirectory: prepareQwenTestHome(homeDirectory), provider, nodeExecutable, entryPoint: join(runtimeRoot, "qwen-code/node_modules/@qwen-code/qwen-code/cli-entry.js") });

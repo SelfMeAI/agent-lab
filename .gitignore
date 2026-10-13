@@ -4,6 +4,8 @@ runtimes/claude/bin/
 runtimes/ollama/native/
 runtimes/codex/codex-resources/
 runtimes/codex/codex-path/
+runtimes/codex/codex-package.json
+runtimes/codex/build-receipt.json
 runtimes/kimi-code/bin/
 services/remote-agent/*/upstream/
 .cache/
@@ -20,3 +22,15 @@ output/playwright/
 !.env.example
 *.log
 __pycache__/
+
+# Personal state / model weights never belong in the source repository.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+*.gguf
+*.safetensors
+*.pem
+*.key

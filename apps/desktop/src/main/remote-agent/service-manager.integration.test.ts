@@ -156,12 +156,15 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
           await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
           expect(snapshot()!.items.find(item => item.approval)!.approval).toMatchObject({ canAlways: true, allowedDecisions: ["once", "always", "reject"] });
           await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "always");
-          await expect.poll(commandText, { timeout: 10_000 }).toContain("NATIVE_EXEC_BEGIN");
-          expect((await tasks.claw.terminalAccess(native.id)).busy).toBe(true);
+          // Native stdout may be delivered with the completed tool result.
+          // Observe the running boundary directly, before waiting for output;
+          // otherwise a successful short command creates a timing-dependent fail.
+          await expect.poll(async () => (await tasks.claw.terminalAccess(native.id)).busy, { timeout: 10_000 }).toBe(true);
           expect(await sharedTerminalStatus(container.name, remoteTaskId(native.id))).toBe("on");
           const during = await tasks.claw.desktop(native.id); expect(during.control).toBe(true);
           expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
           await expect.poll(() => snapshot()?.task.status, { timeout: 20_000 }).toBe("completed");
+          expect(commandText()).toContain("NATIVE_EXEC_BEGIN");
           expect(commandText()).toContain("NATIVE_EXEC_END");
           await expect.poll(() => sharedTerminalStatus(container.name, remoteTaskId(native.id)), { timeout: 5000 }).toBe("off");
           expect((await desktopTerminalState(container.name, scene.display, remoteTaskId(native.id))).window).toBe(false);
