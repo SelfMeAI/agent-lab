@@ -11,7 +11,7 @@ export async function prepareRuntimes(args = []) {
   const target = requireNativeTarget();
   if (!supportsNode(process.versions.node)) throw new Error("需要 Node.js >=22.19.0，推荐 24 LTS");
   console.log(`准备桌面运行时 · ${target.key}`);
-  for (const script of ["ensure-dsh-runtime.mjs", "ensure-kimi-runtime.mjs", "ensure-qwen-runtime.mjs", "ensure-claude-runtime.mjs", "ensure-ollama-runtime.mjs"]) {
+  for (const script of ["ensure-dsh-runtime.mjs", "ensure-pi-dependencies.mjs", "ensure-kimi-runtime.mjs", "ensure-qwen-runtime.mjs", "ensure-claude-runtime.mjs", "ensure-ollama-runtime.mjs"]) {
     await run(process.execPath, [join(root, "scripts", script)], { cwd: root, timeout: 0 });
   }
   if (args.includes("--codex") || args.includes("--verify-codex")) {

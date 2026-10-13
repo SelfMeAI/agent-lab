@@ -17,7 +17,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "node scripts/ensure-dsh-runtime.mjs",
+    "postinstall": "node scripts/ensure-dsh-runtime.mjs && node scripts/ensure-pi-dependencies.mjs",
     "predev": "node scripts/prepare-runtimes.mjs",
     "dev": "npm run dev --workspace @agent-lab/desktop",
     "build": "npm run build --workspace @agent-lab/desktop",

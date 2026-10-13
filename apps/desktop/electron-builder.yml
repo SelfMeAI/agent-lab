@@ -64,6 +64,8 @@ mac:
   target:
     - dmg
     - zip
+dmg:
+  writeUpdateInfo: false
 win:
   icon: ../../assets/brand/agent-lab-app-icon.png
   target:
@@ -80,4 +82,3 @@ linux:
   executableName: agent-lab
   target:
     - AppImage
-    - deb

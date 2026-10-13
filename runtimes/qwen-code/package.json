@@ -5,6 +5,9 @@
   "allowScripts": {
     "@qwen-code/audio-capture@0.24.6": true
   },
+  "overrides": {
+    "sharp": "0.35.5"
+  },
   "dependencies": {
     "@qwen-code/qwen-code": "0.24.6"
   }

@@ -24,6 +24,9 @@ MIT/Unlicense notices are preserved in the prepared runtime.
 Pi coding agent 0.87.1 — MIT
 https://github.com/earendil-works/pi
 Used as an SDK dependency; its package and dependency notices accompany it.
+Agent Lab's restore script replaces the shrinkwrapped brace-expansion 5.0.9
+dependency with the SRI-verified official 5.0.12 patch, preserving its MIT
+license. Pi's own SDK code and version remain unchanged.
 
 Kimi Code 2.1.1 — MIT
 https://github.com/MoonshotAI/kimi-code

@@ -65,6 +65,5 @@ jobs:
             release/*.zip
             release/*.exe
             release/*.AppImage
-            release/*.deb
           if-no-files-found: error
           retention-days: 14

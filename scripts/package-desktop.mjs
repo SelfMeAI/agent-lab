@@ -5,6 +5,7 @@ import { requireNativeTarget } from "../runtimes/platform.mjs";
 import { run, runNpm } from "./lib/process.mjs";
 import { doctor } from "./doctor.mjs";
 import { prepareRuntimes } from "./prepare-runtimes.mjs";
+import { readJson } from "./lib/artifacts.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const platforms = { mac: "darwin", win: "win32", linux: "linux" };
@@ -33,6 +34,11 @@ export async function packageDesktop(args = []) {
   for (const name of [plan.output, `${plan.output}.tmp`]) await rm(join(release, name), { recursive: true, force: true, maxRetries: 5 });
   await run(process.execPath, [join(root, "node_modules/electron-builder/out/cli/cli.js"), ...plan.args], { cwd: join(root, "apps/desktop"), env: { CSC_IDENTITY_AUTO_DISCOVERY: "false" }, timeout: 0 });
   for (const name of [`${plan.output}.tmp`, ".icon-icns", ".icon-ico", "builder-debug.yml"]) await rm(join(release, name), { recursive: true, force: true, maxRetries: 5 });
+  // There is no auto-updater/publish feed in this Lab. Keep manual distribution
+  // artifacts only; don't retain differential-update sidecars for this build.
+  const { version } = await readJson(join(root, "apps/desktop/package.json"));
+  if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version)) throw new Error("打包版本号无效");
+  for (const ext of ["zip", "dmg", "exe"]) await rm(join(release, `Agent-Lab-${version}-${platform === "darwin" ? "mac" : platform === "win32" ? "win" : "linux"}-${arch}.${ext}.blockmap`), { force: true });
   console.log(`Agent Lab ${plan.target.key} 打包完成 · release/${plan.output}\n当前本地包未签名；Windows/Linux 需通过对应原生 CI 与设备验收。`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

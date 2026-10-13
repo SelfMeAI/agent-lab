@@ -4,6 +4,8 @@
   "private": true,
   "version": "0.1.0",
   "description": "Agent Lab desktop experiment platform",
+  "author": { "name": "Agent Lab contributors" },
+  "license": "Apache-2.0",
   "main": "./out/main/index.js",
   "scripts": {
     "predev": "node ../../node_modules/electron/install.js",
