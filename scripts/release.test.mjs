@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, delimiter } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
-import { releaseIdentity, releasePlan, root, digestReference, validateImageReceipt } from "./release/manifest.mjs";
+import { releaseIdentity, releasePlan, root, digestReference, validateImageReceipt, desktopTargets } from "./release/manifest.mjs";
 import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
 
@@ -90,7 +90,8 @@ test("manual publication is separate from push CI and every desktop target has i
   assert.match(release, /workflow_dispatch:/); assert.doesNotMatch(release, /^\s+(?:push|pull_request|release):/m);
   assert.match(release, /--verify-public/); assert.match(release, /needs: \[plan, desktop, images\]/);
   const packages = await readFile(join(root, ".github/workflows/package.yml"), "utf8");
-  for (const runner of ["macos-15", "macos-15-intel", "windows-2022", "ubuntu-24.04"]) assert.ok(packages.includes(runner));
+  assert.deepEqual(desktopTargets.map(target => target.os), ["macos-15", "macos-15-intel", "windows-2022", "ubuntu-24.04"]);
+  assert.match(packages, /releasePlan/); assert.match(packages, /fromJSON\(needs\.targets\.outputs\.matrix\)/);
   assert.match(packages, /smoke-desktop\.mjs/); assert.doesNotMatch(packages, /packages: write|release create|--publish always/);
 });
 
