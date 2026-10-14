@@ -1,7 +1,7 @@
 import { copyFile, mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { releasePlan, root, digestReference, imageTargets, validateImageReceipt } from "./manifest.mjs";
+import { releasePlan, root, digestReference, imageTargets, validateImageReceipt, architectureTag } from "./manifest.mjs";
 import { readJson, writeJsonAtomic } from "../lib/artifacts.mjs";
 import { requireDocker } from "../lib/docker.mjs";
 import { run, runNpm } from "../lib/process.mjs";
@@ -82,7 +82,9 @@ export async function buildImages(plan, publish = false) {
   if (!publish) { console.log(`远端镜像 ${arch} 构建与原生集成验收通过；未上传 Registry。`); return; }
   const images = {};
   for (const [engine, definition] of Object.entries(plan.images)) {
-    const tag = `${definition.repository}:build-${plan.commit}-${arch}`;
+    // Publish only after this architecture passes native service acceptance.
+    // The complete source revision remains in OCI labels and the receipt.
+    const tag = `${definition.repository}:${architectureTag(plan, arch)}`;
     await run(docker, ["tag", definition.localTag, tag]);
     await run(docker, ["push", tag], { timeout: 1_800_000 });
     images[engine] = { ...definition, digest: await imageManifest(docker, tag) };

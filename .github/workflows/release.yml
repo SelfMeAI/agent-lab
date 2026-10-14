@@ -157,3 +157,5 @@ jobs:
           else
             node scripts/release/publish.mjs --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
           fi
+      - name: Clean only verification images no longer referenced by any release
+        run: node scripts/release/registry.mjs --cleanup --apply --repository "$GITHUB_REPOSITORY"

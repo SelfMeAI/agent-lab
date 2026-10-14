@@ -15,6 +15,11 @@ export const imageTargets = [
   { os: "ubuntu-24.04", arch: "amd64" },
   { os: "ubuntu-24.04-arm", arch: "arm64" },
 ];
+export function architectureTag(plan, arch) {
+  if (!/^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+(?:[.-][a-zA-Z0-9]+)*)?$/.test(plan.tag ?? "") || !imageTargets.some(target => target.arch === arch))
+    throw new Error("镜像版本或架构标签无效");
+  return `${plan.tag}-${arch}`;
+}
 export function releaseIdentity({ version, desktopVersion, repository, commit, targets = "all" }) {
   if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+(?:[.-][a-zA-Z0-9]+)*)?$/.test(version ?? "") || desktopVersion !== version) throw new Error("根目录、桌面应用与发版输入的版本号必须一致");
   if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/.test(repository ?? "") || !/^[a-f0-9]{40}$/.test(commit ?? "")) throw new Error("发布仓库或源码 commit 无效");
