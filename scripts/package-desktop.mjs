@@ -13,8 +13,12 @@ export function packagePlan(platform, arch, directory = false) {
   const target = requireNativeTarget(platform, arch);
   const builderPlatform = platform === "darwin" ? "mac" : platform === "win32" ? "win" : "linux";
   const suffix = arch === "x64" ? "" : `-${arch}`;
+  // AppImage expands its ${arch} macro to x86_64, unlike macOS/Windows.
+  // Keep the verified runtime/receipt names consistent on every platform by
+  // supplying the already validated native architecture as a literal.
+  const artifactName = "Agent-Lab-${version}-${os}-" + arch + ".${ext}";
   return { target, output: `${builderPlatform}${suffix}${platform === "darwin" ? "" : "-unpacked"}`,
-    args: [`--${builderPlatform}`, `--${arch}`, ...(directory ? ["--dir"] : []), "--publish", "never"] };
+    args: [`--${builderPlatform}`, `--${arch}`, `--config.artifactName=${artifactName}`, ...(directory ? ["--dir"] : []), "--publish", "never"] };
 }
 
 export async function packageDesktop(args = []) {

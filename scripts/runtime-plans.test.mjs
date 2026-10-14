@@ -67,6 +67,8 @@ test("Docker discovery supports GUI defaults and absolute PATH entries without s
 test("packaging is native-only and never publishes automatically", () => {
   const plan = packagePlan(process.platform, process.arch, true);
   assert.ok(plan.args.includes("--dir")); assert.equal(plan.args.at(-1), "never");
+  assert.ok(plan.args.includes("--config.artifactName=Agent-Lab-${version}-${os}-" + process.arch + ".${ext}"));
+  assert.ok(!plan.args.some(value => value.includes("${arch}")));
   assert.ok(!plan.output.includes("/"));
   assert.throws(() => packagePlan(process.platform === "win32" ? "darwin" : "win32", "x64"), /原生构建机/);
 });
