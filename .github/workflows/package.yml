@@ -90,11 +90,20 @@ jobs:
           }
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.95.0 --profile minimal
+      - name: Cache verified public Codex source checkouts
+        id: codex-source-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          key: codex-source-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-v1
+          path: |
+            .cache/codex-source
+            .cache/codex-build-source
       - name: Cache source-built Codex and V8 dependencies
         id: codex-cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v1
+          key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v2
+          restore-keys: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v1
           path: |
             .cache/codex-build
             .cache/codex-v8
@@ -105,6 +114,14 @@ jobs:
       - run: npm run doctor -- --scope codex
       - run: npm run build:codex -- --jobs 2
       - run: npm run verify:codex
+      - name: Save only source checkouts that passed the native build and runtime verification
+        if: steps.codex-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          key: codex-source-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-v1
+          path: |
+            .cache/codex-source
+            .cache/codex-build-source
       - name: Preserve corresponding source for the Linux bubblewrap helper
         if: runner.os == 'Linux'
         run: node scripts/release/codex-source.mjs
@@ -112,7 +129,7 @@ jobs:
         if: steps.codex-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v1
+          key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v2
           path: |
             .cache/codex-build
             .cache/codex-v8
