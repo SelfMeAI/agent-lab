@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 import { requireNativeTarget } from "../runtimes/platform.mjs";
 import { readJson } from "./lib/artifacts.mjs";
 import { run } from "./lib/process.mjs";
+import { requireDocker } from "./lib/docker.mjs";
 
 export function supportsNode(version) {
   const [major, minor] = version.replace(/^v/, "").split(".").map(Number);
@@ -35,7 +36,10 @@ export async function doctor(scope = "desktop") {
       await check("pkg-config / OpenSSL", "pkg-config", ["--modversion", "openssl"], "Debian/Ubuntu：sudo apt-get install pkg-config libssl-dev");
     }
   }
-  if (["remote", "all"].includes(scope)) await check("Docker Engine", "docker", ["info", "--format", "{{.ServerVersion}}"], "安装并启动 Docker Desktop（Mac/Windows）或 Docker Engine（Linux）；建议至少 8 GB 可用内存，浏览器镜像可能需要更多");
+  if (["remote", "all"].includes(scope)) {
+    try { const docker = await requireDocker(); console.log(`✓ Docker Engine · ${docker.version} · Linux 容器`); }
+    catch (error) { issues.push(error.message); console.log("✗ Docker Engine"); }
+  }
   if (issues.length) throw new Error(`环境尚未就绪：\n${issues.map(value => `- ${value}`).join("\n")}\n本命令不会自动安装系统软件或改动网络设置。`);
   console.log("环境检查通过");
   return target;

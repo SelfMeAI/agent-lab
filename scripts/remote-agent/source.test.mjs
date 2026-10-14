@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { readLock, validateLock } from "./source.mjs";
-import { buildArguments, deploymentArguments } from "./build.mjs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { readLock, validateLock, projectRoot } from "./source.mjs";
+import { buildArguments, deploymentArguments, buildMain } from "./build.mjs";
 import { useBuiltLauncher } from "../../services/remote-agent/openclaw/tests/bootstrap-native-proof.mjs";
 
 test("both engines have pinned, distinct official sources", async () => {
@@ -10,6 +11,29 @@ test("both engines have pinned, distinct official sources", async () => {
   const openclaw = await readLock("openclaw");
   assert.deepEqual(openhands.sources.map(source => source.id), ["app", "sdk"]);
   assert.equal(openclaw.sources[0].repository, "https://github.com/openclaw/openclaw.git");
+});
+
+test("remote build fails before fetching source when Docker is unavailable", async t => {
+  const checkout = t.mock.fn();
+  for (const engine of ["openhands", "openclaw"]) {
+    await assert.rejects(buildMain([engine], { checkDocker: async () => { throw new Error("Docker 未就绪"); }, checkout }), /Docker 未就绪/);
+  }
+  assert.equal(checkout.mock.callCount(), 0);
+});
+
+test("remote build plan does not require Docker or start a container", async t => {
+  const work = join(projectRoot, ".work/remote-agent"); await mkdir(work, { recursive: true });
+  const directory = await mkdtemp(join(work, "build-plan-"));
+  const definition = JSON.parse(await readFile(new URL("../../services/remote-agent/openhands/service.json", import.meta.url), "utf8"));
+  const dockerfile = join(directory, definition.build.dockerfile);
+  const checkDocker = t.mock.fn(async () => { throw new Error("Docker must not be consulted by --plan"); });
+  const log = t.mock.method(console, "log", () => {});
+  try {
+    await mkdir(dirname(dockerfile), { recursive: true }); await writeFile(dockerfile, "# plan fixture");
+    await buildMain(["openhands", "--plan"], { checkDocker, checkout: async () => directory });
+    assert.equal(checkDocker.mock.callCount(), 0);
+    assert.equal(JSON.parse(log.mock.calls[0].arguments[0]).engine, "openhands");
+  } finally { log.mock.restore(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("native desktop proof changes only the test launcher and refuses source drift", () => {
