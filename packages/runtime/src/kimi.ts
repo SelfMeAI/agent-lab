@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 import { AcpAdapter } from "./acp";
 
 export interface KimiProvider {
@@ -38,7 +39,7 @@ export class KimiAdapter extends AcpAdapter {
         env.KIMI_DISABLE_TELEMETRY = "1";
         env.ELECTRON_RUN_AS_NODE = "1";
         env.AGENT_LAB_ACP_STEERING = "1";
-        return { executable: options.nodeExecutable, args: ["--import", options.steeringLoader, options.entryPoint, "acp"], env, secret: provider.apiKey };
+        return { executable: options.nodeExecutable, args: ["--import", pathToFileURL(options.steeringLoader).href, options.entryPoint, "acp"], env, secret: provider.apiKey };
       },
     });
   }

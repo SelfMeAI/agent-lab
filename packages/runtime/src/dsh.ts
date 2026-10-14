@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createInterface } from "node:readline";
 import type { AgentQuestion, AgentQuestionAnswers, ApprovalOption, RunEvent, RuntimePhase, RuntimeStatus } from "../../contracts/src/index";
 import type { HarnessAdapter } from "./index";
@@ -131,7 +132,7 @@ export class DshAdapter implements HarnessAdapter {
     };
     if (provider.apiKey) env.DEEPSEEK_API_KEY = provider.apiKey;
     else delete env.DEEPSEEK_API_KEY;
-    const child = spawn(this.options.nodeExecutable, ["--import", this.options.steeringLoader, this.options.entryPoint, "--profile", "acp", "--patch", modelPatchPath], {
+    const child = spawn(this.options.nodeExecutable, ["--import", pathToFileURL(this.options.steeringLoader).href, this.options.entryPoint, "--profile", "acp", "--patch", modelPatchPath], {
       cwd: workspace,
       env,
       stdio: ["pipe", "pipe", "pipe"],
