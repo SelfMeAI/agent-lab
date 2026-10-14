@@ -34,6 +34,7 @@ export async function doctor(scope = "desktop") {
     if (target.platform === "linux") {
       await check("C/C++ toolchain", "c++", ["--version"], "Debian/Ubuntu：sudo apt-get install build-essential");
       await check("pkg-config / OpenSSL", "pkg-config", ["--modversion", "openssl"], "Debian/Ubuntu：sudo apt-get install pkg-config libssl-dev");
+      await check("pkg-config / libcap", "pkg-config", ["--modversion", "libcap"], "Codex 的 bwrap 需要 libcap 开发库；Debian/Ubuntu：sudo apt-get install libcap-dev");
     }
   }
   if (["remote", "all"].includes(scope)) {

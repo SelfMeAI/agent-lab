@@ -75,7 +75,7 @@ jobs:
           package-manager-cache: false
       - name: Linux native build tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev zstd xvfb dbus-x11 libgtk-3-0t64 libnss3 libgbm1 libasound2t64
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libcap-dev zstd xvfb dbus-x11 libgtk-3-0t64 libnss3 libgbm1 libasound2t64
       - name: Windows MSVC environment
         if: runner.os == 'Windows'
         shell: pwsh

@@ -151,7 +151,7 @@ npm run verify:codex
 
 - **macOS**：Xcode Command Line Tools；尚未安装时运行 `xcode-select --install`。
 - **Windows x64**：Visual Studio 2022 C++ Build Tools 与 Windows SDK，在 x64 Developer PowerShell 中运行编译命令。脚本在已验证的项目源码缓存仓库内启用 Git 长路径支持，不改全局 Git 配置或系统注册表。
-- **Linux/glibc**：C/C++ 编译器、pkg-config、OpenSSL 开发包。Debian/Ubuntu 可用 `sudo apt-get install build-essential pkg-config libssl-dev zstd`。
+- **Linux/glibc**：C/C++ 编译器、pkg-config、OpenSSL 与 libcap 开发包（bwrap 构建依赖）。Debian/Ubuntu 可用 `sudo apt-get install build-essential pkg-config libssl-dev libcap-dev zstd`。
 
 首次编译可能需要数十分钟与数十 GB 缓存空间；`--jobs 2` 用于控制内存占用，可按设备调整。之后复用 Cargo 缓存。
 

@@ -35,6 +35,16 @@ test("environment requirements include the Node baseline required by Pi and Kimi
   for (const version of ["22.19.0", "24.0.0", "26.5.1"]) assert.equal(supportsNode(version), true);
 });
 
+test("Linux native builds retain bwrap and check libcap before compiling", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/package.yml", import.meta.url), "utf8");
+  const doctor = await readFile(new URL("./doctor.mjs", import.meta.url), "utf8");
+  const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+  assert.match(workflow, /apt-get install[^\n]*\blibcap-dev\b/);
+  assert.match(doctor, /\["--modversion", "libcap"\]/);
+  assert.match(readme, /apt-get install[^\n]*\blibcap-dev\b/);
+  assert.doesNotMatch(workflow, /CODEX_SKIP_BWRAP_BUILD/);
+});
+
 test("source CI restores the real Kimi and Qwen fixtures before running their tests", async () => {
   const workflow = await readFile(new URL("../.github/workflows/check.yml", import.meta.url), "utf8");
   const tests = workflow.indexOf("run: npm test");
