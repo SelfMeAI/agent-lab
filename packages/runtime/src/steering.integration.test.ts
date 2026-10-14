@@ -66,7 +66,7 @@ describe("real bundled harnesses: mid-turn steering", () => {
       providerError: providerError?.message,
       requests: requests.map(body => ({ model: body.model, tools: (body.tools ?? []).map((t: Obj) => (t.function ?? t).name) })),
       events: events.map(e => ({ kind: e.kind, phase: e.phase, text: e.text?.slice(0, 160), title: e.title, delivery: e.deliveryState })),
-      shellSchemas: (requests[0]?.tools ?? []).map((t: Obj) => t.function ?? t).filter((t: Obj) => /bash|shell|exec|execute.*command/i.test(t.name)),
+      shellSchemas: (requests[0]?.tools ?? []).map((t: Obj) => t.function ?? t).filter((t: Obj) => /bash|pwsh|shell|exec|execute.*command/i.test(t.name)),
       toolFeedback: (requests.at(-1)?.messages ?? requests.at(-1)?.input ?? []).filter((m: Obj) => m.role === "tool" || m.type === "function_call_output"),
     });
     const runEnded = new Promise<void>((resolve, reject) => {

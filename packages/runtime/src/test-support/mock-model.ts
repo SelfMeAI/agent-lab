@@ -64,7 +64,7 @@ export function responses(res: ServerResponse, tool?: { name: string; args: Obj 
 
 export function shellTool(body: Obj): { name: string; args: Obj } {
   const tools = (body.tools ?? []).map((entry: Obj) => entry.function ?? entry);
-  const tool = tools.find((entry: Obj) => /^(bash|shell|exec_command)$/i.test(entry.name))
+  const tool = tools.find((entry: Obj) => /^(bash|pwsh|shell|exec_command)$/i.test(entry.name))
     ?? tools.find((entry: Obj) => /bash|shell|execute.*command/i.test(entry.name));
   if (!tool) throw new Error(`No shell tool: ${tools.map((entry: Obj) => entry.name).join(",")}`);
   const props = tool.parameters?.properties ?? {};
@@ -72,6 +72,7 @@ export function shellTool(body: Obj): { name: string; args: Obj } {
   if (props.cmd) args.cmd = "sleep 2";
   else if (props.command?.type === "array") args.command = ["/bin/sleep", "2"];
   else args.command = "sleep 2";
+  if (tool.name === "pwsh") args.command = "Start-Sleep -Seconds 2";
   // Qwen correctly rejects purposeless sleeps. Here pacing is intentional:
   // hold the real tool boundary open so we can exercise mid-turn admission.
   if (tool.name === "run_shell_command") args.command = "sleep 2 # intentional-sleep: exercise ACP mid-turn input boundary";
