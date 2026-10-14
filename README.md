@@ -19,7 +19,7 @@ Agent Lab 是一个面向智能体研发、能力验证与对照实验的 **Elec
 
 各实验室使用独立的运行时或服务，提供连接配置、会话、执行过程、审批和产物展示。工具、权限、上下文与扩展能力由各 Harness 的接入方式决定，适合通过实际任务观察它们的差异。
 
-**这是面向智能体研发与能力验证的实验平台。** 普通版本采用 Release 发布，带 `-alpha`、`-beta`、`-rc` 等后缀的版本标记为 Pre-release。已发布的平台与附件以 [GitHub Releases](https://github.com/SelfMeAI/agent-lab/releases) 为准；源码 CI、安装包原生自动验收和真实设备兼容性是不同的验证层级。安装包不附带 API Key、个人数据或模型权重；远端服务镜像通过公开 GHCR 单独提供。
+已发布的平台与附件以 [GitHub Releases](https://github.com/SelfMeAI/agent-lab/releases) 为准。安装包不附带 API Key、个人数据或模型权重；远端服务镜像通过公开 GHCR 单独提供。**这是研发实验平台，不提供生产级多租户或强安全沙箱承诺。** 验收范围与平台限制见[桌面打包](#桌面打包)和[数据与安全](#数据与安全)。
 
 ## 四个实验室
 
@@ -69,15 +69,65 @@ JEV 是远端决策服务，四个实验用于观察候选选择、置信度、�
 
 这条路径**不需要下载源码，也不需要安装 Node、Rust 或 Python**。
 
-1. 在 [Releases](https://github.com/SelfMeAI/agent-lab/releases) 下载对应系统与 CPU 的安装包，并按该版本 `SHA256SUMS.txt` 核对文件。不要混用不同版本的安装包与镜像准备脚本。
-2. macOS 使用 DMG 或 ZIP；Windows 使用 EXE；Linux 使用 AppImage，先赋予执行权限。当前包未做 macOS 签名/公证或 Windows 代码签名，系统可能提示来源无法验证；核对来源后按系统正常流程处理，不要全局关闭安全保护。
-3. 打开应用，在相应实验室设置自己的模型/API 连接。分发包内置六种本地 Harness 与 Ollama，不需要另外安装相应 CLI。Ollama 还需下载模型权重并满足模型的内存/显存要求；JEV 的真实决策需配置自己的服务连接。
+### 1. 选择安装包
+
+在 [Releases](https://github.com/SelfMeAI/agent-lab/releases) 中打开所需版本，展开 **Assets**，按下表选择。文件名以 `Agent-Lab-版本号-` 开头，下表列出文件名后缀；实际附件以该版本发布页面为准。
+
+| 你的电脑 | 安装包文件名后缀 |
+| --- | --- |
+| Mac · Apple Silicon（M 系列） | `mac-arm64.dmg` 或 `mac-arm64.zip` |
+| Mac · Intel | `mac-x64.dmg` 或 `mac-x64.zip` |
+| Windows 10/11 · Intel/AMD 64 位 | `win-x64.exe` |
+| Linux · Intel/AMD 64 位、glibc | `linux-x64.AppImage` |
+
+Mac 的 DMG 与 ZIP 包含同一应用，任选一种即可。Windows/Linux ARM64 不在当前默认发行矩阵内。**只运行应用不需要下载 `Source code` 或 `*-component-source.tar.gz`**，这些是源码附件，不是安装包。
+
+### 2. 校验并安装
+
+同时下载该版本的 `SHA256SUMS.txt`，与安装包放在同一目录；如需远端服务，将同版本的镜像准备脚本也放在这里并核对。不要混用不同版本的安装包、校验表和准备脚本。
+
+<details>
+<summary>查看 SHA-256 校验命令（macOS / Windows / Linux）</summary>
+
+在下载文件所在目录运行。macOS 和 Linux 的命令只校验已经下载的附件，不要求下载发布页面中的所有文件。
+
+**macOS：**
+
+```sh
+shasum -a 256 --check --ignore-missing SHA256SUMS.txt
+```
+
+**Linux：**
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS.txt
+```
+
+确认准备安装或运行的文件显示 `OK`。校验失败、文件缺失或未校验任何文件时，不要继续安装或运行，先检查下载目录、版本及文件完整性。
+
+**Windows PowerShell（以下以 0.1.0 为例，替换成实际文件名）：**
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath .\Agent-Lab-0.1.0-win-x64.exe | Format-List
+```
+
+核对镜像准备脚本时，将命令中的文件路径换成 `.\prepare-remote.ps1`。将输出的完整 `Hash` 与 `SHA256SUMS.txt` 中同名文件那一行的 SHA-256 值核对，大小写可以不同。任何不一致都不要继续安装或运行，请重新下载并核对。
+
+</details>
+
+macOS 安装 DMG 中的应用或解压 ZIP；Windows 运行 EXE 安装；Linux 使用 AppImage，先赋予执行权限。当前包未做 macOS 签名/公证或 Windows 代码签名，系统可能提示来源无法验证；核对来源后按系统正常流程处理，不要全局关闭安全保护。
+
+打开应用，在相应实验室设置自己的模型/API 连接。分发包内置六种本地 Harness 与 Ollama，不需要另外安装相应 CLI。Ollama 还需下载模型权重并满足模型的内存/显存要求；JEV 的真实决策需配置自己的服务连接。
 
 **Linux 桌面前提**：AppImage 需要可用的 FUSE 2（Ubuntu 24.04 的库包名为 `libfuse2t64`）；没有 FUSE 时可用 `./Agent-Lab-0.1.0-linux-x64.AppImage --appimage-extract-and-run`。具体说明见 [AppImage 官方 FUSE 指南](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)。Electron 沙箱还依赖系统允许的用户命名空间；遵循发行版的安全配置，不要为运行应用全局关闭 AppArmor 或沙箱。保存连接 Key 需要桌面会话中可用的 Secret Service/KWallet。
 
 Linux/WSL2 使用 Codex 时，先安装发行版的 `bubblewrap`（Ubuntu/Debian：`sudo apt install bubblewrap`）。Ubuntu 24.04 如限制用户命名空间，按 [OpenAI 官方沙箱前提](https://learn.chatgpt.com/docs/sandboxing#prerequisites) 加载对应的 bwrap AppArmor 配置，不需要关闭整个系统的保护。
 
+### 3. 准备远端服务（可选）
+
 **只有 Remote Agent Lab 需要 Docker。** 先安装并启动 Docker Desktop（macOS/Windows）或 Docker Engine（Linux），使用 Linux 容器，Docker 26+；镜像支持 `amd64` 与 `arm64`。建议为 Docker 提供至少 8 GB 内存，并为两套浏览器环境和缓存预留数十 GB 磁盘空间。
+
+macOS、Windows 和 Linux 都使用这些 **Linux 容器镜像**。`amd64` / `arm64` 指容器的 CPU 架构，不是宿主机操作系统；准备脚本会按 Docker 服务的架构自动选择，不需要手动挑选镜像标签。
 
 从**同一版本 Release** 下载 `prepare-remote.sh`（macOS/Linux）或 `prepare-remote.ps1`（Windows），终端切到下载目录后运行：
 
@@ -251,6 +301,9 @@ release/
 
 ### 维护者发版
 
+<details>
+<summary>展开发行流程与镜像维护（仅项目维护者需要）</summary>
+
 提交代码与发版分开：普通 push/PR 只运行源码检查。[Release](https://github.com/SelfMeAI/agent-lab/actions/workflows/release.yml) **只能手动触发**，从选定源码 commit 原生构建安装包，并从锁定上游源码构建两种服务的 Linux amd64/arm64 镜像。
 
 先提交根目录与桌面 `package.json` 一致的版本号（及锁文件），再在 Actions → Release 输入同一版本号、选择桌面目标。默认创建草稿；勾选 `publish` 才在全部验证通过后公开发布。普通版本标记为 Latest；带预发布后缀的版本标记为 Pre-release，不成为 Latest。已经公开的版本不能覆盖安装包或镜像，需要增加版本号。可用 `npm run release:plan` 本地核对固定来源与发布目标。
@@ -260,6 +313,8 @@ release/
 每个服务的发行标签统一为 `v版本号`、`v版本号-amd64`、`v版本号-arm64`；完整源码提交号保存在镜像元数据和发布清单中。版本入口自动匹配 CPU，镜像准备脚本仍固定 digest，不依赖可变标签。后续发行成功后会清理未被任何版本引用的验证构建，保留历史正式版本及其全部架构清单。
 
 [Image maintenance](https://github.com/SelfMeAI/agent-lab/actions/workflows/image-maintenance.yml) 可单独为已发布版本补架构标签并清理旧验证构建，不重编译或修改 Release 附件；与发行工作流互斥，清理前重新核对包归属、所有标签与发布清单的引用。勾选 `remove_legacy_aliases` 可解绑历史长标签，先通过临时标签验证，再仅删除独立占位镜像，保留正式镜像内容与 digest。源码脚本 `node scripts/release/registry.mjs --cleanup` 或 `--remove-legacy --version v版本号` 默认仅预览，添加 `--apply` 才执行删除。
+
+</details>
 
 ## 架构与目录
 
@@ -363,25 +418,37 @@ AGENT_LAB_REMOTE_INTEGRATION=1 npm run test --workspace @agent-lab/desktop -- ap
 
 ## 常见问题
 
+### 使用安装包
+
 **需要先安装 Codex、Claude Code、Ollama 吗？**
 
-不需要全局安装。源码运行需要先恢复项目运行时；分发包已经带上对应本地运行时。API 连接和模型权重仍需自己准备。
+不需要。分发包已经带上对应本地运行时，API 连接和模型权重仍需自己准备。若要从源码运行，请按[快速开始](#快速开始)恢复项目依赖与运行时。
 
-**为什么第一次启动准备很慢？**
+**首次下载模型或准备远端服务为什么较慢？**
 
-可能正在下载官方运行包。首次 Codex 编译、Docker 镜像构建和模型权重下载都比较大，它们是不同步骤。脚本保留项目内缓存以便重试；不会擅自改代理或 DNS。
+模型权重与 Docker 镜像体积较大，首次下载取决于网络和磁盘速度。应用不会在首次启动时编译 Codex 或构建远端镜像；不使用本地模型或远端实验室时，也不必下载这些资源。模型下载可在应用中暂停/继续，镜像下载中断后可重跑同版本的准备脚本。
 
-**“Codex 尚未准备”怎么办？**
+**安装包提示 Codex 运行时缺失或校验失败怎么办？**
 
-运行 `npm run doctor -- --scope codex`，按提示补齐工具链，再执行 `npm run build:codex` 与 `npm run verify:codex`。不要复制其他架构的二进制，也不要省掉 Code Mode host。
+Release 安装包已包含 Codex，不需要安装 Rust 或自行编译。先确认下载的系统/CPU 版本正确、校验值匹配，并完整安装或解压应用。若重新下载并安装后仍异常，请在 [Issues](https://github.com/SelfMeAI/agent-lab/issues) 提供系统、应用版本和脱敏报错；不要通过删除应用数据或 Docker 数据卷尝试修复运行时。
 
 **没有安装 Docker 能用吗？**
 
-可以使用 Agent Lab、Local Model Lab 和 JEV Lab，桌面开发与打包也不依赖 Docker。Remote Agent Lab 需要安装并启动 Docker；环境缺失时服务面板会提示，其他实验室仍可使用。
+可以使用 Agent Lab、Local Model Lab 和 JEV Lab。Remote Agent Lab 需要安装并启动 Docker；环境缺失时服务面板会提示，其他实验室仍可使用。
 
 **桌面包能独自启动远端实验室吗？**
 
 分发包包含客户端，不包含体积很大的 Docker 镜像。安装并启动 Docker，运行同版本 Release 的镜像准备脚本后，即可在应用中启动服务，不需要源码。远端任务在容器中执行，客户端通过 API 交互和观察。
+
+### 从源码运行
+
+**“Codex 尚未准备”或校验失败怎么办？**
+
+在项目根目录运行 `npm run doctor -- --scope codex`，按[Codex 源码编译](#codex-源码编译)补齐工具链，再执行 `npm run build:codex` 与 `npm run verify:codex`。不要复制其他架构的二进制，也不要省掉 Code Mode host。
+
+**依赖准备、编译或镜像构建为什么较慢？**
+
+`npm ci` 和运行时恢复需要下载锁定依赖；首次 Codex 编译、Docker 镜像构建还需要获取源码和构建依赖，可能耗时较长。这些是源码开发步骤，不是安装包使用者的必经流程。恢复与构建脚本保留项目内缓存以便重试，不会擅自修改代理或 DNS。
 
 ## 许可证与致谢
 
