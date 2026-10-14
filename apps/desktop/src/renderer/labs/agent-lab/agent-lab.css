@@ -1,9 +1,9 @@
 .agent-lab-page { width: 100%; min-height: 100%; padding: 0 30px 24px; }
 .agent-lab-page--workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
-.agent-tile, .dsh-workspace { font-family: Menlo, "SFMono-Regular", monospace; font-weight: 400; }
+.agent-tile, .dsh-workspace { font-family: Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; font-weight: 400; }
 .agent-index__group { display: flex; align-items: center; gap: 18px; margin: 0 0 16px; }
-.agent-index__group h2 { margin: 0; color: #91a9a8; font: 400 11px/1.4 Menlo, "SFMono-Regular", monospace; letter-spacing: .12em; white-space: nowrap; }
+.agent-index__group h2 { margin: 0; color: #91a9a8; font: 400 11px/1.4 Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .12em; white-space: nowrap; }
 .agent-index__group span { height: 1px; flex: 1; background: #5b777866; }
 .agent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--index-gap); }
 .agent-tile { min-width: 0; min-height: var(--index-card-height); display: flex; align-items: center; gap: 18px; padding: 24px; text-align: left; color: #f6f7f3; border: 1px solid var(--tile-accent); border-radius: 6px; background: rgba(4, 11, 14, .92); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-accent) 10%, transparent), 0 0 14px color-mix(in srgb, var(--tile-accent) 7%, transparent); transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
@@ -11,7 +11,7 @@
 .agent-tile__icon { width: 56px; height: 56px; flex: 0 0 56px; color: var(--tile-accent); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--tile-accent) 22%, transparent)); }
 .agent-tile__text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 7px; }
 .agent-tile__text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(16px, 1.3vw, 20px); font-weight: 400; }
-.agent-tile__text small { color: #acbfbb; font: 11px/1.35 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-tile__text small { color: #acbfbb; font: 11px/1.35 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-tile__text em { color: var(--tile-accent); font-size: 10px; font-style: normal; letter-spacing: .08em; }
 .agent-tile__arrow { width: 23px; height: 20px; flex: 0 0 23px; }
 .agent-tile:focus-visible { outline-color: var(--tile-accent); }
@@ -35,7 +35,7 @@
 .dsh-rail__heading button:hover:not(:disabled) { color: #d3fb52; }
 .dsh-rail__heading button:disabled { opacity: .35; cursor: default; }
 .dsh-rail__switch { flex: 0 0 auto; display: flex; gap: 4px; padding: 7px 10px; border-bottom: 1px solid #344743; }
-.dsh-rail__switch button { flex: 1; padding: 6px 4px; border: 0; border-radius: 3px; color: #91a7a1; background: transparent; font: 11px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-rail__switch button { flex: 1; padding: 6px 4px; border: 0; border-radius: 3px; color: #91a7a1; background: transparent; font: 11px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .dsh-rail__switch button.is-active { color: #edf7f2; background: #203138; }
 .dsh-rail__switch small { margin-left: 4px; color: #859a95; font-size: 10px; }
 .dsh-rail__error { margin: 0; padding: 9px 12px; border-bottom: 1px solid #7c4444; color: #ffd7d7; background: #352021; font-size: 11px; line-height: 1.5; }
@@ -78,7 +78,7 @@
 .dsh-session-modal { width: min(100%, 440px); padding: 25px 27px; border: 1px solid #5b7975; border-radius: 5px; background: #111f23; box-shadow: 0 24px 70px #000c; }
 .dsh-session-modal > span { color: var(--agent-accent, #d3fb52); font-size: 10px; letter-spacing: .12em; }
 .dsh-session-modal h2 { margin: 13px 0 10px; color: #eff7f3; font-size: 19px; font-weight: 500; }
-.dsh-session-modal p { margin: 0 0 13px; color: #a9bcb6; font: 12px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-session-modal p { margin: 0 0 13px; color: #a9bcb6; font: 12px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .dsh-session-modal .dsh-session-modal__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #eff7f3; font-size: 13px; }
 .dsh-session-modal > div { display: flex; justify-content: flex-end; gap: 9px; margin-top: 21px; }
 .dsh-session-modal button { padding: 8px 14px; border: 1px solid #536c66; border-radius: 3px; color: #dcebe6; background: #1a2b2d; font-size: 12px; }
@@ -112,7 +112,7 @@
 .dsh-entry__heading time { flex: 0 0 auto; color: #819995; font-size: 11px; font-variant-numeric: tabular-nums; }
 .dsh-entry--user .dsh-entry__label { color: #9aabaa; }
 .dsh-entry__body p { margin: 9px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
-.dsh-markdown { margin-top: 9px; color: #e7efed; font: 14px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; overflow-wrap: anywhere; }
+.dsh-markdown { margin-top: 9px; color: #e7efed; font: 14px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; overflow-wrap: anywhere; }
 .dsh-markdown > :first-child { margin-top: 0; }
 .dsh-markdown > :last-child { margin-bottom: 0; }
 .dsh-markdown p { margin: 0 0 12px; white-space: normal; line-height: inherit; font-size: inherit; }
@@ -120,7 +120,7 @@
 .dsh-markdown li { margin: 4px 0; }
 .dsh-markdown li p { margin: 0; }
 .dsh-markdown strong { color: #f8fbfa; font-weight: 650; }
-.dsh-markdown code { padding: 2px 4px; border: 1px solid #34464a; border-radius: 3px; color: #b9e4dc; background: #132126; font: 12px/1.6 Menlo, "SFMono-Regular", monospace; }
+.dsh-markdown code { padding: 2px 4px; border: 1px solid #34464a; border-radius: 3px; color: #b9e4dc; background: #132126; font: 12px/1.6 Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .dsh-markdown pre { margin: 12px 0 15px; max-height: 360px; overflow: auto; padding: 12px 14px; border: 1px solid #34464a; border-radius: 4px; background: #071115; scrollbar-color: #4a6265 transparent; }
 .dsh-markdown pre code { padding: 0; border: 0; color: #d8e5e0; background: none; white-space: pre; }
 .dsh-markdown blockquote { margin: 12px 0; padding: 1px 14px; border-left: 2px solid var(--agent-accent, #d3fb52); color: #b8c9c5; background: #111d21; }
@@ -147,7 +147,7 @@
 .dsh-tool__command { display: block; padding: 11px 12px; border: 1px solid #344a4d; border-radius: 3px; background: #071115; color: #e7f0ee; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
 .dsh-tool__meta { display: block; margin: 8px 0 0; color: #91a5a2; font-size: 11px; overflow-wrap: anywhere; }
 .dsh-tool__timing { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 15px; padding-top: 11px; border-top: 1px solid #6a848033; color: #91a5a2; font-size: 11px; font-variant-numeric: tabular-nums; }
-.dsh-tool__output { max-height: 300px; overflow: auto; margin: 0; padding: 11px 12px; border: 1px solid #344a4d; border-radius: 3px; background: #060f13; color: #c8d8d5; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 Menlo, "SFMono-Regular", monospace; scrollbar-color: #4a6265 transparent; }
+.dsh-tool__output { max-height: 300px; overflow: auto; margin: 0; padding: 11px 12px; border: 1px solid #344a4d; border-radius: 3px; background: #060f13; color: #c8d8d5; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; scrollbar-color: #4a6265 transparent; }
 .dsh-tool__file-heading { min-width: 0; display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
 .dsh-tool__file-heading .dsh-tool__caption { margin: 0; flex: 0 0 auto; }
 .dsh-tool__file-heading strong { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e0eeea; font-size: 12px; font-weight: 400; }
@@ -155,7 +155,7 @@
 .dsh-tool__added { color: #91d9a8; }
 .dsh-tool__removed { color: #e6a4a5; }
 .dsh-tool__diff { max-height: 320px; overflow: auto; border: 1px solid #344a4d; border-radius: 3px; background: #081216; scrollbar-color: #4a6265 transparent; }
-.dsh-tool__diff-line { min-height: 18px; padding: 1px 10px; white-space: pre; overflow: visible; font: 11px/17px Menlo, "SFMono-Regular", monospace; }
+.dsh-tool__diff-line { min-height: 18px; padding: 1px 10px; white-space: pre; overflow: visible; font: 11px/17px Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .dsh-tool__diff-line.is-header { color: #8fbcd3; background: #15262e; }
 .dsh-tool__diff-line.is-add { color: #a6e6b8; background: #14332388; }
 .dsh-tool__diff-line.is-remove { color: #f1b5b7; background: #3b1c2288; }
@@ -205,7 +205,7 @@
 .dsh-composer { flex: 0 0 auto; padding: 11px 13px 13px; border-top: 1px solid #35464a; background: #081216; }
 .dsh-composer__field { min-height: 56px; padding: 8px; display: flex; align-items: flex-end; gap: 10px; border: 1px solid #52666b; border-radius: 4px; background: #101c21; transition: border-color .16s ease, box-shadow .16s ease; }
 .dsh-composer__field:focus-within { border-color: var(--agent-accent, #d3fb52); box-shadow: 0 0 0 3px color-mix(in srgb, var(--agent-accent, #d3fb52) 12%, transparent); }
-.dsh-composer textarea { flex: 1; min-width: 0; max-height: 178px; min-height: 38px; padding: 8px 4px 8px 8px; resize: none; overflow-y: hidden; border: 0; outline: none; color: #eef4f2; background: transparent; font: 13px/21px Menlo, "SFMono-Regular", monospace; scrollbar-color: #4a6265 transparent; }
+.dsh-composer textarea { flex: 1; min-width: 0; max-height: 178px; min-height: 38px; padding: 8px 4px 8px 8px; resize: none; overflow-y: hidden; border: 0; outline: none; color: #eef4f2; background: transparent; font: 13px/21px Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; scrollbar-color: #4a6265 transparent; }
 .dsh-composer textarea::placeholder { color: #889b9a; }
 .dsh-composer button { width: 38px; height: 38px; flex: 0 0 38px; margin: 0; padding: 8px; display: grid; place-items: center; border: 1px solid var(--agent-accent, #d3fb52); border-radius: 4px; color: var(--agent-accent, #d3fb52); background: color-mix(in srgb, var(--agent-accent, #d3fb52) 9%, #101c21); transition: border-color .16s ease, background .16s ease, transform .16s ease; }
 .dsh-composer button svg { width: 21px; height: 21px; }

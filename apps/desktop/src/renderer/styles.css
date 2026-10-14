@@ -1,5 +1,5 @@
 :root {
-  font-family: Menlo, "SFMono-Regular", monospace;
+  font-family: Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace;
   color: #f3f7f4;
   background: #05090c;
   --topbar-height: 64px;
@@ -80,7 +80,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   align-items: center;
   gap: 11px;
   background: transparent;
-  font-family: Menlo, "SFMono-Regular", monospace;
+  font-family: Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace;
   font-size: 17px;
   line-height: 1;
   letter-spacing: .065em;
@@ -118,12 +118,12 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 .lab-index-heading { flex: 0 0 auto; display: flex; align-items: center; gap: 18px; min-height: 64px; margin-bottom: 32px; }
 .lab-index-heading__icon { width: 52px; height: 52px; flex: 0 0 52px; color: var(--index-accent, #d2e2df); }
 .lab-index-heading__copy { min-width: 0; }
-.lab-index-heading h1 { margin: 0; font: 400 clamp(28px, 2.5vw, 36px)/1.2 Menlo, "SFMono-Regular", monospace; letter-spacing: .035em; }
-.lab-index-heading p { margin: 10px 0 0; color: #9fb2bd; font: 13px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.lab-index-heading h1 { margin: 0; font: 400 clamp(28px, 2.5vw, 36px)/1.2 Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .035em; }
+.lab-index-heading p { margin: 10px 0 0; color: #9fb2bd; font: 13px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .lab-index-heading__actions { flex: 0 0 auto; margin-left: auto; }
 
 .lab-card, .settings-panel h2 {
-  font-family: Menlo, "SFMono-Regular", monospace;
+  font-family: Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace;
   font-weight: 400;
 }
 
@@ -174,14 +174,14 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
   font-weight: 400;
 }
 
-.lab-card__copy small { color: color-mix(in srgb, var(--accent) 38%, #b4c2bf); font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; letter-spacing: .04em; }
+.lab-card__copy small { color: color-mix(in srgb, var(--accent) 38%, #b4c2bf); font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; letter-spacing: .04em; }
 
 .lab-card__arrow { width: 29px; height: 22px; flex: 0 0 29px; }
 .lab-card:focus-visible { outline-color: var(--accent); }
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: flex-end; background: rgba(1, 4, 7, .7); backdrop-filter: blur(3px); }
 
-.settings-panel { width: min(100%, 430px); height: 100%; display: flex; flex-direction: column; border-left: 1px solid #34424d; color: #eef2f3; background: #0e151b; box-shadow: -24px 0 64px #0009; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.settings-panel { width: min(100%, 430px); height: 100%; display: flex; flex-direction: column; border-left: 1px solid #34424d; color: #eef2f3; background: #0e151b; box-shadow: -24px 0 64px #0009; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .settings-panel button:focus-visible { outline-color: #b8c8d0; }
 .settings-panel__heading { min-height: 72px; flex: 0 0 72px; padding: 0 26px 0 30px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #26323b; background: #101920; }
 .settings-panel h2 { margin: 0; font-size: 18px; letter-spacing: .1em; }
@@ -191,7 +191,7 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 .settings-panel__body { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #4c5c67 transparent; scrollbar-width: thin; padding: 28px 30px 34px; }
 .settings-panel__body > p { margin: 0 0 24px; color: #9eabb4; font-size: 14px; }
 .settings-panel__intro { padding-bottom: 24px; border-bottom: 1px solid #2b3842; }
-.settings-panel__intro > span { color: #8e9ea8; font: 10px Menlo, "SFMono-Regular", monospace; letter-spacing: .14em; }
+.settings-panel__intro > span { color: #8e9ea8; font: 10px Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .14em; }
 .settings-panel__title-row { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .settings-panel__title-row h3 { margin: 0; font-size: 20px; font-weight: 560; letter-spacing: .01em; }
 .settings-panel__title-row small { flex: 0 0 auto; padding: 4px 7px; border: 1px solid #465660; border-radius: 3px; color: #b7c3c9; background: #17222a; font-size: 10px; }
@@ -201,19 +201,19 @@ button:focus-visible { outline: 2px solid #d6f077; outline-offset: 4px; }
 .settings-panel dd { margin: 0; }
 .settings-panel__form { display: flex; flex-direction: column; gap: 20px; padding-top: 26px; }
 .settings-panel__field { display: flex; flex-direction: column; gap: 9px; }
-.settings-panel__field label { color: #b8c5cc; font: 11px Menlo, "SFMono-Regular", monospace; letter-spacing: .1em; }
+.settings-panel__field label { color: #b8c5cc; font: 11px Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .1em; }
 .settings-panel__field-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 20px; }
-.settings-panel__model-fetch, .settings-panel__model-toggle { border: 0; padding: 0; background: transparent; color: #b5c7d0; font: 11px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
+.settings-panel__model-fetch, .settings-panel__model-toggle { border: 0; padding: 0; background: transparent; color: #b5c7d0; font: 11px -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; cursor: pointer; }
 .settings-panel__model-fetch:hover:not(:disabled), .settings-panel__model-toggle:hover { color: #edf6f8; }
 .settings-panel__model-fetch:disabled { opacity: .55; cursor: default; }
 .settings-panel__model-toggle { align-self: flex-start; }
 .settings-panel__model-picker { overflow: hidden; border: 1px solid #3a4b56; border-radius: 4px; background: #101a21; }
 .settings-panel__field .settings-panel__model-picker > input { height: 38px; border: 0; border-bottom: 1px solid #30414c; border-radius: 0; background: #16232c; }
 .settings-panel__model-results { display: flex; flex-direction: column; max-height: 190px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #4c5c67 transparent; scrollbar-width: thin; }
-.settings-panel__model-results button { flex: 0 0 auto; min-height: 34px; padding: 7px 12px; border: 0; border-bottom: 1px solid #25333d; text-align: left; color: #c8d4da; background: transparent; font: 12px Menlo, "SFMono-Regular", monospace; overflow-wrap: anywhere; cursor: pointer; }
+.settings-panel__model-results button { flex: 0 0 auto; min-height: 34px; padding: 7px 12px; border: 0; border-bottom: 1px solid #25333d; text-align: left; color: #c8d4da; background: transparent; font: 12px Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; overflow-wrap: anywhere; cursor: pointer; }
 .settings-panel__model-results button:hover, .settings-panel__model-results button.is-selected { color: #f6fbfc; background: #24343f; }
 .settings-panel__model-results > span { padding: 10px 12px; color: #8e9fa9; font-size: 11px; line-height: 1.5; }
-.settings-panel__field input { width: 100%; height: 46px; padding: 0 13px; border: 1px solid #45535e; border-radius: 4px; outline: none; color: #f2f5f5; background: #141f27; font: 13px Menlo, "SFMono-Regular", monospace; transition: border-color .16s ease, box-shadow .16s ease; }
+.settings-panel__field input { width: 100%; height: 46px; padding: 0 13px; border: 1px solid #45535e; border-radius: 4px; outline: none; color: #f2f5f5; background: #141f27; font: 13px Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; transition: border-color .16s ease, box-shadow .16s ease; }
 .settings-panel__field input:hover { border-color: #687983; }
 .settings-panel__field input:focus { border-color: #b8c8d0; box-shadow: 0 0 0 3px #b8c8d020; }
 .settings-panel__field input::placeholder { color: #788a94; }

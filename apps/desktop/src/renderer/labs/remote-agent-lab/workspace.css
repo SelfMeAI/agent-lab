@@ -1,7 +1,7 @@
-.remote-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(160px, 16vw, 228px) minmax(330px, .85fr) minmax(360px, 1.25fr); grid-template-rows: minmax(0, 1fr); gap: 10px; padding: 12px 16px 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(160px, 16vw, 228px) minmax(330px, .85fr) minmax(360px, 1.25fr); grid-template-rows: minmax(0, 1fr); gap: 10px; padding: 12px 16px 16px; font-family: -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-task-rail, .remote-conversation, .remote-scene { min-width: 0; min-height: 0; border: 1px solid color-mix(in srgb, var(--remote-accent) 45%, #172a32); border-radius: 5px; background: #050c12c9; display: flex; flex-direction: column; overflow: hidden; }
 .remote-workspace h2 { font-size: 14px; font-weight: 500; margin: 0; }
-.remote-icon-button { width: 32px; height: 32px; border: 0; border-radius: 4px; color: #b5c7cf; background: transparent; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; font: 24px/1 -apple-system, sans-serif; }
+.remote-icon-button { width: 32px; height: 32px; border: 0; border-radius: 4px; color: #b5c7cf; background: transparent; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; font: 24px/1 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-icon-button:hover:not(:disabled) { color: var(--remote-accent); background: #c9e5f209; }
 .remote-icon-button:disabled { opacity: .3; cursor: default; }
 .remote-icon-button svg { width: 22px; height: 22px; }
@@ -11,12 +11,12 @@
 .remote-task-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: 4px; margin-bottom: 4px; transition: background .15s; position: relative; }
 .remote-task-row:hover { background: #adc6d607; }
 .remote-task-row.is-selected { border-color: color-mix(in srgb, var(--remote-accent) 45%, transparent); background: color-mix(in srgb, var(--remote-accent) 9%, #091218); }
-.remote-task-select { display: flex; align-items: center; gap: 9px; padding: 12px 9px; min-width: 0; width: 100%; background: none; color: #d9e4e8; border: 0; text-align: left; font: 12px/1.5 -apple-system, sans-serif; }
+.remote-task-select { display: flex; align-items: center; gap: 9px; padding: 12px 9px; min-width: 0; width: 100%; background: none; color: #d9e4e8; border: 0; text-align: left; font: 12px/1.5 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-task-select:disabled { cursor: default; }
 .remote-task-select > span { min-width: 0; flex: 1; }
 .remote-task-select strong { display: block; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
 .remote-task-select small { color: #78909d; font-size: 10px; display: flex; gap: 6px; margin-top: 5px; white-space: nowrap; }
-.remote-task-select time { margin-left: auto; font: 10px Menlo, monospace; }
+.remote-task-select time { margin-left: auto; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .remote-task-dot { width: 7px; height: 7px; border-radius: 50%; background: #7c919c; flex: 0 0 7px; }
 .remote-task-dot.is-running { background: var(--remote-accent); box-shadow: 0 0 7px color-mix(in srgb, var(--remote-accent) 40%, transparent); animation: remote-pulse 1.5s ease-in-out infinite; }
 .remote-task-dot.is-waiting { background: #e4b96c; }
@@ -38,20 +38,20 @@
 .remote-chat-empty p { margin: 0; font-size: 12px; line-height: 1.9; }
 .remote-empty-note { color: #6c8898; font-size: 12px; line-height: 1.8; text-align: center; padding: 22px 12px; }
 .remote-message { display: flex; gap: 10px; margin: 0 0 22px; min-width: 0; }
-.remote-message .remote-engine-mark, .remote-user-mark { width: 30px; height: 30px; flex: 0 0 30px; font: 13px Menlo, monospace; border-width: 1px; margin-top: 1px; }
+.remote-message .remote-engine-mark, .remote-user-mark { width: 30px; height: 30px; flex: 0 0 30px; font: 13px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; border-width: 1px; margin-top: 1px; }
 .remote-user-mark { border: 1px solid #476174; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #314d5f, #152835); color: #d2e4ee; }
 .remote-user-mark svg { width: 23px; height: 23px; }
 .remote-message__body { min-width: 0; flex: 1; }
 .remote-message__body > header { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #c6d7df; margin-bottom: 8px; min-height: 21px; }
-.remote-message time, .remote-tool time, .remote-approval time { font: 10px Menlo, monospace; color: #6e8999; white-space: nowrap; }
+.remote-message time, .remote-tool time, .remote-approval time { font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #6e8999; white-space: nowrap; }
 .remote-user-text { margin: 0; padding: 10px 12px; border-radius: 5px; background: #2036486b; color: #d8e5eb; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
 .remote-markdown { color: #c5d5dd; font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
 .remote-markdown p { margin: 0 0 12px; }
 .remote-markdown p:last-child { margin-bottom: 0; }
 .remote-markdown h1, .remote-markdown h2, .remote-markdown h3 { font-size: 15px; margin: 16px 0 8px; }
 .remote-markdown ul, .remote-markdown ol { padding-left: 22px; }
-.remote-markdown pre { padding: 12px; background: #050a1080; border: 1px solid #2e414e; border-radius: 4px; overflow: auto; font: 11px/1.8 Menlo, monospace; }
-.remote-markdown code { font: 11px Menlo, monospace; }
+.remote-markdown pre { padding: 12px; background: #050a1080; border: 1px solid #2e414e; border-radius: 4px; overflow: auto; font: 11px/1.8 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.remote-markdown code { font: 11px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .remote-markdown table { border-collapse: collapse; display: block; overflow: auto; max-width: 100%; }
 .remote-markdown th, .remote-markdown td { padding: 7px 9px; border: 1px solid #304650; }
 .remote-link { color: #a2c5dc; text-decoration: underline; text-decoration-color: #a2c5dc55; }
@@ -70,11 +70,11 @@
 .remote-tool__state { width: 12px; font-size: 12px; color: #54c7a3; flex: 0 0 12px; }
 .remote-tool__state.is-failed, .remote-tool__state.is-rejected { color: #e49386; }
 .remote-tool__detail { border-top: 1px solid #2c444e; padding: 10px; }
-.remote-tool pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.8 Menlo, monospace; margin: 0; max-height: 300px; overflow: auto; }
+.remote-tool pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.8 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; margin: 0; max-height: 300px; overflow: auto; }
 .remote-tool__input { color: #a0b8c6; }
 .remote-tool__output { color: #8fa6b5; border-top: 1px solid #29404b; margin-top: 9px !important; padding-top: 9px; }
-.remote-tool__path { display: block; color: #6a8c9e; margin-top: 10px; font: 10px/1.6 Menlo, monospace; overflow-wrap: anywhere; }
-.remote-diff { max-height: 300px; overflow: auto; margin-top: 10px; border: 1px solid #263d46; border-radius: 3px; font: 10px/1.8 Menlo, monospace; color: #7893a0; }
+.remote-tool__path { display: block; color: #6a8c9e; margin-top: 10px; font: 10px/1.6 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; overflow-wrap: anywhere; }
+.remote-diff { max-height: 300px; overflow: auto; margin-top: 10px; border: 1px solid #263d46; border-radius: 3px; font: 10px/1.8 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #7893a0; }
 .remote-diff > div { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 6px; }
 .remote-diff .is-added { background: #31c99412; color: #72d9a8; }
 .remote-diff .is-removed { background: #e0747019; color: #e69791; }
@@ -82,7 +82,7 @@
 .remote-approval header { display: flex; gap: 9px; align-items: center; font-size: 12px; color: #dbc49b; }
 .remote-approval header strong { font-weight: 400; flex: 1; }
 .remote-approval__mark { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: 11px; border: 1px solid #ac9868; border-radius: 50%; flex-shrink: 0; }
-.remote-approval pre { font: 11px/1.8 Menlo, monospace; color: #aebcc1; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+.remote-approval pre { font: 11px/1.8 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #aebcc1; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
 .remote-approval footer { display: flex; gap: 7px; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px; }
 .remote-approval .remote-button { font-size: 10px; padding: 6px 9px; min-height: 28px; }
 .remote-question fieldset { border: 0; padding: 12px 0 0; margin: 10px 0; }
@@ -97,13 +97,13 @@
 .remote-failure.is-current { border-color: #a585565e; background: #49382024; }
 .remote-failure > header { display: flex; align-items: center; gap: 8px; color: #d4bb98; }
 .remote-failure > header strong { flex: 1; font-weight: 500; }
-.remote-failure__mark { width: 17px; height: 17px; flex: 0 0 17px; border: 1px solid #a78a63; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 11px/1 Menlo, monospace; }
-.remote-failure time { font: 10px Menlo, monospace; color: #8a969b; }
+.remote-failure__mark { width: 17px; height: 17px; flex: 0 0 17px; border: 1px solid #a78a63; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 11px/1 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.remote-failure time { font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #8a969b; }
 .remote-failure > p { margin: 8px 0 0; }
 .remote-failure .remote-failure__hint { color: #92a7b2; font-size: 11px; margin-top: 10px; }
 .remote-failure > details { margin-top: 8px; font-size: 11px; }
 .remote-failure > details > summary { color: #869ba7; cursor: pointer; }
-.remote-failure pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.7 Menlo, monospace; background: #07101566; border-radius: 3px; margin: 8px 0 0; padding: 8px; color: #a6b9c2; }
+.remote-failure pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.7 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; background: #07101566; border-radius: 3px; margin: 8px 0 0; padding: 8px; color: #a6b9c2; }
 .remote-failure > footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .remote-failure .remote-button { font-size: 11px; min-height: 28px; padding: 5px 10px; }
 .remote-date-divider { display: flex; align-items: center; gap: 12px; color: #597886; font-size: 10px; margin-bottom: 18px; }
@@ -117,7 +117,7 @@
 .remote-composer__status-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: 0 0 25px; margin: 0 3px 6px; }
 .remote-composer__status { display: flex; align-items: center; min-height: 18px; }
 .remote-composer__status .remote-task-label { font-size: 11px; }
-.remote-input-mode { max-width: 160px; height: 25px; font: 10px -apple-system, sans-serif; color: #9eafba; background: #09131b; border: 1px solid #91b4c326; border-radius: 4px; padding: 3px 7px; color-scheme: dark; }
+.remote-input-mode { max-width: 160px; height: 25px; font: 10px -apple-system, Arial, "Noto Sans SC Variable", sans-serif; color: #9eafba; background: #09131b; border: 1px solid #91b4c326; border-radius: 4px; padding: 3px 7px; color-scheme: dark; }
 .remote-input-mode:disabled { opacity: .5; cursor: default; }
 .remote-input-queue { display: flex; flex-direction: column; min-height: 0; flex: 0 1 115px; max-height: 115px; margin-bottom: 8px; border: 1px solid #91b4c325; border-radius: 5px; background: #0b17217a; overflow: hidden; }
 .remote-input-queue > header { display: flex; align-items: center; justify-content: space-between; gap: 7px; min-height: 25px; padding: 4px 8px; flex: 0 0 auto; font-size: 10px; color: #9cb2c0; }
@@ -126,11 +126,11 @@
 .remote-input-queue__list { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .remote-input-queue__item { display: flex; align-items: center; gap: 6px; min-width: 0; border-top: 1px solid #91b4c316; padding: 7px 8px; }
 .remote-input-queue__item > div { flex: 1; min-width: 0; }
-.remote-input-queue__item p { margin: 0; color: #bacbd5; font: 11px/1.6 -apple-system, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.remote-input-queue__item p { margin: 0; color: #bacbd5; font: 11px/1.6 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .remote-input-queue__item small { display: flex; align-items: center; gap: 5px; color: #7897aa; font-size: 9px; line-height: 1.5; margin-top: 3px; overflow-wrap: anywhere; }
 .remote-input-queue__error { color: #bd9d78 !important; }
 .remote-input-queue__item .remote-spinner { width: 9px; height: 9px; }
-.remote-input-queue__steer, .remote-input-queue__remove { flex: 0 0 auto; border: 0; border-radius: 3px; background: none; color: #99b5c6; height: 25px; display: flex; align-items: center; justify-content: center; gap: 4px; font: 10px Menlo, monospace; padding: 0 5px; }
+.remote-input-queue__steer, .remote-input-queue__remove { flex: 0 0 auto; border: 0; border-radius: 3px; background: none; color: #99b5c6; height: 25px; display: flex; align-items: center; justify-content: center; gap: 4px; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; padding: 0 5px; }
 .remote-input-queue__steer svg { width: 12px; height: 12px; }
 .remote-input-queue__remove { width: 23px; font-size: 17px; padding: 0; }
 .remote-input-queue__steer:hover:not(:disabled), .remote-input-queue__remove:hover:not(:disabled) { color: #d8e8ef; background: #91b4c30c; }
@@ -138,7 +138,7 @@
 .remote-composer__row { display: flex; align-items: flex-end; gap: 4px; border: 1px solid color-mix(in srgb, var(--remote-accent) 65%, #35525f); border-radius: 5px; padding: 5px; background: #07131a80; flex: 0 0 auto; }
 .remote-composer__row:focus-within { border-color: var(--remote-accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--remote-accent) 12%, transparent); }
 .remote-composer__row .remote-icon-button { width: 30px; height: 42px; }
-.remote-composer textarea { resize: none; width: 100%; min-width: 0; height: 42px; max-height: 132px; border: 0; outline: none; background: transparent; color: #d3e4ec; padding: 10px 6px; font: 13px/22px -apple-system, sans-serif; }
+.remote-composer textarea { resize: none; width: 100%; min-width: 0; height: 42px; max-height: 132px; border: 0; outline: none; background: transparent; color: #d3e4ec; padding: 10px 6px; font: 13px/22px -apple-system, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-composer textarea::placeholder { color: #668393; }
 .remote-button.remote-execution-control { width: 36px; height: 42px; min-height: 42px; flex: 0 0 36px; padding: 0; border: 0; background: transparent; color: #b5c7cf; }
 .remote-execution-control svg { width: 23px; height: 23px; }
@@ -159,7 +159,7 @@
 .remote-scene.is-expanded { position: fixed; inset: calc(var(--topbar-height) + 14px) 16px 16px; z-index: 90; background: #060c13; box-shadow: 0 20px 100px #0009; }
 .remote-scene__tabs { display: flex; flex: 0 0 40px; overflow-x: auto; border-bottom: 1px solid #32525f; scrollbar-width: none; background: #08121970; }
 .remote-scene__tabs::-webkit-scrollbar { display: none; }
-.remote-scene__tabs button { flex: 1 0 auto; padding: 0 9px; border: 0; border-bottom: 2px solid transparent; color: #879eac; background: none; font: 11px -apple-system, sans-serif; white-space: nowrap; }
+.remote-scene__tabs button { flex: 1 0 auto; padding: 0 9px; border: 0; border-bottom: 2px solid transparent; color: #879eac; background: none; font: 11px -apple-system, Arial, "Noto Sans SC Variable", sans-serif; white-space: nowrap; }
 .remote-scene__tabs button[aria-selected="true"] { color: #d2e2ea; border-bottom-color: var(--remote-accent); background: #10242e55; }
 .remote-scene__tabs button:hover { color: #cce0ea; }
 .remote-scene__content { flex: 1; min-height: 0; min-width: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
@@ -180,7 +180,7 @@
 .remote-rfb { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
 .remote-rfb.is-view-only, .remote-rfb.is-view-only * { cursor: default !important; }
 .remote-rfb.is-view-only canvas { pointer-events: none; }
-.remote-frame-size { display: block; flex-shrink: 0; color: #7396a7; font: 10px/1.6 Menlo, monospace; padding: 0 12px 7px; }
+.remote-frame-size { display: block; flex-shrink: 0; color: #7396a7; font: 10px/1.6 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; padding: 0 12px 7px; }
 .remote-rfb-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; padding: 30px; text-align: center; background: #050c12dc; color: #8babbc; }
 .remote-rfb-overlay p { margin: 0; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .remote-rfb-overlay .remote-spinner { width: 20px; height: 20px; }
@@ -188,7 +188,7 @@
 .remote-preview > header, .remote-files > header { padding: 7px 10px; border-bottom: 1px solid #28444f; flex: 0 0 45px; display: flex; align-items: center; gap: 9px; font-size: 11px; color: #89a6b6; min-width: 0; }
 .remote-preview header strong, .remote-files header > span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 400; }
 .remote-preview header .remote-button { min-height: 28px; padding: 4px 10px; font-size: 11px; }
-.remote-preview pre { margin: 0; padding: 16px; flex: 1; overflow: auto; color: #a6bfcd; font: 11px/1.8 Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: #050b11; }
+.remote-preview pre { margin: 0; padding: 16px; flex: 1; overflow: auto; color: #a6bfcd; font: 11px/1.8 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: #050b11; }
 .remote-preview iframe { border: 0; width: 100%; flex: 1; min-height: 0; background: white; }
 .remote-preview__image { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 12px; background: #080e15; }
 .remote-preview__image img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -199,7 +199,7 @@
 .remote-file-name { display: flex; align-items: center; gap: 11px; background: none; border: 0; color: #b1c9d6; text-align: left; flex: 1; min-width: 0; padding: 12px 0; font-size: 12px; }
 .remote-file-name > svg { width: 22px; height: 22px; flex-shrink: 0; color: #5f889f; }
 .remote-file-name > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.remote-file-name small { display: block; color: #5c7e90; font: 10px Menlo, monospace; margin-top: 5px; }
+.remote-file-name small { display: block; color: #5c7e90; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; margin-top: 5px; }
 .remote-admin-terminal { display: flex; flex-direction: column; min-height: 0; flex: 1; position: relative; background: #060b0f; }
 .remote-terminal-notice { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding: 9px 12px; border-bottom: 1px solid #91b4c320; background: #91b4c308; font-size: 11px; line-height: 1.7; color: #a7bac4; }
 .remote-terminal-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }

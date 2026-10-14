@@ -1,5 +1,5 @@
 .jev-lab-page--experiment { height: 100%; min-height: 0; padding: 0; overflow: hidden; }
-.jev-experiment-page { width: min(100%, 1720px); height: 100%; min-height: 0; margin: 0 auto; padding: 0 24px 18px; display: flex; flex-direction: column; color: #f1f4f9; font-family: Inter, "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.jev-experiment-page { width: min(100%, 1720px); height: 100%; min-height: 0; margin: 0 auto; padding: 0 24px 18px; display: flex; flex-direction: column; color: #f1f4f9; font-family: Inter, "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .jev-experiment-page button, .jev-experiment-page select, .jev-experiment-page textarea { font-family: inherit; }
 .jev-experiment-heading { height: 70px; flex: 0 0 70px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #334153; }
 .jev-experiment-heading svg { width: 40px; height: 40px; color: #d599ef; }
@@ -26,7 +26,7 @@
 .jev-experiment-input label small { margin-left: 7px; color: #8ea0b6; font-weight: 400; }
 .jev-experiment-input select, .jev-experiment-input textarea { width: 100%; border: 1px solid #3c4d63; border-radius: 5px; outline: none; background: #0c1726; color: #f1f4fb; font-size: 12px; }
 .jev-experiment-input select { height: 41px; flex: 0 0 41px; margin-bottom: 20px; padding: 0 12px; }
-.jev-experiment-input textarea { flex: 1; min-height: 140px; padding: 13px 14px; resize: none; font-family: "SFMono-Regular", Menlo, "PingFang SC", monospace; font-size: 12px; line-height: 1.75; overflow-y: auto; }
+.jev-experiment-input textarea { flex: 1; min-height: 140px; padding: 13px 14px; resize: none; font-family: "SFMono-Regular", Menlo, "PingFang SC", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; font-size: 12px; line-height: 1.75; overflow-y: auto; }
 .jev-experiment-input select:focus, .jev-experiment-input textarea:focus { border-color: #9478fa; box-shadow: 0 0 0 2px #805df43a; }
 .jev-experiment-input__bottom { margin-top: 7px; display: flex; justify-content: space-between; gap: 10px; color: #91a3b8; font-size: 10px; }
 .jev-experiment-privacy { margin: 17px 0 13px; color: #a5b5c9; font-size: 11px; line-height: 1.5; }

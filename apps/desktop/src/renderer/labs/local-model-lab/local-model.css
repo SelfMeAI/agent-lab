@@ -1,23 +1,23 @@
 .app-viewport--local-model { overflow: hidden; }
 .local-model-lab-page { height: 100%; min-height: 0; overflow: hidden; }
 .lm-page, .lm-dialog { --lm-accent: var(--accent, #c7d1de); }
-.lm-page { --lm-model-a: #c5f454; --lm-model-b: #49d8e8; --lm-line: #2b3742; height: 100%; min-height: 0; display: flex; flex-direction: column; background: #080f17ed; color: #e7edf1; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.lm-page { --lm-model-a: #c5f454; --lm-model-b: #49d8e8; --lm-line: #2b3742; height: 100%; min-height: 0; display: flex; flex-direction: column; background: #080f17ed; color: #e7edf1; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .lm-page button:disabled, .lm-dialog button:disabled { cursor: default; opacity: .4; }
 .lm-page button:focus-visible, .lm-dialog button:focus-visible { outline-color: var(--lm-accent); }
 .lm-heading { min-height: 80px; flex: 0 0 80px; padding: 0 32px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--lm-line); background: linear-gradient(110deg, #0c1620bb, #080e17bb); }
 .lm-heading > svg { width: 37px; height: 37px; color: var(--lm-accent); }
-.lm-heading h1 { margin: 0; font: 400 24px Menlo, monospace; letter-spacing: .025em; }
-.lm-heading > span { padding-left: 24px; border-left: 1px solid #66717c; color: #adbcc8; font: 17px Menlo, monospace; }
-.lm-heading > small { margin-left: auto; color: #819095; font: 9px Menlo, monospace; letter-spacing: .12em; }
+.lm-heading h1 { margin: 0; font: 400 24px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .025em; }
+.lm-heading > span { padding-left: 24px; border-left: 1px solid #66717c; color: #adbcc8; font: 17px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.lm-heading > small { margin-left: auto; color: #819095; font: 9px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .12em; }
 .lm-layout { min-height: 0; flex: 1; display: grid; grid-template-columns: clamp(220px, 22vw, 310px) minmax(0, 1fr) clamp(232px, 23vw, 312px); }
 .lm-models { min-height: 0; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--lm-line); }
 .lm-models__heading { height: 55px; flex: 0 0 55px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.lm-page h2 { margin: 0; font: 400 13px Menlo, monospace; letter-spacing: .025em; }
+.lm-page h2 { margin: 0; font: 400 13px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .025em; }
 .lm-small-icon { display: grid; place-items: center; flex: 0 0 29px; width: 29px; height: 29px; padding: 4px; border: 0; border-radius: 3px; color: #b8c7d1; background: transparent; font-size: 21px; }
 .lm-small-icon svg { width: 20px; height: 20px; }
 .lm-small-icon:hover:not(:disabled) { background: #24313a; color: #fff; }
 .lm-models__actions { display: flex; padding: 0 20px 14px; align-items: center; justify-content: space-between; gap: 8px; }
-.lm-pull { padding: 3px 0; border: 0; background: none; color: #b9c9d4; font: 10px Menlo, monospace; white-space: nowrap; }
+.lm-pull { padding: 3px 0; border: 0; background: none; color: #b9c9d4; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; white-space: nowrap; }
 .lm-pull:hover { color: var(--lm-accent); }
 .lm-target { display: flex; gap: 3px; }
 .lm-target button { border: 1px solid #32424d; border-radius: 3px; color: #8193a0; background: #111c24; padding: 3px 6px; font-size: 10px; }
@@ -43,45 +43,45 @@
 .lm-models-empty > svg { width: 40px; height: 40px; color: #8291a2; }
 .lm-models-empty > strong { font-weight: 500; font-size: 14px; }
 .lm-models-empty > p { margin: 0; color: #8196a4; font-size: 12px; line-height: 1.8; }
-.lm-models__footer { padding: 17px 21px; border-top: 1px solid #26323c; display: flex; flex-direction: column; gap: 6px; color: #7d909d; font: 10px Menlo, monospace; }
-.lm-models__footer small { font: 11px -apple-system, "PingFang SC", sans-serif; }
+.lm-models__footer { padding: 17px 21px; border-top: 1px solid #26323c; display: flex; flex-direction: column; gap: 6px; color: #7d909d; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.lm-models__footer small { font: 11px -apple-system, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .lm-download-mini { padding: 14px 19px; display: flex; align-items: center; gap: 9px; border: 0; border-top: 1px solid #36414d; color: var(--lm-accent); background: #c7d1de08; text-align: left; }
 .lm-download-mini > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .lm-download-mini strong { font-size: 11px; overflow-wrap: anywhere; }
 .lm-download-mini small { color: #8c9bac; font-size: 10px; }
 .lm-main { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .lm-tabs { height: 55px; flex: 0 0 55px; padding: 0 20px; display: flex; align-items: stretch; gap: 18px; border-bottom: 1px solid var(--lm-line); }
-.lm-tabs > button { border: 0; border-bottom: 2px solid transparent; background: none; color: #adbdc9; padding: 0 1px; font: 12px Menlo, monospace; }
+.lm-tabs > button { border: 0; border-bottom: 2px solid transparent; background: none; color: #adbdc9; padding: 0 1px; font: 12px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-tabs > button.is-active { color: var(--lm-accent); border-bottom-color: var(--lm-accent); }
-.lm-tabs .lm-history-button { margin-left: auto; font: 11px -apple-system, "PingFang SC", sans-serif; color: #8295a5; }
+.lm-tabs .lm-history-button { margin-left: auto; font: 11px -apple-system, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; color: #8295a5; }
 .lm-tabs > button:hover { color: #eef2f8; }
 .lm-center-content { padding: 18px 20px 20px; display: flex; flex-direction: column; min-height: 0; flex: 1; gap: 15px; }
 .lm-prompt { flex: 0 0 auto; min-width: 0; }
 .lm-section-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.lm-section-label label { font: 12px Menlo, monospace; letter-spacing: .04em; }
+.lm-section-label label { font: 12px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: .04em; }
 .lm-section-label > button { padding: 0; border: 0; color: #829baa; background: none; font-size: 11px; }
 .lm-section-label > button:hover { color: var(--lm-accent); }
 .lm-prompt__box { padding: 12px 13px; border: 1px solid #344351; border-radius: 5px; background: linear-gradient(115deg, #101c2750, #11192330); box-shadow: inset 0 1px #ceeaff04; }
 .lm-prompt__box:focus-within { border-color: #7c8b9d; }
-.lm-prompt__box > textarea { display: block; width: 100%; height: clamp(72px, 11vh, 120px); padding: 0; resize: none; border: 0; outline: 0; background: transparent; color: #edf1f3; font: 14px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; overscroll-behavior: contain; }
+.lm-prompt__box > textarea { display: block; width: 100%; height: clamp(72px, 11vh, 120px); padding: 0; resize: none; border: 0; outline: 0; background: transparent; color: #edf1f3; font: 14px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; overscroll-behavior: contain; }
 .lm-prompt__box textarea::placeholder { color: #657b8b; }
 .lm-prompt__actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding-top: 8px; }
 .lm-system-toggle { padding: 0; border: 0; color: #7f96a6; background: none; font-size: 10px; }
 .lm-system-toggle.has-value { color: var(--lm-accent); }
-.lm-run { flex: 0 0 auto; min-height: 35px; padding: 0 13px; border: 1px solid #e0e8f2; border-radius: 4px; background: var(--lm-accent); color: #18212c; font: 650 11px Menlo, monospace; box-shadow: inset 0 1px #ffffff38; }
+.lm-run { flex: 0 0 auto; min-height: 35px; padding: 0 13px; border: 1px solid #e0e8f2; border-radius: 4px; background: var(--lm-accent); color: #18212c; font: 650 11px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; box-shadow: inset 0 1px #ffffff38; }
 .lm-run:hover:not(:disabled) { background: #e0e8f2; }
 .lm-run--stop { background: #27313b; color: #dbe3ee; border-color: #647385; }
 .lm-run--stop:hover:not(:disabled) { background: #364353; }
 .lm-prompt__hint { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; margin-top: 8px; color: #738997; font-size: 10px; line-height: 1.5; }
-.lm-prompt__hint kbd { flex: 0 0 auto; font: 10px Menlo, monospace; color: #536a79; }
+.lm-prompt__hint kbd { flex: 0 0 auto; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #536a79; }
 .lm-system { margin-top: 10px; padding-top: 10px; border-top: 1px solid #293b48; }
-.lm-system label { color: #9fb4bf; font: 9px Menlo, monospace; }
-.lm-system textarea { width: 100%; height: 60px; display: block; padding: 7px 0; resize: none; border: 0; outline: 0; color: #cbd9e0; background: none; font: 12px/1.6 -apple-system, "PingFang SC", sans-serif; }
+.lm-system label { color: #9fb4bf; font: 9px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.lm-system textarea { width: 100%; height: 60px; display: block; padding: 7px 0; resize: none; border: 0; outline: 0; color: #cbd9e0; background: none; font: 12px/1.6 -apple-system, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .lm-outputs { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .lm-outputs--compare { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lm-response { min-height: 0; min-width: 0; display: flex; flex-direction: column; border: 1px solid #2b3b46; border-radius: 5px; overflow: hidden; background: #10192320; }
 .lm-response > header { min-height: 49px; flex: 0 0 auto; padding: 10px 13px; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; border-bottom: 1px solid #283641; }
-.lm-response > header > strong { font: 11px Menlo, monospace; }
+.lm-response > header > strong { font: 11px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-response__model { font-size: 12px; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .lm-response > header .lm-small-icon { margin-left: auto; flex: 0 0 25px; width: 25px; height: 25px; }
 .lm-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 10px; background: #1a3330; color: #a6ddc2; font-size: 9px; white-space: nowrap; }
@@ -89,10 +89,10 @@
 .lm-status--pending { color: #91a5af; background: #23303b; }
 .lm-status--stopped, .lm-status--interrupted { color: #bead90; background: #363023; }
 .lm-status--error { color: #eda8ab; background: #42272b; }
-.lm-slot { flex: 0 0 22px; width: 22px; height: 23px; display: inline-grid; place-items: center; border: 1px solid #d4ff7f; border-radius: 3px; color: #172408; background: var(--lm-model-a); font: 650 13px Menlo, monospace; }
+.lm-slot { flex: 0 0 22px; width: 22px; height: 23px; display: inline-grid; place-items: center; border: 1px solid #d4ff7f; border-radius: 3px; color: #172408; background: var(--lm-model-a); font: 650 13px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-slot--b { color: #092329; background: var(--lm-model-b); border-color: #7febf7; }
 .lm-response__body { min-height: 0; flex: 1; overflow-y: auto; padding: 17px; overscroll-behavior: contain; color: #dbe4ea; font-size: 14px; line-height: 1.75; }
-.lm-response > footer { padding: 7px 12px; border-top: 1px solid #25323b; display: flex; justify-content: space-between; gap: 4px; color: #657c8d; font: 9px Menlo, monospace; }
+.lm-response > footer { padding: 7px 12px; border-top: 1px solid #25323b; display: flex; justify-content: space-between; gap: 4px; color: #657c8d; font: 9px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-response > footer code { color: #4f697d; }
 .lm-output-empty { height: 100%; min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 13px; }
 .lm-output-empty svg { width: 35px; height: 35px; color: #6b7c8f; }
@@ -108,8 +108,8 @@
 .lm-markdown h1, .lm-markdown h2, .lm-markdown h3 { margin: 20px 0 12px; font-family: inherit; font-weight: 600; line-height: 1.4; font-size: 17px; }
 .lm-markdown ul, .lm-markdown ol { padding-left: 23px; }
 .lm-markdown li + li { margin-top: 8px; }
-.lm-markdown pre, .lm-thinking pre { max-width: 100%; padding: 13px; overflow-x: auto; border-radius: 4px; color: #bed4df; background: #080f16; font: 11px/1.8 Menlo, monospace; }
-.lm-markdown :not(pre) > code { padding: 2px 5px; border-radius: 3px; background: #26313d; font: 12px Menlo, monospace; color: #d0dcea; }
+.lm-markdown pre, .lm-thinking pre { max-width: 100%; padding: 13px; overflow-x: auto; border-radius: 4px; color: #bed4df; background: #080f16; font: 11px/1.8 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.lm-markdown :not(pre) > code { padding: 2px 5px; border-radius: 3px; background: #26313d; font: 12px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #d0dcea; }
 .lm-markdown a { color: var(--lm-accent); }
 .lm-markdown table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 12px; }
 .lm-markdown td, .lm-markdown th { border: 1px solid #344755; padding: 6px 9px; }
@@ -131,8 +131,8 @@
 .lm-setting input[type="range"] { display: block; width: 100%; height: 15px; margin: 0; accent-color: var(--lm-accent); cursor: pointer; }
 .lm-stepper { display: flex; height: 37px; border: 1px solid #2d3d49; border-radius: 4px; background: #131e28; }
 .lm-stepper button { flex: 0 0 30px; padding: 0; border: 0; color: #c1d1d7; background: transparent; font-size: 18px; }
-.lm-stepper input { min-width: 0; width: 100%; text-align: center; border: 0; outline: 0; color: #dfebef; background: transparent; font: 12px Menlo, monospace; }
-.lm-input, .lm-setting select { width: 100%; height: 37px; padding: 0 11px; border: 1px solid #2d3d49; border-radius: 4px; outline: none; background: #131e28; color: #d1dde4; font: 12px Menlo, monospace; }
+.lm-stepper input { min-width: 0; width: 100%; text-align: center; border: 0; outline: 0; color: #dfebef; background: transparent; font: 12px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.lm-input, .lm-setting select { width: 100%; height: 37px; padding: 0 11px; border: 1px solid #2d3d49; border-radius: 4px; outline: none; background: #131e28; color: #d1dde4; font: 12px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-setting input[type="number"] { appearance: textfield; }
 .lm-setting input::-webkit-inner-spin-button, .lm-setting input::-webkit-outer-spin-button { appearance: none; margin: 0; }
 .lm-setting input:focus-visible, .lm-setting select:focus-visible { outline: 1px solid var(--lm-accent); outline-offset: 1px; }
@@ -143,22 +143,22 @@
 .lm-measurements dl { margin: 22px 0 0; display: flex; flex-direction: column; gap: 17px; }
 .lm-measurements dl > div { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
 .lm-measurements dt { flex: 1; color: #9fadb9; font-size: 11px; }
-.lm-measurements dd { margin: 0; color: #cedbe9; font: 11px Menlo, monospace; text-align: right; }
+.lm-measurements dd { margin: 0; color: #cedbe9; font: 11px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; text-align: right; }
 .lm-measurements--compare dl > div { display: grid; grid-template-columns: minmax(0, 1fr) 60px 60px; gap: 8px; }
 .lm-measurements--compare header > span { flex: 0 0 128px; display: grid; grid-template-columns: 60px 60px; gap: 8px; justify-items: end; }
 .lm-measurements--compare dd { font-size: 10px; white-space: nowrap; }
 .lm-setting input[aria-invalid="true"] { border-color: #ac777b; }
 .lm-measurements p { color: #677e8d; font-size: 10px; line-height: 1.8; margin: 24px 0 0; }
 .lm-run-evidence { border-top: 1px solid #25353e; margin-top: 17px; padding-top: 16px; display: flex; flex-direction: column; gap: 7px; color: #6e8490; font-size: 10px; }
-.lm-run-evidence code, .lm-run-evidence small { font: 9px Menlo, monospace; }
+.lm-run-evidence code, .lm-run-evidence small { font: 9px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-run-evidence time { font-size: 9px; color: #576f80; }
 .lm-record-strip { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: #a2b0c1; padding: 7px 10px; background: #28354555; border: 1px solid #425164; border-radius: 3px; }
 .lm-record-strip button { border: 0; padding: 0; color: var(--lm-accent); background: none; font-size: 10px; }
 .lm-dialog { width: 460px; outline: none; }
 .lm-dialog--wide { width: 560px; }
 .lm-dialog .settings-panel__body { padding: 26px 27px; }
-.lm-directory { display: block; border: 1px solid #35444f; border-radius: 4px; background: #101b23; padding: 12px; margin: 0; color: #abbbc5; font: 11px/1.7 Menlo, monospace; overflow-wrap: anywhere; }
-.lm-secondary { min-height: 33px; padding: 0 11px; border: 1px solid #455863; border-radius: 4px; color: #c4d0d7; background: #1a2731; font: 12px -apple-system, "PingFang SC", sans-serif; }
+.lm-directory { display: block; border: 1px solid #35444f; border-radius: 4px; background: #101b23; padding: 12px; margin: 0; color: #abbbc5; font: 11px/1.7 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; overflow-wrap: anywhere; }
+.lm-secondary { min-height: 33px; padding: 0 11px; border: 1px solid #455863; border-radius: 4px; color: #c4d0d7; background: #1a2731; font: 12px -apple-system, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .lm-secondary:hover:not(:disabled) { border-color: #7c939f; background: #24353f; }
 .lm-dialog-actions { margin: 16px 0; display: flex; gap: 9px; }
 .lm-note { margin: 23px 0; }
@@ -166,7 +166,7 @@
 .lm-model-suggestions > button { display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border: 1px solid #33444d; border-radius: 4px; color: #cdd9df; background: #132028; text-align: left; }
 .lm-model-suggestions > button:hover:not(:disabled) { border-color: #6b7b8b; background: #1b2732; }
 .lm-model-suggestions > button.is-selected { border-color: #8291a2; background: #28323e; }
-.lm-model-suggestions strong { font: 12px Menlo, monospace; }
+.lm-model-suggestions strong { font: 12px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-model-suggestions small { font-size: 11px; color: #81959e; }
 .settings-panel.lm-pull-dialog { width: min(100%, 620px); }
 .lm-pull-dialog .settings-panel__body { display: flex; flex-direction: column; overflow: hidden; }
@@ -180,14 +180,14 @@
 .lm-catalog-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #4c5c67 transparent; padding: 2px 5px 4px 0; outline-offset: -2px; }
 .lm-catalog-group + .lm-catalog-group { margin-top: 22px; }
 .lm-catalog-group > header { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
-.lm-catalog-group h4 { margin: 0; color: #ccd7e2; font: 13px Menlo, monospace; }
+.lm-catalog-group h4 { margin: 0; color: #ccd7e2; font: 13px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .lm-catalog-group header > span { color: #8293a4; font-size: 11px; }
 .lm-catalog-group .lm-model-suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .lm-catalog-group .lm-model-suggestions > button { min-width: 0; gap: 8px; }
 .lm-catalog-model-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-.lm-catalog-model-heading strong { font: 550 12px -apple-system, "PingFang SC", sans-serif; }
-.lm-catalog-size { flex: 0 0 auto; color: #aab8c8; font: 10px Menlo, monospace; }
-.lm-model-suggestions code { color: #92a6b8; font: 10px/1.6 Menlo, monospace; overflow-wrap: anywhere; }
+.lm-catalog-model-heading strong { font: 550 12px -apple-system, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
+.lm-catalog-size { flex: 0 0 auto; color: #aab8c8; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
+.lm-model-suggestions code { color: #92a6b8; font: 10px/1.6 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; overflow-wrap: anywhere; }
 .lm-catalog-group .lm-model-suggestions small { line-height: 1.6; }
 .lm-catalog-badge { align-self: flex-start; margin-top: auto; padding: 3px 5px; border: 1px solid #4c535d; border-radius: 3px; color: #9da6b1; font-size: 9px; }
 .lm-catalog-badge.is-installed { border-color: #496152; color: #a0c9ad; background: #19302666; }
@@ -197,7 +197,7 @@
 .lm-pull-dialog .lm-download { flex: 0 0 auto; margin-top: 14px; padding: 12px; gap: 8px; }
 .lm-pull-dialog .settings-panel__error { max-height: 72px; overflow-y: auto; overflow-wrap: anywhere; }
 .lm-download { margin-top: 25px; padding: 16px; border: 1px solid #3f4e61; border-radius: 4px; background: #23304150; display: flex; flex-direction: column; gap: 12px; }
-.lm-download strong { font: 13px Menlo, monospace; overflow-wrap: anywhere; }
+.lm-download strong { font: 13px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; overflow-wrap: anywhere; }
 .lm-download span, .lm-download small { color: #a8b6c7; font-size: 11px; }
 .lm-download progress { appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 4px; border: 0; border-radius: 4px; overflow: hidden; background: #354355; accent-color: var(--lm-accent); }
 .lm-download progress::-webkit-progress-bar { background: #354355; border-radius: 4px; }
@@ -237,10 +237,10 @@
 .lm-history-list > article { border: 1px solid #31414e; border-radius: 4px; background: #152029; }
 .lm-history-list > article > button { display: flex; flex-direction: column; gap: 9px; width: 100%; padding: 15px; background: none; border: 0; text-align: left; color: #c4d1d9; }
 .lm-history-list > article > button:hover:not(:disabled) { background: #20313a; }
-.lm-history-list article span { display: flex; justify-content: space-between; font: 10px Menlo, monospace; color: #a9b7ca; }
+.lm-history-list article span { display: flex; justify-content: space-between; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #a9b7ca; }
 .lm-history-list article span small { color: #819498; font-size: 10px; }
 .lm-history-list article strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; font-weight: 500; line-height: 1.6; }
-.lm-history-list article em { font: 10px Menlo, monospace; color: #7e9aa7; overflow-wrap: anywhere; }
+.lm-history-list article em { font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #7e9aa7; overflow-wrap: anywhere; }
 .lm-history-list article time { font-size: 10px; color: #687e8b; }
 .lm-history-delete { padding: 0 15px 10px; display: flex; justify-content: flex-end; gap: 9px; align-items: center; }
 .lm-history-delete button { padding: 0; border: 0; background: none; color: #8b6e75; font-size: 10px; }

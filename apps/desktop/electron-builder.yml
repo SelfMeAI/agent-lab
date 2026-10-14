@@ -16,6 +16,8 @@ extraResources:
     to: licenses/Agent-Lab-NOTICE
   - from: ../../THIRD_PARTY_NOTICES.txt
     to: licenses/THIRD_PARTY_NOTICES.txt
+  - from: ../../node_modules/@fontsource-variable/noto-sans-sc/LICENSE
+    to: licenses/Noto-Sans-SC-OFL.txt
   - from: ../../runtimes/ollama
     to: ollama
     filter:

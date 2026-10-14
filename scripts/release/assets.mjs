@@ -25,7 +25,7 @@ export function renderPreparation(template, plan, images) {
 }
 export function verifyDesktopReceipt(plan, target, receipt) {
   if (receipt.schemaVersion !== 1 || receipt.version !== plan.version || receipt.commit !== plan.commit || receipt.target !== target.id || receipt.verified !== true
-    || !["distribution-payload", "packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", "bundled-harness-integration"].every(check => receipt.checks?.includes(check))) throw new Error(`桌面安装包尚未通过完整发布验收：${target.id}`);
+    || !["distribution-payload", "packaged-window", "bundled-cjk-font", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", "bundled-harness-integration"].every(check => receipt.checks?.includes(check))) throw new Error(`桌面安装包尚未通过完整发布验收：${target.id}`);
   const names = target.extensions.map(extension => `Agent-Lab-${plan.version}-${target.id}.${extension}`);
   assert.deepEqual(receipt.files, names, "安装包文件记录不匹配");
   return names;

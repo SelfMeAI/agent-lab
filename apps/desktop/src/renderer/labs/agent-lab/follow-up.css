@@ -1,10 +1,10 @@
-.agent-queue { display: flex; flex-direction: column; flex: 0 1 auto; min-width: 0; min-height: 0; max-height: 204px; padding: 10px 13px 0; border-top: 1px solid #ffffff10; background: #0a1318; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.agent-queue { display: flex; flex-direction: column; flex: 0 1 auto; min-width: 0; min-height: 0; max-height: 204px; padding: 10px 13px 0; border-top: 1px solid #ffffff10; background: #0a1318; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .agent-queue__heading { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; min-height: 29px; padding: 0 3px 8px; color: #bdc8ce; }
 .agent-queue__title { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; }
 .agent-queue__title > svg { width: 14px; height: 14px; color: #8d9ba5; }
 .agent-queue__title strong { font-weight: 500; }
 .agent-queue__title small { min-width: 17px; padding: 0 5px; border-radius: 5px; background: #ffffff0a; color: #8f9fa9; font-size: 10px; text-align: center; font-variant-numeric: tabular-nums; }
-.agent-queue__title em { margin-left: 2px; color: #baa689; font: normal 10px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.agent-queue__title em { margin-left: 2px; color: #baa689; font: normal 10px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .agent-queue__hint { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7f909b; font-size: 10px; }
 .agent-queue button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 4px 7px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #b7c4cd; font: inherit; font-size: 11px; white-space: nowrap; transition: color .15s, background .15s; }
 .agent-queue button:hover:not(:disabled) { background: #ffffff09; color: #e6edf0; }
@@ -28,7 +28,7 @@
 .agent-queue .agent-queue__steer { color: #c0cfd8; }
 .agent-queue .agent-queue__steer:hover:not(:disabled) { color: var(--agent-accent); background: color-mix(in srgb, var(--agent-accent) 8%, transparent); }
 .agent-queue .agent-queue__more { width: 26px; padding: 4px; color: #8296a3; }
-.agent-queue-popover { position: fixed; z-index: 50; width: 140px; padding: 5px; border: 1px solid #ffffff1c; border-radius: 8px; background: #14202a; box-shadow: 0 10px 30px #0008; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.agent-queue-popover { position: fixed; z-index: 50; width: 140px; padding: 5px; border: 1px solid #ffffff1c; border-radius: 8px; background: #14202a; box-shadow: 0 10px 30px #0008; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .agent-queue-popover button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 9px; border: 0; border-radius: 3px; color: #d0e0e4; background: transparent; text-align: left; font: inherit; }
 .agent-queue-popover button:hover:not(:disabled), .agent-queue-popover button:focus-visible { background: #ffffff09; }
 .agent-queue-popover button:disabled { opacity: .3; cursor: default; }
@@ -36,7 +36,7 @@
 .agent-queue-popover .is-danger { margin-top: 3px; border-top: 1px solid #ffffff0b; border-radius: 0 0 3px 3px; }
 .agent-queue-popover .is-danger:hover { color: #efb2ae; background: #d472720e; }
 .agent-queue__editor { flex: 1 0 100%; min-width: 0; }
-.agent-queue__editor textarea { display: block; width: 100%; min-height: 68px; max-height: 120px; padding: 8px; resize: none; overflow-y: auto; border: 1px solid #ffffff24; border-radius: 6px; outline: none; color: #e0edef; background: #091318; font: 12px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; scrollbar-width: thin; }
+.agent-queue__editor textarea { display: block; width: 100%; min-height: 68px; max-height: 120px; padding: 8px; resize: none; overflow-y: auto; border: 1px solid #ffffff24; border-radius: 6px; outline: none; color: #e0edef; background: #091318; font: 12px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; scrollbar-width: thin; }
 .agent-queue__editor textarea:focus { border-color: var(--agent-accent); }
 .agent-queue__editor > div { display: flex; justify-content: flex-end; align-items: center; gap: 7px; margin-top: 7px; }
 .agent-queue__editor small { margin-right: auto; color: #819ba2; font-size: 10px; }
@@ -50,7 +50,7 @@
 @keyframes agent-queue-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .agent-queue__spinner { animation: none; } }
 .dsh-send-control { position: relative; flex: 0 0 auto; display: flex; gap: 0; }
-.dsh-send-control .dsh-composer__send { width: auto; min-width: 76px; flex: 0 0 auto; display: flex; justify-content: center; gap: 7px; padding: 0 12px; border-radius: 6px 0 0 6px; font: 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-send-control .dsh-composer__send { width: auto; min-width: 76px; flex: 0 0 auto; display: flex; justify-content: center; gap: 7px; padding: 0 12px; border-radius: 6px 0 0 6px; font: 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .dsh-send-control .dsh-composer__send svg { width: 17px; height: 17px; }
 .dsh-send-control .dsh-send-control__toggle { width: 29px; flex: 0 0 29px; padding: 0; border-left: 0; border-radius: 0 6px 6px 0; }
 .dsh-send-control .dsh-send-control__toggle svg { width: 15px; height: 15px; }
@@ -59,8 +59,8 @@
 .dsh-composer .dsh-send-control > button:hover:not(:disabled) { transform: none; }
 .dsh-send-control > button:focus-visible, .dsh-composer .dsh-composer__cancel:focus-visible { outline: 1px solid var(--agent-accent); outline-offset: 3px; }
 .dsh-send-menu { position: absolute; z-index: 12; right: 0; bottom: calc(100% + 10px); width: 260px; padding: 6px; border: 1px solid #ffffff1c; border-radius: 9px; background: #14202a; box-shadow: 0 12px 36px #0009; }
-.dsh-send-menu > span { display: block; padding: 6px 10px 9px; color: #8c9ca8; font: 10px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
-.dsh-composer .dsh-send-menu button { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; justify-items: start; row-gap: 4px; column-gap: 10px; width: 100%; min-height: 57px; height: auto; padding: 10px; border: 0; border-radius: 5px; text-align: left; color: #dbe4e9; background: transparent; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.dsh-send-menu > span { display: block; padding: 6px 10px 9px; color: #8c9ca8; font: 10px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
+.dsh-composer .dsh-send-menu button { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; justify-items: start; row-gap: 4px; column-gap: 10px; width: 100%; min-height: 57px; height: auto; padding: 10px; border: 0; border-radius: 5px; text-align: left; color: #dbe4e9; background: transparent; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, "Noto Sans SC Variable", sans-serif; }
 .dsh-composer .dsh-send-menu button:hover:not(:disabled), .dsh-composer .dsh-send-menu button:focus-visible { transform: none; outline: none; background: #ffffff09; }
 .dsh-composer .dsh-send-menu button[aria-checked="true"] { background: #ffffff05; }
 .dsh-send-menu strong { grid-column: 1; font-weight: 500; }

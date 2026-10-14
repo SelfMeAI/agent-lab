@@ -64,11 +64,12 @@ test("distribution scripts have immutable refs, correct aliases, no runtimes/sou
 });
 test("desktop receipts require real package startup and all native harness checks, not just compilation", () => {
   const target = plan.desktop[0], receipt = { schemaVersion: 1, version: plan.version, commit, target: target.id, verified: true,
-    checks: ["distribution-payload", "packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", "bundled-harness-integration"],
+    checks: ["distribution-payload", "packaged-window", "bundled-cjk-font", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", "bundled-harness-integration"],
     files: target.extensions.map(extension => `Agent-Lab-${plan.version}-${target.id}.${extension}`) };
   assert.deepEqual(verifyDesktopReceipt(plan, target, receipt), receipt.files);
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: ["compiled"] }));
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: receipt.checks.filter(check => check !== "distribution-payload") }));
+  assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: receipt.checks.filter(check => check !== "bundled-cjk-font") }));
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, files: ["../secret.json"] }));
 });
 test("Release asset limits reject oversized files without trimming bundled capabilities", async () => {
@@ -91,6 +92,18 @@ test("distribution verification uses extracted/installed payloads, not the origi
     assert.ok(layout.executable.startsWith(directory)); assert.ok(layout.resources.startsWith(directory));
     assert.ok(!layout.executable.includes(join("release", "mac-arm64")));
   }
+});
+test("desktop Chinese fallback is pinned, bundled offline, and retains its license", async () => {
+  const desktop = JSON.parse(await readFile(join(root, "apps/desktop/package.json"), "utf8"));
+  assert.equal(desktop.devDependencies["@fontsource-variable/noto-sans-sc"], "5.3.1");
+  const entry = await readFile(join(root, "apps/desktop/src/renderer/main.tsx"), "utf8");
+  assert.ok(entry.includes('import "@fontsource-variable/noto-sans-sc/wght.css"'));
+  const builder = await readFile(join(root, "apps/desktop/electron-builder.yml"), "utf8");
+  assert.ok(builder.includes("node_modules/@fontsource-variable/noto-sans-sc/LICENSE"));
+  assert.ok(builder.includes("licenses/Noto-Sans-SC-OFL.txt"));
+  const styles = await readFile(join(root, "apps/desktop/src/renderer/styles.css"), "utf8");
+  assert.ok(styles.includes('"Noto Sans SC Variable", monospace'));
+  assert.ok(styles.includes('"Noto Sans SC Variable", sans-serif'));
 });
 test("public image checks do not use user auth and reject private/mismatched/incomplete manifests", async () => {
   const calls = [], token = "anonymous-fixture";

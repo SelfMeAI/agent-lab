@@ -101,6 +101,12 @@ https://github.com/west-shell/xiangqi.js
 
 Application dependencies
 ------------------------
+Noto Sans SC Variable via @fontsource-variable/noto-sans-sc 5.3.1 — OFL-1.1
+https://fontsource.org/fonts/noto-sans-sc/about
+Bundled as an offline Chinese fallback font; no system font installation or
+external font service is required. The upstream SIL Open Font License is
+distributed as licenses/Noto-Sans-SC-OFL.txt in desktop packages.
+
 Electron, React, React DOM, TypeScript, Vite, electron-vite, xterm.js, noVNC,
 diff, react-markdown, remark-gfm and TypeBox retain their respective licenses.
 Versioned dependency trees are recorded in the committed package-lock.json

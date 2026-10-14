@@ -6,7 +6,7 @@
 .remote-heading__copy h1 { margin: 0; font-size: clamp(24px, 2.5vw, 37px); font-weight: 400; letter-spacing: -.02em; }
 .remote-service-entry { margin-left: auto; flex: 0 0 auto; height: 44px; gap: 10px; padding: 0 18px !important; }
 .remote-service-entry svg { width: 22px; height: 22px; }
-.remote-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 7px 15px; border: 1px solid #75818a; border-radius: 5px; background: linear-gradient(#ffffff05, #ffffff00), #0a1016d9; color: #eff3f6; font: 13px -apple-system, BlinkMacSystemFont, sans-serif; transition: border-color .15s, background .15s; }
+.remote-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 7px 15px; border: 1px solid #75818a; border-radius: 5px; background: linear-gradient(#ffffff05, #ffffff00), #0a1016d9; color: #eff3f6; font: 13px -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; transition: border-color .15s, background .15s; }
 .remote-button:hover:not(:disabled) { border-color: #d2dee5; background: #19232c; }
 .remote-button:disabled { cursor: default; opacity: .4; }
 .remote-button:focus-visible { outline-color: #a8becd; outline-offset: 3px; }
@@ -17,20 +17,20 @@
 .remote-engine-card { min-width: 0; display: flex; align-items: center; gap: 24px; min-height: calc(var(--index-card-height) + 44px); padding: 28px; text-align: left; background: linear-gradient(110deg, #080f12ed, #070c10bc); color: #f5f7f8; border: 1px solid var(--remote-engine); border-radius: 6px; transition: background .15s, box-shadow .15s; }
 .remote-engine-card:hover { background: #0a141aed; box-shadow: 0 0 26px color-mix(in srgb, var(--remote-engine) 10%, transparent); }
 .remote-engine-card:focus-visible { outline-color: var(--remote-engine); }
-.remote-engine-mark { width: 82px; height: 82px; border: 3px solid var(--remote-engine); color: var(--remote-engine); border-radius: 50%; flex: 0 0 82px; display: inline-flex; align-items: center; justify-content: center; font: 400 33px Menlo, monospace; letter-spacing: -.04em; }
+.remote-engine-mark { width: 82px; height: 82px; border: 3px solid var(--remote-engine); color: var(--remote-engine); border-radius: 50%; flex: 0 0 82px; display: inline-flex; align-items: center; justify-content: center; font: 400 33px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; letter-spacing: -.04em; }
 .remote-engine-card .remote-engine-mark { width: 72px; height: 72px; flex-basis: 72px; font-size: 28px; }
 .remote-engine-card__copy { display: flex; flex-direction: column; min-width: 0; gap: 11px; }
 .remote-engine-card__copy strong { font-size: clamp(24px, 2.25vw, 30px); font-weight: 400; letter-spacing: -.04em; }
-.remote-engine-card__copy > span:not(.remote-status) { color: #a5b8bf; font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-engine-card__copy > span:not(.remote-status) { color: #a5b8bf; font: 13px/1.5 -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-engine-card__copy .remote-status { margin-top: 8px; }
 .remote-engine-card__arrow { width: 26px; height: 26px; margin-left: auto; flex: 0 0 26px; }
-.remote-status { display: inline-flex; align-items: center; gap: 9px; color: #9fafb9; font: 13px -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-status { display: inline-flex; align-items: center; gap: 9px; color: #9fafb9; font: 13px -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-status i { width: 9px; height: 9px; display: inline-block; flex: 0 0 9px; background: currentColor; border-radius: 50%; }
 .remote-status--ready { color: #35d89e; }
 .remote-status--error { color: #f29b8b; }
 .remote-status--starting, .remote-status--stopping { color: #b5d2d8; }
 .remote-status--starting i, .remote-status--stopping i, .remote-status--loading i { animation: remote-pulse 1.3s ease-in-out infinite; }
-.remote-index-note { margin-top: 28px; padding-top: 20px; border-top: 1px solid #687d8240; color: #82979d; display: flex; align-items: center; gap: 12px; font: 12px/1.6 -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-index-note { margin-top: 28px; padding-top: 20px; border-top: 1px solid #687d8240; color: #82979d; display: flex; align-items: center; gap: 12px; font: 12px/1.6 -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-index-note > span { font-size: 18px; }
 .remote-page--workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 0; }
 .remote-page--workspace .remote-heading { height: 72px; padding: 0 26px; gap: 13px; border-bottom: 1px solid #47636d55; background: #060d11d9; }
@@ -42,14 +42,14 @@
 .remote-heading__engine--openclaw { color: #f28b7b; }
 .remote-connection-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; gap: 22px; }
 .remote-connection-stage h2 { margin: 0; font-size: 28px; font-weight: 400; }
-.remote-connection-stage p { margin: 0; max-width: 580px; color: #a6b9c2; font: 14px/1.8 -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-connection-stage p { margin: 0; max-width: 580px; color: #a6b9c2; font: 14px/1.8 -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-connection-stage .remote-engine-mark { opacity: .9; }
 .remote-backdrop { position: fixed; inset: var(--topbar-height) 0 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: #0009; backdrop-filter: blur(5px); }
-.remote-panel { width: min(590px, 100%); max-height: 100%; display: flex; flex-direction: column; min-height: 0; border: 1px solid #67747c; border-radius: 8px; background: linear-gradient(130deg, #151c22, #0e151a); box-shadow: 0 22px 90px #000a; font-family: -apple-system, BlinkMacSystemFont, sans-serif; outline: none; }
+.remote-panel { width: min(590px, 100%); max-height: 100%; display: flex; flex-direction: column; min-height: 0; border: 1px solid #67747c; border-radius: 8px; background: linear-gradient(130deg, #151c22, #0e151a); box-shadow: 0 22px 90px #000a; font-family: -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; outline: none; }
 .remote-panel__header { display: flex; align-items: center; gap: 14px; padding: 17px 23px; border-bottom: 1px solid #48545c; flex: 0 0 auto; }
 .remote-panel__header img { display: block; width: 39px; height: 28px; flex: 0 0 39px; object-fit: contain; }
 .remote-panel__header h2 { margin: 0; font-size: 19px; font-weight: 500; }
-.remote-panel__close { margin-left: auto; border: 0; background: transparent; color: #c0ccd2; font: 30px/1 -apple-system, sans-serif; width: 30px; height: 30px; }
+.remote-panel__close { margin-left: auto; border: 0; background: transparent; color: #c0ccd2; font: 30px/1 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; width: 30px; height: 30px; }
 .remote-panel__form { display: flex; flex-direction: column; min-height: 0; }
 .remote-panel__body { overflow-y: auto; min-height: 0; padding: 18px 23px; overscroll-behavior: contain; }
 .remote-panel h3 { margin: 0 0 12px; font-size: 15px; font-weight: 500; }
@@ -58,23 +58,23 @@
 .remote-service-row .remote-engine-mark { width: 42px; height: 42px; flex-basis: 42px; border-width: 2px; font-size: 19px; }
 .remote-service-row__copy { display: flex; flex-direction: column; gap: 6px; }
 .remote-service-row__copy strong { font-size: 15px; font-weight: 400; }
-.remote-service-row__copy strong small { margin-left: 8px; font: 10px Menlo, monospace; color: #82949e; }
+.remote-service-row__copy strong small { margin-left: 8px; font: 10px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #82949e; }
 .remote-service-row .remote-status { font-size: 12px; }
 .remote-service-row .remote-status i { width: 7px; height: 7px; flex-basis: 7px; }
 .remote-service-row__actions { margin-left: auto; display: flex; gap: 8px; }
 .remote-service-row__actions .remote-button { min-height: 32px; padding: 5px 12px; }
-.remote-service-row__detail { flex: 0 0 100%; margin: 0; color: #b5a6a0; font: 12px/1.65 -apple-system, sans-serif; overflow-wrap: anywhere; }
+.remote-service-row__detail { flex: 0 0 100%; margin: 0; color: #b5a6a0; font: 12px/1.65 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; overflow-wrap: anywhere; }
 .remote-panel__hint { margin: 10px 0 0; color: #a2afb7; font-size: 12px; line-height: 1.7; display: flex; align-items: center; gap: 7px; }
 .remote-model-section { border-top: 1px solid #3d4c55; margin-top: 17px; padding-top: 17px; }
 .remote-model-tabs { display: inline-flex; border: 1px solid #3e505b; border-radius: 4px; overflow: hidden; margin: 0 0 14px; }
-.remote-model-tabs button { padding: 7px 18px; border: 0; border-right: 1px solid #3e505b; color: #9daeb9; background: #0d151b; font: 13px Menlo, monospace; }
+.remote-model-tabs button { padding: 7px 18px; border: 0; border-right: 1px solid #3e505b; color: #9daeb9; background: #0d151b; font: 13px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .remote-model-tabs button:last-child { border-right: 0; }
 .remote-model-tabs button[aria-selected="true"] { background: #23303a; color: #e8f1f7; box-shadow: inset 0 -2px #c5dde8; }
 .remote-model-tabs button:disabled { cursor: default; }
 .remote-model-fields { padding: 0; margin: 0; border: 0; display: flex; flex-direction: column; gap: 9px; }
 .remote-model-fields:disabled { opacity: .5; }
 .remote-model-fields label { display: grid; grid-template-columns: 94px minmax(0, 1fr); align-items: center; gap: 12px; color: #bac5cc; font-size: 13px; }
-.remote-model-fields input, .remote-model-fields select { width: 100%; min-width: 0; height: 34px; padding: 7px 11px; border: 1px solid #526571; border-radius: 4px; background: #0a1218; color: #e7eef2; font: 13px -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-model-fields input, .remote-model-fields select { width: 100%; min-width: 0; height: 34px; padding: 7px 11px; border: 1px solid #526571; border-radius: 4px; background: #0a1218; color: #e7eef2; font: 13px -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-model-fields input::placeholder { color: #6e8390; }
 .remote-model-fields input:focus, .remote-model-fields select:focus { outline: 1px solid #b4d1de; border-color: #b4d1de; }
 .remote-model-fields select { appearance: auto; }
@@ -90,22 +90,22 @@
 .remote-model-choice { min-width: 0; }
 .remote-model-choice__input { display: flex; align-items: center; gap: 8px; }
 .remote-model-choice__input .remote-button { flex: 0 0 auto; padding: 6px 11px; font-size: 12px; }
-.remote-model-choice__hint { margin: 7px 0 0; color: #92a6b2; font: 11px/1.6 -apple-system, BlinkMacSystemFont, sans-serif; overflow-wrap: anywhere; }
-.remote-model-choice__toggle { margin-top: 7px; padding: 2px 0; background: none; border: 0; color: #bed5df; font: 11px -apple-system, BlinkMacSystemFont, sans-serif; }
+.remote-model-choice__hint { margin: 7px 0 0; color: #92a6b2; font: 11px/1.6 -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; overflow-wrap: anywhere; }
+.remote-model-choice__toggle { margin-top: 7px; padding: 2px 0; background: none; border: 0; color: #bed5df; font: 11px -apple-system, BlinkMacSystemFont, Arial, "Noto Sans SC Variable", sans-serif; }
 .remote-model-picker { margin-top: 8px; padding: 8px; border: 1px solid #344854; border-radius: 5px; background: #081117; }
 .remote-model-picker__results { max-height: 168px; margin-top: 7px; overflow-y: auto; overscroll-behavior: contain; }
-.remote-model-picker__results button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; border: 0; border-radius: 3px; padding: 8px 9px; color: #bccbd5; background: transparent; font: 12px/1.45 Menlo, monospace; overflow-wrap: anywhere; }
+.remote-model-picker__results button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; border: 0; border-radius: 3px; padding: 8px 9px; color: #bccbd5; background: transparent; font: 12px/1.45 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; overflow-wrap: anywhere; }
 .remote-model-picker__results button:hover, .remote-model-picker__results button.is-selected { color: #ecf5fa; background: #23343e; }
-.remote-model-picker__results p { margin: 8px 6px; color: #91a6b4; font: 11px/1.6 -apple-system, sans-serif; }
-.remote-error { color: #f2a49a !important; font: 12px/1.7 -apple-system, sans-serif; overflow-wrap: anywhere; }
+.remote-model-picker__results p { margin: 8px 6px; color: #91a6b4; font: 11px/1.6 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; }
+.remote-error { color: #f2a49a !important; font: 12px/1.7 -apple-system, Arial, "Noto Sans SC Variable", sans-serif; overflow-wrap: anywhere; }
 .remote-panel__notice { color: #aacfc0; font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
 .remote-logs { border: 1px solid #354550; border-radius: 4px; margin-top: 17px; overflow: hidden; }
-.remote-logs__toggle { width: 100%; display: flex; align-items: center; gap: 14px; padding: 11px 13px; background: #09131a4d; border: 0; color: #c6d3db; font: 13px -apple-system, sans-serif; text-align: left; }
+.remote-logs__toggle { width: 100%; display: flex; align-items: center; gap: 14px; padding: 11px 13px; background: #09131a4d; border: 0; color: #c6d3db; font: 13px -apple-system, Arial, "Noto Sans SC Variable", sans-serif; text-align: left; }
 .remote-logs__toggle > span { font-size: 19px; line-height: 14px; }
-.remote-logs__toggle small { margin-left: auto; font: 11px Menlo, monospace; color: #8198a5; }
+.remote-logs__toggle small { margin-left: auto; font: 11px Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; color: #8198a5; }
 .remote-logs__toolbar { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 9px 12px; font-size: 11px; color: #7e94a1; border-top: 1px solid #354550; }
 .remote-logs__toolbar button { padding: 0; border: 0; background: transparent; color: #b5ccd8; font: inherit; }
-.remote-logs pre { max-height: 170px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #060d12; margin: 0; padding: 12px; color: #8fa8b6; font: 10px/1.7 Menlo, monospace; }
+.remote-logs pre { max-height: 170px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #060d12; margin: 0; padding: 12px; color: #8fa8b6; font: 10px/1.7 Menlo, "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace; }
 .remote-panel__footer { display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid #48545c; padding: 14px 23px; flex: 0 0 auto; }
 .remote-panel__footer .remote-button { min-width: 100px; min-height: 36px; }
 .remote-confirm { padding: 10px 12px; margin-top: 10px; background: #34201b4d; border: 1px solid #744c4266; border-radius: 4px; }

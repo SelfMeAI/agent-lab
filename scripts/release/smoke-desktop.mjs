@@ -71,6 +71,13 @@ export async function smokeDesktop(args = []) {
     page.on("pageerror", error => errors.push(error.message));
     await page.locator(".lab-card").first().waitFor({ timeout: 60_000 });
     assert.equal(await page.locator(".lab-card").count(), 4, "安装包必须保留四个实验室入口");
+    const fonts = await page.evaluate(async () => {
+      const loaded = await document.fonts.load('14px "Noto Sans SC Variable"', "本地模型实验");
+      await document.fonts.ready;
+      return loaded.map(font => font.status);
+    });
+    assert.ok(fonts.length && fonts.every(status => status === "loaded"), "中文备用字体必须来自安装包并实际加载");
+    await access(join(layout.resources, "licenses/Noto-Sans-SC-OFL.txt"));
     const info = await page.evaluate(() => window.agentLab.getAppInfo());
     assert.equal(info.name, "Agent Lab"); assert.equal(info.version, plan.version);
     assert.equal(info.platform, process.platform); assert.equal(info.arch, process.arch);
@@ -93,6 +100,7 @@ export async function smokeDesktop(args = []) {
       await page.locator(`.lab-card[data-lab-id="${id}"]`).click();
       await page.waitForFunction(id => location.hash === `#/lab/${id}`, id);
       await page.waitForFunction(() => !document.querySelector(".lab-card"));
+      await page.evaluate(() => document.fonts.ready);
       await page.screenshot({ path: join(screenshots, `${id}.png`) });
       await page.evaluate(() => { location.hash = "#/"; });
       await page.locator(".lab-card").first().waitFor();
@@ -115,7 +123,7 @@ export async function smokeDesktop(args = []) {
     });
   }
   const receipt = { schemaVersion: 1, version: plan.version, commit: plan.commit, target: layout.target, verified: true,
-    checks: ["distribution-payload", "packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", ...(args.includes("--skip-harness-tests") ? [] : ["bundled-harness-integration"])],
+    checks: ["distribution-payload", "packaged-window", "bundled-cjk-font", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", ...(args.includes("--skip-harness-tests") ? [] : ["bundled-harness-integration"])],
     files: target.extensions.map(extension => `Agent-Lab-${plan.version}-${target.id}.${extension}`) };
   await writeJsonAtomic(join(root, "release", `desktop-${layout.target}.json`), receipt);
   if (process.platform === "win32") await run(join(installation.directory, "installed/Uninstall Agent Lab.exe"), ["/S"], { timeout: 180_000 });

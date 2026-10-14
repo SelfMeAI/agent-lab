@@ -125,7 +125,7 @@ function AdminTerminal({ taskId }: { taskId: string }): JSX.Element {
     return () => { active = false; clearInterval(timer); };
   }, [taskId]);
   useEffect(() => { if (terminal.current) { terminal.current.options.disableStdin = !writable; terminal.current.options.cursorBlink = writable; } }, [writable]);
-  useEffect(() => { alive.current = true; setInfo(undefined); setEnded(false); setError(""); const term = new Terminal({ fontSize: 12, fontFamily: "Menlo, monospace", disableStdin: !inputAllowed.current, cursorBlink: inputAllowed.current, scrollback: 5000, theme: { background: "#060b0f", foreground: "#c4d1d9", cursor: "#f28b7b", selectionBackground: "#f28b7b35" } }); const fit = new FitAddon(); term.loadAddon(fit); term.open(host.current!); terminal.current = term;
+  useEffect(() => { alive.current = true; setInfo(undefined); setEnded(false); setError(""); const term = new Terminal({ fontSize: 12, fontFamily: 'Menlo, "SFMono-Regular", "DejaVu Sans Mono", "Liberation Mono", Consolas, "Noto Sans SC Variable", monospace', disableStdin: !inputAllowed.current, cursorBlink: inputAllowed.current, scrollback: 5000, theme: { background: "#060b0f", foreground: "#c4d1d9", cursor: "#f28b7b", selectionBackground: "#f28b7b35" } }); const fit = new FitAddon(); term.loadAddon(fit); term.open(host.current!); terminal.current = term;
     const size = () => { if (!host.current?.clientHeight) return; fit.fit(); if (current.current) void bridge.resizeRemoteTerminal("openclaw", taskId, current.current.id, term.cols, term.rows).catch(error => { if (alive.current) setError(remoteError(error)); }); };
     fitTerminal.current = size;
     const observer = new ResizeObserver(size); observer.observe(host.current!); const initialFit = requestAnimationFrame(size);
