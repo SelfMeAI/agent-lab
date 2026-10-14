@@ -73,6 +73,8 @@ JEV 是远端决策服务，四个实验用于观察候选选择、置信度、�
 2. macOS 使用 DMG 或 ZIP；Windows 使用 EXE；Linux 使用 AppImage，先赋予执行权限。当前包未做 macOS 签名/公证或 Windows 代码签名，系统可能提示来源无法验证；核对来源后按系统正常流程处理，不要全局关闭安全保护。
 3. 打开应用，在相应实验室设置自己的模型/API 连接。分发包内置六种本地 Harness 与 Ollama，不需要另外安装相应 CLI。Ollama 还需下载模型权重并满足模型的内存/显存要求；JEV 的真实决策需配置自己的服务连接。
 
+**Linux 桌面前提**：AppImage 需要可用的 FUSE 2（Ubuntu 24.04 的库包名为 `libfuse2t64`）；没有 FUSE 时可用 `./Agent-Lab-0.1.0-linux-x64.AppImage --appimage-extract-and-run`。具体说明见 [AppImage 官方 FUSE 指南](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)。Electron 沙箱还依赖系统允许的用户命名空间；遵循发行版的安全配置，不要为运行应用全局关闭 AppArmor 或沙箱。保存连接 Key 需要桌面会话中可用的 Secret Service/KWallet。
+
 **只有 Remote Agent Lab 需要 Docker。** 先安装并启动 Docker Desktop（macOS/Windows）或 Docker Engine（Linux），使用 Linux 容器，Docker 26+；镜像支持 `amd64` 与 `arm64`。建议为 Docker 提供至少 8 GB 内存，并为两套浏览器环境和缓存预留数十 GB 磁盘空间。
 
 从**同一版本 Release** 下载 `prepare-remote.sh`（macOS/Linux）或 `prepare-remote.ps1`（Windows），终端切到下载目录后运行：
@@ -226,7 +228,7 @@ npm run package:dir
 | Windows x64 | NSIS 安装程序 | `windows-2022`；面向 Windows 10/11 x64 |
 | Linux x64 / glibc | AppImage | `ubuntu-24.04`；其他发行版未实机验收 |
 
-发布工作流只在选中的目标通过原生编译、实际窗口/IPC 启动、内置 Harness 加载和模拟模型交互回归后，才将其纳入 Release。**表格是构建/验收矩阵，不表示每个平台已经有可下载的成功产物**；实际支持范围以对应 Release 附件及清单为准。自动验收不能代替所有真实设备、操作系统版本或模型服务的兼容性测试。
+发布工作流从最终 ZIP/AppImage 解包后的应用启动验收，Windows 则在隔离 CI 中安装 EXE 后验收；选中的目标通过原生编译、实际窗口/IPC 启动、内置 Harness 加载和模拟模型交互回归后，才纳入 Release。Linux CI 验证解出的 AppImage 内容，不替代各发行版 FUSE/桌面安全策略的实机检查。**表格是构建/验收矩阵，不表示每个平台已经有可下载的成功产物**；实际支持范围以对应 Release 附件及清单为准。自动验收不能代替所有真实设备、操作系统版本或模型服务的兼容性测试。
 
 Windows/Linux ARM64 有运行时恢复路径，但不在当前默认发布矩阵内，不作为已经验收的平台承诺。
 

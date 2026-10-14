@@ -8,6 +8,7 @@ import { releaseIdentity, releasePlan, root, digestReference, validateImageRecei
 import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
 import { verifyCodexSource } from "./release/codex-source.mjs";
+import { distributionLayout } from "./release/smoke-desktop.mjs";
 
 const execute = promisify(execFile);
 const commit = "a".repeat(40), digest = `sha256:${"b".repeat(64)}`;
@@ -63,11 +64,22 @@ test("distribution scripts have immutable refs, correct aliases, no runtimes/sou
 });
 test("desktop receipts require real package startup and all native harness checks, not just compilation", () => {
   const target = plan.desktop[0], receipt = { schemaVersion: 1, version: plan.version, commit, target: target.id, verified: true,
-    checks: ["packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", "bundled-harness-integration"],
+    checks: ["distribution-payload", "packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", "bundled-harness-integration"],
     files: target.extensions.map(extension => `Agent-Lab-${plan.version}-${target.id}.${extension}`) };
   assert.deepEqual(verifyDesktopReceipt(plan, target, receipt), receipt.files);
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: ["compiled"] }));
+  assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: receipt.checks.filter(check => check !== "distribution-payload") }));
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, files: ["../secret.json"] }));
+});
+
+test("distribution verification uses extracted/installed payloads, not the original build directory", () => {
+  const directory = join(root, ".work", "installation-fixture");
+  for (const [platform, target] of [["darwin", "mac-arm64"], ["linux", "linux-x64"], ["win32", "win-x64"]]) {
+    const layout = distributionLayout(directory, platform, platform === "darwin" ? "arm64" : "x64");
+    assert.equal(layout.target, target);
+    assert.ok(layout.executable.startsWith(directory)); assert.ok(layout.resources.startsWith(directory));
+    assert.ok(!layout.executable.includes(join("release", "mac-arm64")));
+  }
 });
 test("public image checks do not use user auth and reject private/mismatched/incomplete manifests", async () => {
   const calls = [], token = "anonymous-fixture";
@@ -83,7 +95,7 @@ test("public image checks do not use user auth and reject private/mismatched/inc
 });
 test("release notes make prerequisites/platform limits and source-free steps explicit", () => {
   const notes = releaseNotes(plan);
-  for (const text of ["无需源码", "Docker", "API Key", "模型权重", "prepare-remote.sh", "prepare-remote.ps1", "Pre-release", "未签名", commit.slice(0, 12)]) assert.ok(notes.includes(text), text);
+  for (const text of ["无需源码", "Docker", "API Key", "模型权重", "prepare-remote.sh", "prepare-remote.ps1", "Pre-release", "未签名", "FUSE 2", "--appimage-extract-and-run", commit.slice(0, 12)]) assert.ok(notes.includes(text), text);
   assert.doesNotMatch(notes, /\$\{plan\./);
 });
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { _electron as electron } from "playwright";
@@ -19,13 +19,44 @@ export function packagedLayout(platform = process.platform, arch = process.arch)
   const executable = join(directory, platform === "win32" ? "Agent Lab.exe" : "agent-lab");
   return { executable, resources: join(directory, "resources"), node: executable, target: `${platform === "win32" ? "win" : "linux"}-${arch}` };
 }
+
+export function distributionLayout(directory, platform = process.platform, arch = process.arch) {
+  if (platform === "darwin") {
+    const contents = join(directory, "Agent Lab.app/Contents");
+    return { executable: join(contents, "MacOS/Agent Lab"), resources: join(contents, "Resources"),
+      node: join(contents, "Frameworks/Agent Lab Helper.app/Contents/MacOS/Agent Lab Helper"), target: `mac-${arch}` };
+  }
+  const app = join(directory, platform === "win32" ? "installed" : "squashfs-root");
+  const executable = join(app, platform === "win32" ? "Agent Lab.exe" : "agent-lab");
+  return { executable, resources: join(app, "resources"), node: executable, target: `${platform === "win32" ? "win" : "linux"}-${arch}` };
+}
+
+async function extractDistribution(plan, target) {
+  if (process.platform === "win32" && process.env.GITHUB_ACTIONS !== "true")
+    throw new Error("Windows 安装程序验收只在隔离的 GitHub Actions 环境运行，避免影响本机已有安装；本机可用打包目录手动体验。");
+  const directory = await mkdtemp(join(root, ".work/release-installation-"));
+  const archive = extension => join(root, "release", `Agent-Lab-${plan.version}-${target.id}.${extension}`);
+  if (process.platform === "darwin") {
+    await run("hdiutil", ["verify", archive("dmg")], { capture: true, timeout: 180_000 });
+    await run("ditto", ["-x", "-k", archive("zip"), directory], { timeout: 180_000 });
+  } else if (process.platform === "linux") {
+    // Inspect/run the distributed payload without requiring FUSE on a CI host.
+    // This is extraction, not permission escalation or a production default.
+    await run(archive("AppImage"), ["--appimage-extract"], { cwd: directory, capture: true, maxBuffer: 20_000_000, timeout: 180_000 });
+  } else {
+    await run(archive("exe"), ["/S", `/D=${join(directory, "installed")}`], { timeout: 180_000 });
+  }
+  return { directory, layout: distributionLayout(directory) };
+}
+
 export async function smokeDesktop(args = []) {
-  const layout = packagedLayout(), plan = await releasePlan();
-  const target = plan.desktop.find(target => target.id === layout.target);
+  const plan = await releasePlan();
+  const target = plan.desktop.find(target => target.id === packagedLayout().target);
   if (!target) throw new Error("此原生平台不在发布矩阵中");
-  await access(layout.executable); await access(layout.node);
   for (const extension of target.extensions) await access(join(root, "release", `Agent-Lab-${plan.version}-${target.id}.${extension}`));
   await mkdir(join(root, ".work"), { recursive: true });
+  const installation = await extractDistribution(plan, target), layout = installation.layout;
+  await access(layout.executable); await access(layout.node);
   const testData = await mkdtemp(join(root, ".work/release-desktop-"));
   const screenshots = join(root, "output/playwright/release", layout.target);
   await mkdir(screenshots, { recursive: true });
@@ -84,9 +115,11 @@ export async function smokeDesktop(args = []) {
     });
   }
   const receipt = { schemaVersion: 1, version: plan.version, commit: plan.commit, target: layout.target, verified: true,
-    checks: ["packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", ...(args.includes("--skip-harness-tests") ? [] : ["bundled-harness-integration"])],
+    checks: ["distribution-payload", "packaged-window", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", ...(args.includes("--skip-harness-tests") ? [] : ["bundled-harness-integration"])],
     files: target.extensions.map(extension => `Agent-Lab-${plan.version}-${target.id}.${extension}`) };
   await writeJsonAtomic(join(root, "release", `desktop-${layout.target}.json`), receipt);
+  if (process.platform === "win32") await run(join(installation.directory, "installed/Uninstall Agent Lab.exe"), ["/S"], { timeout: 180_000 });
+  await rm(installation.directory, { recursive: true, force: true });
   console.log(`安装包原生检查完成：${layout.target}；测试配置与截图仅在 .work/ 和 output/playwright/ 中。`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
