@@ -7,7 +7,7 @@ import { promisify, stripVTControlCharacters } from "node:util";
 import { fileURLToPath } from "node:url";
 import { RemoteServiceCredentials } from "./credentials";
 import { RemoteAgentContainer } from "./service-manager";
-import { remoteDeployments } from "./deployment";
+import { remoteDeployments, openClawProcessLocks } from "./deployment";
 import { RemoteModelClient } from "../../../../../packages/remote-agent/src/model-connection";
 import { RemoteTaskController } from "./task-controller";
 import { remoteTaskId } from "../../../../../packages/remote-agent/src/transport/http";
@@ -32,6 +32,10 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
         const state = await container.start();
         expect(state.phase).toBe("ready");
         expect(state.endpoint).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+        if (engine === "openclaw") {
+          const actual = await promisify(execFile)("docker", ["inspect", "--format", "{{json .HostConfig.Tmpfs}}", container.name]);
+          expect(JSON.parse(actual.stdout)).toEqual({ [openClawProcessLocks.path]: openClawProcessLocks.options });
+        }
         const keys = await credentials.get();
         const saved = await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", apiKey: `fixture-${randomUUID()}` });
         expect(saved.configured).toBe(true);
@@ -220,6 +224,7 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
           await exec("docker", ["rm", container.name]);
           await exec("docker", ["run", "--rm", "--network", "none", "--mount", `type=volume,src=${container.volume},dst=/home/node/.openclaw`, "--entrypoint", "node", remoteDeployments.openclaw.image, "--input-type=module", "-e", `
             import fs from 'node:fs/promises';
+            import { createHash } from 'node:crypto';
             const profile = '/home/node/.openclaw/browser/openclaw/user-data';
             for (const [name, target] of [['SingletonLock','retired-container-1234'],['SingletonSocket','/tmp/retired-browser/SingletonSocket'],['SingletonCookie','123456']]) {
               const path = profile + '/' + name;
@@ -227,6 +232,13 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
               catch (error) { if (error.code !== 'ENOENT') throw error; }
               await fs.symlink(target, path);
             }
+            // A PID sidecar belongs to the retired container, even if PID 1
+            // exists in the replacement. Native coordination is temporary;
+            // the real database and its content must remain persistent.
+            const lockDir = '/home/node/.openclaw/tmp/openclaw-1000';
+            await fs.mkdir(lockDir, { recursive: true });
+            const hash = createHash('sha256').update('/home/node/.openclaw/state/openclaw.sqlite').digest('hex').slice(0, 16);
+            await fs.writeFile(lockDir + '/state.' + hash + '.lock', JSON.stringify({ pid: 1, ownerId: 'retired-fixture-owner', role: 'sqlite-maintenance', stateOwnerKind: 'schema', createdAt: new Date().toISOString() }), { mode: 0o600 });
           `]);
           await container.start();
           expect((await exec("docker", ["inspect", "--format", "{{.Config.Hostname}}", container.name])).stdout.trim()).toBe(container.name);

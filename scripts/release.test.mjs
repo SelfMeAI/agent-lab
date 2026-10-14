@@ -30,7 +30,7 @@ test("release versions/targets are exact and use only trusted commit/repository/
 });
 test("real release plan agrees with both client image locks and the office preview pin", async () => {
   const actual = await releasePlan(); assert.equal(actual.version, JSON.parse(await readFile(join(root, "package.json"), "utf8")).version);
-  assert.match(actual.images.openclaw.localTag, /-lab32$/); assert.match(actual.images.openhands.localTag, /-lab10$/);
+  assert.match(actual.images.openclaw.localTag, /-lab33$/); assert.match(actual.images.openhands.localTag, /-lab10$/);
   assert.match(actual.documentPreview, /@sha256:[a-f0-9]{64}$/);
 });
 test("image receipts cannot silently substitute a different source, architecture or local alias", () => {

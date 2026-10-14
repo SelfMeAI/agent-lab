@@ -6,7 +6,7 @@ import { dockerCliCandidates } from "../../../../../runtimes/platform.mjs";
 import type { RemoteAgentId, RemoteServiceState } from "../../../../../packages/contracts/src/remote-agent";
 import { GatewayRequestError, openClawRpc } from "../../../../../packages/remote-agent/src/openclaw/gateway";
 import type { RemoteCredentials } from "./credentials";
-import { remoteDeployments, redactServiceOutput } from "./deployment";
+import { remoteDeployments, redactServiceOutput, openClawProcessLocks } from "./deployment";
 import { DocumentPreviewService } from "./document-preview-service";
 import { legacyApplicationRoot, legacyResourceNamespace, legacyDesktopHome, ownedResource } from "../application-identity";
 
@@ -14,7 +14,7 @@ export const OPENHANDS_VERSION = remoteDeployments.openhands.version;
 export const OPENHANDS_IMAGE = remoteDeployments.openhands.image;
 const ownerLabel = "ai.agent-lab.desktop.owner";
 const deploymentLabel = "ai.agent-lab.desktop.deployment";
-type Container = { Config: { Image: string; Hostname?: string; Labels: Record<string, string> }; HostConfig?: { Mounts?: Array<{ Type: string; Source?: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null>; Networks?: Record<string, unknown> } };
+type Container = { Config: { Image: string; Hostname?: string; Labels: Record<string, string> }; HostConfig?: { Tmpfs?: Record<string, string>; Mounts?: Array<{ Type: string; Source?: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> }; State: { Running: boolean }; Mounts: Array<{ Type: string; Name?: string; Destination: string }>; NetworkSettings: { Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null>; Networks?: Record<string, unknown> } };
 
 export function assertExclusiveServiceVolume(labels: Record<string, string> | null, owner: string, containers: string[], name: string): void {
   if (!ownedResource(labels, owner)) throw new Error("同名服务卷不属于当前应用，未作修改");
@@ -24,6 +24,10 @@ export function assertExclusiveServiceVolume(labels: Record<string, string> | nu
 export function containerEndpoint(container: Container, owner: string, volume: string, engine: RemoteAgentId = "openhands"): string | null {
   const deployment = remoteDeployments[engine];
   if (!ownedResource(container.Config.Labels, owner) || ![deployment.image, ...deployment.legacyImages].includes(container.Config.Image)) throw new Error("同名容器不属于当前实验服务，未作修改");
+  const ephemeral = Object.entries(container.HostConfig?.Tmpfs ?? {});
+  if (ephemeral.length && (engine !== "openclaw" || ephemeral.length !== 1
+    || ephemeral[0][0] !== openClawProcessLocks.path || ephemeral[0][1] !== openClawProcessLocks.options))
+    throw new Error("服务临时锁挂载不符合隔离规则，未作修改");
   // Current OpenClaw also exposes ONLY the desktop-home subdirectory of this
   // same private volume at HOME. Known prior images may have the original single
   // mount or this strictly verified layout, so later image upgrades remain safe.
@@ -71,7 +75,7 @@ export class RemoteAgentContainer {
     this.name = `${namespace}-${engine}-${this.owner}`;
     this.volume = `${this.name}-data`;
     this.documentPreview = new DocumentPreviewService(this.owner, (args, timeout) => this.command(args, undefined, timeout), namespace);
-    this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command, ...(engine === "openclaw" ? { hostname: this.name } : {}) })).digest("hex").slice(0, 16);
+    this.deploymentRevision = createHash("sha256").update(JSON.stringify({ image: this.deployment.image, command: this.deployment.command, ...(engine === "openclaw" ? { hostname: this.name, processLocks: openClawProcessLocks } : {}) })).digest("hex").slice(0, 16);
   }
 
   private async binary(): Promise<string> {
@@ -212,6 +216,7 @@ export class RemoteAgentContainer {
       await this.command([
         "run", "--detach", "--name", this.name, "--label", `${ownerLabel}=${this.owner}`, "--label", `${deploymentLabel}=${this.deploymentRevision}`,
         ...(this.engine === "openclaw" ? ["--hostname", this.name] : []),
+        ...(this.engine === "openclaw" ? ["--tmpfs", `${openClawProcessLocks.path}:${openClawProcessLocks.options}`] : []),
         "--publish", `127.0.0.1::${this.deployment.port}`, "--mount", `type=volume,src=${this.volume},dst=${this.deployment.mount}`,
         ...(this.engine === "openclaw" ? ["--mount", `type=volume,src=${this.volume},dst=/home/node,volume-subpath=.agent-lab-desktop/home,volume-nocopy`] : []),
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "1024", "--shm-size", "256m",

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { assertExclusiveServiceVolume, containerEndpoint, OPENHANDS_IMAGE } from "./service-manager";
-import { remoteDeployments } from "./deployment";
+import { remoteDeployments, openClawProcessLocks } from "./deployment";
 
 function container() {
   return {
     Config: { Image: OPENHANDS_IMAGE, Labels: { "ai.agent-lab.desktop.owner": "test-owner" } as Record<string, string> },
     State: { Running: true },
     Mounts: [{ Type: "volume", Name: "test-private-volume", Destination: "/workspace" }],
-    HostConfig: { Mounts: [] as Array<{ Type: string; Source: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> },
+    HostConfig: { Tmpfs: {} as Record<string, string>, Mounts: [] as Array<{ Type: string; Source: string; Target: string; VolumeOptions?: { Subpath?: string; NoCopy?: boolean } }> },
     NetworkSettings: { Ports: { "8000/tcp": [{ HostIp: "127.0.0.1", HostPort: "18000" }] } as Record<string, Array<{ HostIp: string; HostPort: string }>> },
   };
 }
@@ -46,6 +46,14 @@ describe("development service ownership", () => {
     claw.HostConfig.Mounts.push({ Type: "volume", Source: "test-private-volume", Target: "/home/node", VolumeOptions: { Subpath: ".agent-lab-desktop/home", NoCopy: true } });
     claw.NetworkSettings.Ports = { "18789/tcp": [{ HostIp: "127.0.0.1", HostPort: "19000" }] };
     expect(containerEndpoint(claw, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
+    claw.HostConfig.Tmpfs[openClawProcessLocks.path] = openClawProcessLocks.options;
+    expect(containerEndpoint(claw, "test-owner", "test-private-volume", "openclaw")).toBe("http://127.0.0.1:19000");
+    const alteredTmpfs: Record<string, string>[] = [{ "/home/node/.openclaw/state": "rw" }, { [openClawProcessLocks.path]: "rw,mode=777" },
+      { ...claw.HostConfig.Tmpfs, "/foreign": "rw" }];
+    for (const tmpfs of alteredTmpfs) {
+      const changed = structuredClone(claw); changed.HostConfig.Tmpfs = tmpfs;
+      expect(() => containerEndpoint(changed, "test-owner", "test-private-volume", "openclaw")).toThrow("临时锁挂载");
+    }
     expect(() => containerEndpoint(claw, "test-owner", "test-private-volume", "openhands")).toThrow();
   });
   it("rejects another volume, whole-volume HOME or an unexpected home subpath", () => {

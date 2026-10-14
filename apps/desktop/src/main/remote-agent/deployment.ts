@@ -1,6 +1,14 @@
 import type { RemoteAgentId } from "../../../../../packages/contracts/src/remote-agent";
 import { legacyResourceNamespace } from "../application-identity";
 
+// Native OpenClaw uses this directory only for process/Gateway coordination
+// locks. Their PID identity cannot outlive the private container namespace;
+// SQLite, configuration, sessions, files and browser profiles stay on disk.
+export const openClawProcessLocks = {
+  path: "/home/node/.openclaw/tmp/openclaw-1000",
+  options: "rw,nosuid,nodev,noexec,uid=1000,gid=1000,mode=700,size=8m",
+} as const;
+
 // Provision private native server config once. Never replace existing state.
 export const openClawBootstrap = `
 import { mkdir, writeFile, readFile, rename } from 'node:fs/promises';
@@ -58,7 +66,7 @@ child.on('exit', (code) => process.exit(code ?? 1));
 
 export const remoteDeployments = {
   openhands: { name: "OpenHands", version: "1.53.0", commit: "54daf056bd863bb46f922a2fe9324dd736b37ff6", image: "agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab10", legacyImages: ["agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86", ...Array.from({ length: 9 }, (_, i) => `agent-lab/openhands-agent-server:1.53.0-source-54daf056bd86-lab${i + 1}`)], port: 8000, mount: "/workspace", command: [] },
-  openclaw: { name: "OpenClaw", version: "2026.9.9", commit: "bcfc88812a35243893585dbeca87ca41b48272ca", image: "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab32", legacyImages: ["agent-lab/openclaw:2026.9.9-source-bcfc88812a35", ...Array.from({ length: 31 }, (_, i) => `agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab${i + 1}`)], port: 18789, mount: "/home/node/.openclaw", command: ["node", "--input-type=module", "-e", openClawBootstrap] },
+  openclaw: { name: "OpenClaw", version: "2026.9.9", commit: "bcfc88812a35243893585dbeca87ca41b48272ca", image: "agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab33", legacyImages: ["agent-lab/openclaw:2026.9.9-source-bcfc88812a35", ...Array.from({ length: 32 }, (_, i) => `agent-lab/openclaw:2026.9.9-source-bcfc88812a35-lab${i + 1}`)], port: 18789, mount: "/home/node/.openclaw", command: ["node", "--input-type=module", "-e", openClawBootstrap] },
 } satisfies Record<RemoteAgentId, { name: string; version: string; commit: string; image: string; legacyImages: string[]; port: number; mount: string; command: string[] }>;
 
 // Recognize only the exact previously pinned images for a volume-preserving

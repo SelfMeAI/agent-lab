@@ -113,6 +113,14 @@ test('persistent desktop home is private, additive and never follows a symlink',
     await prepareDesktopHome(volume, template);
     const home = join(volume, '.agent-lab-desktop/home');
     if (process.platform !== 'win32') assert.equal((await stat(home)).mode & 0o777, 0o700);
+    for (const relative of ['tmp', 'tmp/openclaw-1000']) {
+      const info = await stat(join(volume, relative));
+      assert.ok(info.isDirectory());
+      if (process.platform !== 'win32') {
+        assert.equal(info.mode & 0o777, 0o700);
+        assert.equal(info.uid, process.getuid());
+      }
+    }
     assert.equal(await readFile(join(home, '.bashrc'), 'utf8'), 'native-shell-template');
     await writeFile(join(home, '.bashrc'), 'retained-user-shell');
     await prepareDesktopHome(volume, template);

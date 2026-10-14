@@ -9,11 +9,14 @@ import { migrateOpenClawState } from './legacy-state.mjs';
 // no library patches, extra privileges or task/config migrations are needed.
 export async function prepareDesktopHome(volume = '/home/node/.openclaw', template = '/home/node') {
   await migrateOpenClawState(volume);
-  for (const relative of ['.agent-lab-desktop', '.agent-lab-desktop/home']) {
+  // Prepare the native temporary lock mount's parents as the unprivileged
+  // service user BEFORE Docker creates the mount. Otherwise Docker would make
+  // tmp root-owned and block native sibling directories such as tmp/agent-cli.
+  for (const relative of ['.agent-lab-desktop', '.agent-lab-desktop/home', 'tmp', 'tmp/openclaw-1000']) {
     const path = join(volume, relative);
     try { await mkdir(path, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
     const info = await lstat(path);
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('桌面主目录必须是真实目录，不能是符号链接');
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('服务运行目录必须是真实目录，不能是符号链接');
   }
   for (const name of ['.bashrc', '.profile', '.bash_logout']) {
     try { await copyFile(join(template, name), join(volume, '.agent-lab-desktop/home', name), constants.COPYFILE_EXCL); }
