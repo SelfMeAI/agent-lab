@@ -130,7 +130,9 @@ test("manual publication is separate from push CI and every desktop target has i
   assert.deepEqual(desktopTargets.map(target => target.os), ["macos-15", "macos-15-intel", "windows-2022", "ubuntu-24.04"]);
   assert.match(packages, /releasePlan/); assert.match(packages, /fromJSON\(needs\.targets\.outputs\.matrix\)/);
   assert.match(packages, /smoke-desktop\.mjs/); assert.doesNotMatch(packages, /packages: write|release create|--publish always/);
-  assert.match(packages, /\.cache\/codex-source\n/); assert.match(packages, /\.cache\/codex-build-source\n/);
+  for (const text of [packages, packages.replace(/\r?\n/g, "\r\n")]) {
+    assert.match(text, /\.cache\/codex-source\r?\n/); assert.match(text, /\.cache\/codex-build-source\r?\n/);
+  }
   assert.match(packages, /restore-keys: codex-[^\n]+-nodebug-v1/);
   assert.ok(packages.indexOf("Save only source checkouts") > packages.indexOf("run: npm run verify:codex"));
 });
