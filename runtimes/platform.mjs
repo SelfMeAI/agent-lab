@@ -1,4 +1,4 @@
-import { isAbsolute, join, win32 } from "node:path";
+import { posix, win32 } from "node:path";
 
 const targets = Object.freeze({
   "darwin-arm64": { rustTarget: "aarch64-apple-darwin", dockerPlatform: "linux/arm64" },
@@ -40,7 +40,7 @@ export function codexRuntimeFiles(platform = process.platform) {
 
 export function dockerCliCandidates(platform = process.platform, env = process.env) {
   const paths = (env.PATH ?? env.Path ?? "").split(platform === "win32" ? ";" : ":");
-  const pathApi = platform === "win32" ? win32 : { isAbsolute, join };
+  const pathApi = platform === "win32" ? win32 : posix;
   const searched = paths.filter(path => pathApi.isAbsolute(path)).map(path => pathApi.join(path, executableName("docker", platform)));
   const defaults = platform === "win32"
     ? [win32.join(env.ProgramFiles || "C:\\Program Files", "Docker", "Docker", "resources", "bin", "docker.exe")]
