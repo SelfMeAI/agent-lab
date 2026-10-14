@@ -4,6 +4,12 @@ name: Native desktop packages
 # Signing is not configured; the release workflow separately handles uploads.
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Native target to build and verify'
+        type: choice
+        options: [all, mac-arm64, mac-x64, win-x64, linux-x64]
+        default: all
   workflow_call:
     inputs:
       commit:
@@ -17,13 +23,45 @@ permissions:
   contents: read
 
 jobs:
+  targets:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - id: targets
+        env:
+          PACKAGE_MATRIX: ${{ inputs.matrix }}
+          PACKAGE_TARGET: ${{ inputs.target || 'all' }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFile } from 'node:fs/promises';
+          import { releasePlan } from './scripts/release/manifest.mjs';
+          const plan = await releasePlan({ targets: process.env.PACKAGE_TARGET });
+          const selected = process.env.PACKAGE_MATRIX ? JSON.parse(process.env.PACKAGE_MATRIX).include : plan.desktop;
+          if (!Array.isArray(selected) || !selected.length || new Set(selected.map(item => item.id)).size !== selected.length) throw Error('Invalid package targets');
+          const include = selected.map(item => {
+            const target = plan.desktop.find(target => target.id === item.id);
+            if (!target || ['os', 'platform', 'arch'].some(key => target[key] !== item[key])) throw Error('Package target is outside the native matrix');
+            return target;
+          });
+          await appendFile(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({ include }) + '\n');
+          JS
   package:
+    needs: targets
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_RELEASE_DEBUG: '0'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(inputs.matrix || '{"include":[{"id":"mac-arm64","os":"macos-15","platform":"mac","arch":"arm64"},{"id":"mac-x64","os":"macos-15-intel","platform":"mac","arch":"x64"},{"id":"win-x64","os":"windows-2022","platform":"win","arch":"x64"},{"id":"linux-x64","os":"ubuntu-24.04","platform":"linux","arch":"x64"}]}') }}
+      matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     steps:
@@ -53,6 +91,7 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.95.0 --profile minimal
       - name: Cache source-built Codex and V8 dependencies
+        id: codex-cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v1
@@ -66,6 +105,16 @@ jobs:
       - run: npm run doctor -- --scope codex
       - run: npm run build:codex -- --jobs 2
       - run: npm run verify:codex
+      - name: Save verified Codex build even if later package acceptance fails
+        if: steps.codex-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          key: codex-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtimes/codex/source.json', 'scripts/lib/codex-lock.mjs') }}-nodebug-v1
+          path: |
+            .cache/codex-build
+            .cache/codex-v8
+            ~/.cargo/registry
+            ~/.cargo/git
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:scripts
