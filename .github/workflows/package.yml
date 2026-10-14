@@ -105,6 +105,9 @@ jobs:
       - run: npm run doctor -- --scope codex
       - run: npm run build:codex -- --jobs 2
       - run: npm run verify:codex
+      - name: Preserve corresponding source for the Linux bubblewrap helper
+        if: runner.os == 'Linux'
+        run: node scripts/release/codex-source.mjs
       - name: Save verified Codex build even if later package acceptance fails
         if: steps.codex-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -136,6 +139,8 @@ jobs:
             release/*.exe
             release/*.AppImage
             release/desktop-${{ matrix.id }}.json
+            release/*-codex-component-source.tar.gz
+            release/codex-component-source.json
           if-no-files-found: error
           retention-days: 14
       - name: Retain isolated package screenshots for review

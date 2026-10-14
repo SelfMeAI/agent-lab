@@ -157,6 +157,8 @@ npm run verify:codex
 
 构建包含 **Codex CLI + Code Mode host + ripgrep**，Linux 还包含 bwrap，Windows 还包含 command runner 与 sandbox setup。
 
+发行包保留各组件许可。包含 Linux 安装包的 Release 还提供 `codex-component-source` 附件，保留 bwrap/bubblewrap 的对应源码、编译锁文件和构建说明；正常运行应用不需要下载这个源码附件。
+
 源码、工具链和编译依赖由 [`runtimes/codex/source.json`](runtimes/codex/source.json) 锁定。Codex 与 host 从源码编译，V8 使用校验过的上游构建依赖。
 
 源码、V8 与编译缓存集中在项目 `.cache/`，运行包生成在 `runtimes/codex/`。打包前会校验当前平台的版本、布局和文件哈希。

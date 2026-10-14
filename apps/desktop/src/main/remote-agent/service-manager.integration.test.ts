@@ -192,16 +192,20 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
           await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
           await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
           await expect.poll(async () => (await tasks.claw.terminalAccess(native.id)).busy, { timeout: 10_000 }).toBe(true);
-          // The fixture's native yieldMs is 10s. Output cannot be required in
-          // that same 10s window: it arrives only after yield + event transport.
-          await expect.poll(commandText, { timeout: 20_000 }).toContain("NATIVE_STOP_BEGIN");
+          // Native background exec may return a process handle without the
+          // early stdout fragment (observed on arm64). Prove the real command
+          // is running before stopping it, not an architecture-specific output
+          // delivery order. This container/command is owned by this fixture.
+          // Native exec also resolves granted commands to absolute executable
+          // paths; both `sleep 60` and `/usr/bin/sleep 60` are the same fixture.
+          const runningStopCommand = async () => (await execDesktop("docker", ["exec", container.name, "sh", "-lc", "pgrep -a -f '^(/[^[:space:]]*/)?sleep 60$' || true"])).stdout.trim();
+          await expect.poll(runningStopCommand, { timeout: 10_000 }).toMatch(/^\d+ (?:\/\S*\/)?sleep 60$/m);
           await tasks.claw.control(native.id, "stop");
           await expect.poll(() => snapshot()?.task.status, { timeout: 10_000 }).toBe("paused");
           expect(commandText()).not.toContain("NATIVE_STOP_END");
           expect((await tasks.claw.terminalAccess(native.id)).inputAllowed).toBe(true);
           await expect.poll(() => sharedTerminalStatus(container.name, remoteTaskId(native.id)), { timeout: 5000 }).toBe("off");
-          const processes = await execDesktop("docker", ["exec", container.name, "sh", "-lc", "pgrep -a -f '^sleep 60$' || true"]);
-          expect(processes.stdout.trim()).toBe("");
+          await expect.poll(runningStopCommand, { timeout: 5000 }).toBe("");
           await tasks.claw.delete(native.id);
           await models.save({ protocol: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-reasoner", apiKey: "fixture-restored" });
           await ready();

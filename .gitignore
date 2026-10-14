@@ -6,6 +6,7 @@ runtimes/codex/codex-resources/
 runtimes/codex/codex-path/
 runtimes/codex/codex-package.json
 runtimes/codex/build-receipt.json
+runtimes/codex/BUBBLEWRAP-COPYING
 runtimes/kimi-code/bin/
 services/remote-agent/*/upstream/
 .cache/

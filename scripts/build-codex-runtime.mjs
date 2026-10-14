@@ -70,6 +70,7 @@ export async function buildCodex(args = []) {
       if (target.platform !== "win32") await chmod(join(runtime, path), 0o755);
     }
     for (const [input, output] of [["LICENSE", "UPSTREAM-LICENSE"], ["NOTICE", "UPSTREAM-NOTICE"]]) await copyAtomic(join(source, input), join(runtime, output));
+    await copyAtomic(join(source, "codex-rs/vendor/bubblewrap/COPYING"), join(runtime, "BUBBLEWRAP-COPYING"));
     await copyAtomic(join(root, "runtimes/dsh/node_modules/@vscode", `ripgrep-${target.platform}-${target.arch}`, "LICENSE"), join(runtime, "RIPGREP-LICENSE"));
     // Install receipts last: a partial installation must fail verification.
     await writeJsonAtomic(join(runtime, "codex-package.json"), marker);

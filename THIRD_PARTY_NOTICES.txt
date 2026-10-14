@@ -20,6 +20,10 @@ and platform helper executables are built from the locked official source.
 V8 150.4.0 archive/bindings are pinned official Codex release dependencies.
 Ripgrep is supplied by the pinned @vscode/ripgrep platform package; its upstream
 MIT/Unlicense notices are preserved in the prepared runtime.
+The Linux bwrap helper incorporates vendored bubblewrap (LGPL-2.0-or-later).
+Its BUBBLEWRAP-COPYING is preserved in the runtime. Releases with Linux
+installers include a codex-component-source archive containing the exact
+compiled upstream tree, wrapper, manifests, normalized lock and build recipe.
 
 Pi coding agent 0.87.1 — MIT
 https://github.com/earendil-works/pi

@@ -7,6 +7,7 @@ import test from "node:test";
 import { releaseIdentity, releasePlan, root, digestReference, validateImageReceipt, desktopTargets } from "./release/manifest.mjs";
 import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
+import { verifyCodexSource } from "./release/codex-source.mjs";
 
 const execute = promisify(execFile);
 const commit = "a".repeat(40), digest = `sha256:${"b".repeat(64)}`;
@@ -84,6 +85,30 @@ test("release notes make prerequisites/platform limits and source-free steps exp
   const notes = releaseNotes(plan);
   for (const text of ["无需源码", "Docker", "API Key", "模型权重", "prepare-remote.sh", "prepare-remote.ps1", "Pre-release", "未签名", commit.slice(0, 12)]) assert.ok(notes.includes(text), text);
   assert.doesNotMatch(notes, /\$\{plan\./);
+});
+
+test("Linux corresponding-source receipts retain the locked upstream and exact archive hash", async () => {
+  await mkdir(join(root, ".work"), { recursive: true });
+  const directory = await mkdtemp(join(root, ".work/release-codex-source-test-"));
+  const upstream = JSON.parse(await readFile(join(root, "runtimes/codex/source.json"), "utf8"));
+  const file = `Agent-Lab-${plan.version}-codex-component-source.tar.gz`;
+  try {
+    await writeFile(join(directory, file), "clearly-named-source-archive-fixture");
+    const { sha256 } = await import("./lib/artifacts.mjs");
+    const receipt = { schemaVersion: 1, version: plan.version, commit, upstreamCommit: upstream.commit, file, sha256: await sha256(join(directory, file)) };
+    const save = value => writeFile(join(directory, "codex-component-source.json"), JSON.stringify(value));
+    await save(receipt);
+    assert.deepEqual(await verifyCodexSource(plan, directory), { file, sha256: receipt.sha256, upstreamCommit: upstream.commit });
+    await save({ ...receipt, commit: "d".repeat(40) });
+    await assert.rejects(verifyCodexSource(plan, directory), /对应源码/);
+    await save(receipt); await writeFile(join(directory, file), "modified-source-archive-fixture");
+    await assert.rejects(verifyCodexSource(plan, directory), /对应源码/);
+    const build = await readFile(join(root, "scripts/build-codex-runtime.mjs"), "utf8");
+    const workflow = await readFile(join(root, ".github/workflows/package.yml"), "utf8");
+    assert.match(build, /BUBBLEWRAP-COPYING/);
+    assert.match(workflow, /node scripts\/release\/codex-source\.mjs/);
+    assert.match(workflow, /release\/\*-codex-component-source\.tar\.gz/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 test("manual publication is separate from push CI and every desktop target has its own native builder", async () => {
   const release = await readFile(join(root, ".github/workflows/release.yml"), "utf8");
