@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { readJson } from "./lib/artifacts.mjs";
 import { codexBuildPlan } from "./build-codex-runtime.mjs";
 import { ollamaArtifact } from "./ensure-ollama-runtime.mjs";
@@ -32,6 +33,16 @@ test("all runtime targets have explicit source-build bins, locked V8 inputs and 
 test("environment requirements include the Node baseline required by Pi and Kimi", () => {
   for (const version of ["22.12.0", "22.18.0", "20.20.0"]) assert.equal(supportsNode(version), false);
   for (const version of ["22.19.0", "24.0.0", "26.5.1"]) assert.equal(supportsNode(version), true);
+});
+
+test("source CI restores the real Kimi and Qwen fixtures before running their tests", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/check.yml", import.meta.url), "utf8");
+  const tests = workflow.indexOf("run: npm test");
+  assert.ok(tests > 0);
+  for (const command of ["npm ci --no-audit --no-fund", "npm run ensure:kimi", "npm run ensure:qwen"]) {
+    const prepared = workflow.indexOf(`run: ${command}`);
+    assert.ok(prepared >= 0 && prepared < tests, `${command} must precede tests in a clean checkout`);
+  }
 });
 
 test("Docker discovery supports GUI defaults and absolute PATH entries without shell evaluation", () => {

@@ -25,6 +25,10 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - run: npm ci --no-audit --no-fund
+      - name: Prepare Kimi Code test runtime
+        run: npm run ensure:kimi
+      - name: Prepare Qwen Code test runtime
+        run: npm run ensure:qwen
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:scripts

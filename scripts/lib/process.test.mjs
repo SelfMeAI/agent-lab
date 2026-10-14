@@ -28,8 +28,11 @@ test("standalone scripts discover an npm JS entry on absolute PATH when Node liv
     const entry = join(root, "node_modules/npm/bin/npm-cli.js");
     await mkdir(join(root, "node_modules/npm/bin"), { recursive: true });
     await writeFile(entry, "fixture");
-    const result = npmInvocation(["ci"], { PATH: root }, process.execPath);
+    // The real Windows Node directory also contains npm; isolate that lookup
+    // so this fixture verifies PATH fallback instead of the host installation.
+    const node = join(root, "elsewhere", "node");
+    const result = npmInvocation(["ci"], { PATH: root }, node);
     assert.deepEqual(result.args, [entry, "ci"]);
-    assert.equal(result.command, process.execPath);
+    assert.equal(result.command, node);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -30,7 +30,7 @@ test('rename refuses symlink attacks and conflicting directories instead of merg
   try {
     await mkdir(join(root, 'previous')); await mkdir(join(root, 'current'));
     await assert.rejects(migratePrivateDirectory(root, 'previous', 'current'), /同时存在/);
-    await symlink('previous', join(root, 'link'));
+    await symlink('previous', join(root, 'link'), 'dir');
     await assert.rejects(migratePrivateDirectory(root, 'previous', 'link'), /真实目录/);
     await assert.rejects(migratePrivateDirectory(root, 'link', 'current'), /不属于/);
   } finally { await rm(root, { recursive: true, force: true }); }

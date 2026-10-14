@@ -1,4 +1,4 @@
-import { open, constants } from 'node:fs/promises';
+import { open, lstat, constants } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 const limit = 64 * 1024 * 1024;
@@ -13,9 +13,17 @@ export function previewFailure(status) {
   return '暂时无法生成文档预览，请重试；也可以下载原文件。';
 }
 async function inputBytes(path) {
-  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  // O_NOFOLLOW is unavailable on Windows. Keep the atomic POSIX protection,
+  // and also check pathname/handle identity before reading on every platform.
+  const original = await lstat(path);
+  if (original.isSymbolicLink() || !original.isFile()) throw new DocumentPreviewError(400, '不支持符号链接或非普通文件的预览。');
+  const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const info = await file.stat();
+    const current = await lstat(path);
+    if (current.isSymbolicLink() || current.dev !== info.dev || current.ino !== info.ino || original.dev !== info.dev || original.ino !== info.ino) {
+      throw new DocumentPreviewError(400, '预览文件已改变，请重试。');
+    }
     if (!info.isFile() || info.size > limit) throw new DocumentPreviewError(413, previewFailure(413));
     const chunks = []; let count = 0;
     for (;;) {

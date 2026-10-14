@@ -1,5 +1,5 @@
 import { mkdir, open, readdir, readFile, realpath, rename, stat, unlink } from "node:fs/promises";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { posix } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -12,6 +12,8 @@ import { InputQueue, type InputFile, type InputMode } from "./input-queue";
 import { QueueNative } from "./queue-native";
 import { isLabPrivateFile, labOpenClawTaskId } from "./identity";
 
+// These paths belong to the Linux service container, never the desktop host.
+const { basename, dirname, join, resolve, sep } = posix;
 const tasks = "/home/node/.openclaw/workspace/agent-lab";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const maxUpload = 20 * 1024 * 1024;

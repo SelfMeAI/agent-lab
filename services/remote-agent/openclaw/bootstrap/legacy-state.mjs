@@ -22,7 +22,7 @@ export async function migratePrivateDirectory(base, previous, current) {
   if (next) throw new Error('新旧服务目录同时存在，未合并或覆盖数据');
   await rename(oldPath, newPath);
   // Native histories, generated links and Trash metadata retain absolute paths.
-  await symlink(current, oldPath);
+  await symlink(current, oldPath, 'dir');
 }
 
 export async function migrateOpenClawState(home = '/home/node/.openclaw') {

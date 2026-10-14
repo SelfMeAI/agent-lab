@@ -1,10 +1,12 @@
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, realpath, writeFile, rename } from 'node:fs/promises';
-import { join } from 'node:path';
+import { posix } from 'node:path';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as wait } from 'node:timers/promises';
 const run = promisify(execFile);
+// tmux/Xfce paths are always inside the Linux container, even in host-side tests.
+const { join } = posix;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const state = '/home/node/.cache/agent-lab';
 const socket = join(state, 'terminal.sock');
@@ -36,7 +38,7 @@ export function terminalArgv(task, desktop = false) {
 }
 export function terminalViewPattern(task) {
   terminalIdentity(task);
-  return '^' + process.execPath.replaceAll('.', '\\.') + ' /opt/agent-lab/desktop/terminal-attach\\.mjs ' + task + ' desktop$';
+  return '^' + process.execPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' /opt/agent-lab/desktop/terminal-attach\\.mjs ' + task + ' desktop$';
 }
 export function terminalWindowTitle(task) {
   terminalIdentity(task);

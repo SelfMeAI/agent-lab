@@ -77,7 +77,9 @@ test('curated desktop is reproducible and does not modify task/provider state', 
     await configureDesktop(fixture);
     assert.equal(await readFile(join(fixture, '.openclaw/openclaw.json'), 'utf8'), 'retained-provider-state');
     const data = join(fixture, '.openclaw/.agent-lab-desktop/data/Trash');
-    assert.equal((await stat(join(data, 'files'))).mode & 0o777, 0o700);
+    // Windows has ACLs, not POSIX mode bits. All storage checks still run there;
+    // the Linux container's exact permissions are exercised on POSIX runners.
+    if (process.platform !== 'win32') assert.equal((await stat(join(data, 'files'))).mode & 0o777, 0o700);
     await writeFile(join(data, 'files', 'retained.txt'), 'retained-trash-file');
     await writeFile(join(data, 'info', 'retained.txt.trashinfo'), 'retained-trash-metadata');
     await writeFile(join(fixture, '.config/user-dirs.dirs'), 'XDG_DOWNLOAD_DIR="$HOME/downloads"\nXDG_DESKTOP_DIR="$HOME/old-desktop"\n');
@@ -95,7 +97,7 @@ test('desktop storage rejects a symlink before writing through it', async () => 
   const fixture = await mkdtemp('.work/remote-agent/desktop-link-test-');
   try {
     await mkdir(join(fixture, 'other'));
-    await symlink('other', join(fixture, '.openclaw'));
+    await symlink('other', join(fixture, '.openclaw'), 'dir');
     await assert.rejects(configureDesktop(fixture), /不能是符号链接/);
     await assert.rejects(stat(join(fixture, 'other', '.agent-lab-desktop')), { code: 'ENOENT' });
   } finally { await rm(fixture, { recursive: true, force: true }); }
@@ -110,14 +112,14 @@ test('persistent desktop home is private, additive and never follows a symlink',
     await writeFile(join(volume, 'openclaw.json'), 'retained-provider-state');
     await prepareDesktopHome(volume, template);
     const home = join(volume, '.agent-lab-desktop/home');
-    assert.equal((await stat(home)).mode & 0o777, 0o700);
+    if (process.platform !== 'win32') assert.equal((await stat(home)).mode & 0o777, 0o700);
     assert.equal(await readFile(join(home, '.bashrc'), 'utf8'), 'native-shell-template');
     await writeFile(join(home, '.bashrc'), 'retained-user-shell');
     await prepareDesktopHome(volume, template);
     assert.equal(await readFile(join(home, '.bashrc'), 'utf8'), 'retained-user-shell');
     assert.equal(await readFile(join(volume, 'openclaw.json'), 'utf8'), 'retained-provider-state');
     const linked = join(fixture, 'linked'); await mkdir(linked);
-    await symlink('../template', join(linked, '.agent-lab-desktop'));
+    await symlink('../template', join(linked, '.agent-lab-desktop'), 'dir');
     await assert.rejects(prepareDesktopHome(linked, template), /不能是符号链接/);
     await assert.rejects(stat(join(template, 'home')), { code: 'ENOENT' });
   } finally { await rm(fixture, { recursive: true, force: true }); }

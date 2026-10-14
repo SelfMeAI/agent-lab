@@ -55,7 +55,7 @@ test("unexpected regular marker or malformed lock preserves the whole set", () =
 }));
 test("profile paths cannot escape the private volume through symlinks", () => fixture(async ({ root, home, profile }) => {
   const external = join(root, "outside"); await mkdir(external); await locks(external);
-  await rm(profile, { recursive: true }); await symlink(external, profile);
+  await rm(profile, { recursive: true }); await symlink(external, profile, 'dir');
   await assert.rejects(recoverManagedBrowserProfile(home, { privateVolume: true }), /越界/);
   assert.equal(await readlink(join(external, "SingletonLock")), "old-container-1234");
 }));
