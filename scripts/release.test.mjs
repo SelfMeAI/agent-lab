@@ -8,7 +8,7 @@ import { releaseIdentity, releasePlan, root, digestReference, validateImageRecei
 import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, verifyReleaseAssetSize, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
 import { verifyCodexSource } from "./release/codex-source.mjs";
-import { distributionLayout, installWindowsDistribution } from "./release/smoke-desktop.mjs";
+import { distributionLayout, installWindowsDistribution, uninstallWindowsDistribution } from "./release/smoke-desktop.mjs";
 
 const execute = promisify(execFile);
 const commit = "a".repeat(40), digest = `sha256:${"b".repeat(64)}`;
@@ -119,6 +119,22 @@ test("Windows acceptance waits for a real installer and rejects missing payloads
     await rm(installed, { recursive: true });
     await assert.rejects(installWindowsDistribution("installer-fixture.exe", installed, async () => {}), /ENOENT/);
     await assert.rejects(installWindowsDistribution("installer-fixture.exe", installed, async () => { throw Error("installer failed"); }), /installer failed/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+test("Windows acceptance waits for the real NSIS uninstaller and verifies removal before cleanup", async () => {
+  await mkdir(join(root, ".work"), { recursive: true });
+  const directory = await mkdtemp(join(root, ".work/release-uninstaller-test-"));
+  const executable = join(directory, "Agent Lab.exe");
+  try {
+    await writeFile(executable, "test-only-payload");
+    await assert.rejects(uninstallWindowsDistribution(directory, async () => {}), /仍存在/);
+    await uninstallWindowsDistribution(directory, async (command, args, options) => {
+      assert.equal(command, join(directory, "Uninstall Agent Lab.exe"));
+      assert.deepEqual(args, ["/S", `_?=${directory}`]);
+      assert.equal(options.timeout, 180_000);
+      await rm(executable);
+    });
+    await assert.rejects(uninstallWindowsDistribution(directory, async () => { throw Error("uninstall failed"); }), /uninstall failed/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 test("public image checks do not use user auth and reject private/mismatched/incomplete manifests", async () => {

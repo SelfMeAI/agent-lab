@@ -35,6 +35,14 @@ export async function installWindowsDistribution(installer, directory, execute =
     throw error;
   } finally { clearInterval(heartbeat); }
 }
+export async function uninstallWindowsDistribution(directory, execute = run) {
+  // NSIS otherwise starts a temporary child uninstaller and returns early.
+  // _?= must be last: wait for the actual uninstaller before removing our stage.
+  await execute(join(directory, "Uninstall Agent Lab.exe"), ["/S", `_?=${directory}`], { timeout: 180_000 });
+  try { await access(join(directory, "Agent Lab.exe")); }
+  catch (error) { if (error.code === "ENOENT") return; throw error; }
+  throw new Error("Windows 卸载后桌面程序仍存在，未完成安装包验收");
+}
 
 export function packagedLayout(platform = process.platform, arch = process.arch) {
   const suffix = arch === "x64" ? "" : `-${arch}`;
@@ -97,8 +105,19 @@ export async function smokeDesktop(args = []) {
   try {
     const page = await instance.firstWindow();
     page.on("pageerror", error => errors.push(error.message));
+    const browserWindow = await instance.browserWindow(page);
+    const screenshot = async name => {
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      const [nativeWidth, nativeHeight] = await browserWindow.evaluate(window => window.getContentSize());
+      const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+      // CDP can briefly retain outer-window dimensions on Linux. Capture only
+      // the native content area, not extra compositor rows below the webview.
+      await page.screenshot({ path: join(screenshots, name), clip: { x: 0, y: 0,
+        width: Math.min(nativeWidth, viewport.width), height: Math.min(nativeHeight, viewport.height) } });
+    };
     await page.locator(".lab-card").first().waitFor({ timeout: 60_000 });
     assert.equal(await page.locator(".lab-card").count(), 4, "安装包必须保留四个实验室入口");
+    assert.equal(await page.locator(".topbar").count(), 1, "应用只应有一个标题栏");
     const fonts = await page.evaluate(async () => {
       const loaded = await document.fonts.load('14px "Noto Sans SC Variable"', "本地模型实验");
       await document.fonts.ready;
@@ -123,13 +142,13 @@ export async function smokeDesktop(args = []) {
       assert.deepEqual(catalog.sessions, []); assert.deepEqual(catalog.deletedSessions, []);
     }
     assert.equal(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight + 1), false, "首页不应出现全局滚动");
-    await page.screenshot({ path: join(screenshots, "home.png") });
+    await screenshot("home.png");
     for (const id of ["agent-lab", "remote-agent-lab", "local-model-lab", "jev-lab"]) {
       await page.locator(`.lab-card[data-lab-id="${id}"]`).click();
       await page.waitForFunction(id => location.hash === `#/lab/${id}`, id);
       await page.waitForFunction(() => !document.querySelector(".lab-card"));
       await page.evaluate(() => document.fonts.ready);
-      await page.screenshot({ path: join(screenshots, `${id}.png`) });
+      await screenshot(`${id}.png`);
       await page.evaluate(() => { location.hash = "#/"; });
       await page.locator(".lab-card").first().waitFor();
     }
@@ -153,9 +172,9 @@ export async function smokeDesktop(args = []) {
   const receipt = { schemaVersion: 1, version: plan.version, commit: plan.commit, target: layout.target, verified: true,
     checks: ["distribution-payload", "packaged-window", "bundled-cjk-font", "four-labs", "six-bundled-harnesses", "fresh-settings-and-sessions", "native-executables", ...(args.includes("--skip-harness-tests") ? [] : ["bundled-harness-integration"])],
     files: target.extensions.map(extension => `Agent-Lab-${plan.version}-${target.id}.${extension}`) };
+  if (process.platform === "win32") await uninstallWindowsDistribution(join(installation.directory, "installed"));
+  await rm(installation.directory, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
   await writeJsonAtomic(join(root, "release", `desktop-${layout.target}.json`), receipt);
-  if (process.platform === "win32") await run(join(installation.directory, "installed/Uninstall Agent Lab.exe"), ["/S"], { timeout: 180_000 });
-  await rm(installation.directory, { recursive: true, force: true });
   console.log(`安装包原生检查完成：${layout.target}；测试配置与截图仅在 .work/ 和 output/playwright/ 中。`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
