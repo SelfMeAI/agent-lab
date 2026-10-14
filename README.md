@@ -257,9 +257,9 @@ release/
 
 首次 GHCR 容器包默认为 Private，需要在对应包设置里改为 **Public**；工作流会验证匿名拉取，不能公开下载的镜像不会进入 Release。不需要把个人 registry token 写进仓库，工作流仅使用 GitHub 的短期 `GITHUB_TOKEN`。首次设置后，后续版本沿用公开包。
 
-每个服务的发行标签统一为 `v版本号`、`v版本号-amd64`、`v版本号-arm64`；完整源码提交号保存在镜像元数据和发布清单中。版本入口自动匹配 CPU，镜像准备脚本仍固定 digest，不依赖可变标签。后续发行成功后会清理未被任何版本引用的验证构建，保留历史正式版本及其全部架构清单。旧发行镜像已有的 `build-提交号-架构` 标签可能作为同一 digest 的兼容别名保留，不能通过删除该镜像版本来移除单个标签。
+每个服务的发行标签统一为 `v版本号`、`v版本号-amd64`、`v版本号-arm64`；完整源码提交号保存在镜像元数据和发布清单中。版本入口自动匹配 CPU，镜像准备脚本仍固定 digest，不依赖可变标签。后续发行成功后会清理未被任何版本引用的验证构建，保留历史正式版本及其全部架构清单。
 
-[Image maintenance](https://github.com/SelfMeAI/agent-lab/actions/workflows/image-maintenance.yml) 可单独为已发布版本补架构标签并清理旧验证构建，不重编译或修改 Release 附件；与发行工作流互斥，清理前重新核对包归属、所有标签与发布清单的引用。源码脚本 `node scripts/release/registry.mjs --cleanup` 默认仅预览，添加 `--apply` 才执行删除。
+[Image maintenance](https://github.com/SelfMeAI/agent-lab/actions/workflows/image-maintenance.yml) 可单独为已发布版本补架构标签并清理旧验证构建，不重编译或修改 Release 附件；与发行工作流互斥，清理前重新核对包归属、所有标签与发布清单的引用。勾选 `remove_legacy_aliases` 可解绑历史长标签，先通过临时标签验证，再仅删除独立占位镜像，保留正式镜像内容与 digest。源码脚本 `node scripts/release/registry.mjs --cleanup` 或 `--remove-legacy --version v版本号` 默认仅预览，添加 `--apply` 才执行删除。
 
 ## 架构与目录
 

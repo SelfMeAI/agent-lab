@@ -1,6 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { architectureTag, digestReference, imageTargets } from "./manifest.mjs";
+import { architectureTag, digestReference, imageTargets, root } from "./manifest.mjs";
 import { run } from "../lib/process.mjs";
 import { requireDocker } from "../lib/docker.mjs";
 
@@ -48,7 +49,8 @@ function registryReader(repository) {
   const path = repository.slice("ghcr.io/".length);
   let token;
   return async (reference, { blob = false, optional = false } = {}) => {
-    if (!digestPattern.test(reference) && !versionPattern.test(reference.replace(/-(?:amd64|arm64)$/, ""))) throw new Error("Registry 引用无效");
+    if (!digestPattern.test(reference) && !buildPattern.test(reference) && !/^unlink-check-[a-f0-9]{32}-keep$/.test(reference)
+      && !versionPattern.test(reference.replace(/-(?:amd64|arm64)$/, ""))) throw new Error("Registry 引用无效");
     if (!token) {
       const response = await fetch(`https://ghcr.io/token?service=ghcr.io&scope=${encodeURIComponent(`repository:${path}:pull`)}`, { signal: AbortSignal.timeout(30_000) });
       if (!response.ok) throw new Error("镜像无法匿名读取，未修改 Registry");
@@ -125,7 +127,131 @@ async function retagRelease(repository, version) {
     if ((await item.reader(item.tag.split(":").at(-1))).digest !== item.digest) throw new Error("补标签后 digest 变化，停止清理");
     console.log(`标签已验证 · ${item.tag} · ${item.digest}`);
   }
-  console.log("已发布镜像摘要、Release 附件和下载脚本均未改变。原 build 标签作为同一 digest 的兼容别名保留，不能通过删除整个版本移除它。");
+  console.log("已发布镜像摘要、Release 附件和下载脚本均未改变。");
+}
+export function unlinkDeletionTarget(versions, tag, temporaryDigest, protectedDigests) {
+  const matches = versions.filter(item => item.name === temporaryDigest);
+  if (matches.length !== 1 || protectedDigests.has(temporaryDigest)) throw new Error("临时镜像仍被引用或记录不唯一，拒绝删除");
+  const tags = validateVersion(matches[0]);
+  if (tags.length !== 1 || tags[0] !== tag) throw new Error("临时镜像还有其他标签，拒绝删除");
+  return matches[0];
+}
+export function isUnlinkPlaceholder(config, repository, nonce = config.config?.Labels?.["ai.agent-lab.unlink.nonce"]) {
+  const labels = config.config?.Labels ?? {};
+  return /^[a-f0-9]{32}$/.test(nonce ?? "") && labels["org.opencontainers.image.source"] === sourceUrl(repository)
+    && labels["ai.agent-lab.maintenance"] === "tag-unlink" && labels["ai.agent-lab.unlink.nonce"] === nonce
+    && config.rootfs?.type === "layers" && Array.isArray(config.rootfs.diff_ids) && config.rootfs.diff_ids.length === 0;
+}
+// The normal GHCR DELETE endpoint deletes a whole manifest, not just its tag.
+// Move only the explicitly selected old name to an owned, empty manifest first.
+// The original manifest is never deleted and all release aliases remain pinned.
+async function removeLegacyAliases(repository, version, apply) {
+  if (!versionPattern.test(version)) throw new Error("需要已发布版本标签");
+  const release = await github(`repos/${repository}/releases/tags/${version}`);
+  if (release.draft) throw new Error("只清理已公开版本的历史标签");
+  const manifest = await publishedManifest(repository, release);
+  const repo = await github(`repos/${repository}`);
+  if (repo.full_name !== repository || !["User", "Organization"].includes(repo.owner?.type)) throw new Error("仓库身份无效");
+  const prefix = `${repo.owner.type === "User" ? "users" : "orgs"}/${repo.owner.login}`;
+  const releases = (await github(`repos/${repository}/releases?per_page=100`, { pages: true })).flat();
+  const published = await Promise.all(releases.filter(item => !item.draft).map(item => publishedManifest(repository, item)));
+  const plans = [];
+  for (const engine of ["openhands", "openclaw"]) {
+    const image = manifest.images[engine], reader = registryReader(image.repository);
+    const endpoint = `${prefix}/packages/container/${repository.split("/")[1].toLowerCase()}-${engine}`;
+    const pkg = await github(endpoint);
+    if (pkg.repository?.full_name !== repository || pkg.package_type !== "container") throw new Error("容器包不属于当前仓库");
+    const index = (await reader(image.digest)).value;
+    const aliases = [{tag:`${image.repository}:${version}`,digest:image.digest},...aliasTargets(manifest,engine,index)];
+    for (const alias of aliases) if ((await reader(alias.tag.split(":").at(-1))).digest !== alias.digest) throw new Error("正式标签不匹配，拒绝解绑");
+    const removals = [];
+    for (const target of imageTargets) {
+      const tag = `build-${manifest.commit}-${target.arch}`;
+      const current = await reader(tag,{optional:true});
+      if (!current) continue;
+      const original = aliases.find(alias => alias.tag.endsWith(`-${target.arch}`)).digest;
+      if (current.digest !== original) throw new Error("旧标签已指向其他内容，未作修改");
+      removals.push({tag,original});
+    }
+    plans.push({engine,image,reader,endpoint,aliases,removals,pinned:published.map(item=>item.images[engine].digest)});
+  }
+  if (!apply) {
+    for (const plan of plans) for (const item of plan.removals) console.log(`预览解绑 · ${plan.image.repository}:${item.tag} · 保留 ${item.original}`);
+    return;
+  }
+  if (!plans.some(plan=>plan.removals.length)) { console.log("没有遗留标签需要解绑。"); return; }
+  const {executable:docker} = await requireDocker();
+  const checkAliases = async plan => {
+    for (const alias of plan.aliases) if ((await plan.reader(alias.tag.split(":").at(-1))).digest !== alias.digest) throw new Error("正式版本验证失败，停止清理");
+  };
+  const placeholder = async (plan,tag,nonce = randomUUID().replaceAll("-","")) => {
+    const local = `agent-lab/tag-unlink:${nonce}`;
+    let built = false;
+    try {
+      await run(docker,["buildx","build","--load","--provenance=false","--network=none","--file",join(root,"scripts/release/unlink.Dockerfile"),
+        "--build-arg",`REPOSITORY=${sourceUrl(repository)}`,"--build-arg",`UNLINK_NONCE=${nonce}`,"--tag",local,join(root,"scripts/release")]);
+      built = true;
+      const destination = `${plan.image.repository}:${tag}`;
+      await run(docker,["tag",local,destination]);
+      await run(docker,["push",destination]);
+      const temporary = await plan.reader(tag);
+      if (temporary.value.manifests || temporary.value.layers?.length !== 0) throw new Error("占位镜像必须是无层的独立清单");
+      const config = (await plan.reader(temporary.value.config.digest,{blob:true})).value;
+      if (!isUnlinkPlaceholder(config,repository,nonce)) throw new Error("临时镜像归属不匹配");
+      return temporary.digest;
+    } finally { if (built) await run(docker,["image","rm",local]); }
+  };
+  const eraseTemporary = async (plan,tag,temporaryDigest) => {
+    const versions = (await github(`${plan.endpoint}/versions?per_page=100&state=active`,{pages:true})).flat();
+    // Exclude only this one intentionally removed tag when walking roots.
+    // Any other tag or index referencing the placeholder still vetoes deletion.
+    const withoutTarget = versions.map(item=>({...item,metadata:{...item.metadata,container:{...item.metadata.container,
+      tags:validateVersion(item).filter(name=>!(item.name===temporaryDigest && name===tag))}}}));
+    const preserved = await protectedImageDigests(withoutTarget,async value=>(await plan.reader(value)).value,plan.pinned);
+    const item = unlinkDeletionTarget(versions,tag,temporaryDigest,preserved);
+    await checkAliases(plan);
+    console.log(`删除独立临时镜像 · ${plan.engine} · ${item.id} · ${temporaryDigest}`);
+    await github(`${plan.endpoint}/versions/${item.id}`,{method:"DELETE"});
+    if (await plan.reader(tag,{optional:true})) throw new Error("旧标签仍可读取，清理未完成");
+    await checkAliases(plan);
+  };
+  const unlink = async (plan,tag,original) => {
+    if ((await plan.reader(tag)).digest !== original) throw new Error("标签在解绑前已变化");
+    const nonce = randomUUID().replaceAll("-","");
+    let temporaryDigest;
+    try {
+      temporaryDigest = await placeholder(plan,tag,nonce);
+      await eraseTemporary(plan,tag,temporaryDigest);
+      await plan.reader(original);
+    } catch (error) {
+      // If unlink failed, restore only our moved tag, never another writer's tag.
+      const current = await plan.reader(tag,{optional:true});
+      const config = current && !current.value.manifests ? (await plan.reader(current.value.config.digest,{blob:true})).value : null;
+      if (current && config && isUnlinkPlaceholder(config,repository,nonce))
+        await run(docker,["buildx","imagetools","create","--prefer-index=false","--tag",`${plan.image.repository}:${tag}`,digestReference(plan.image.repository,original)]);
+      throw error;
+    }
+  };
+  // Live canary: two disposable names share one empty manifest. Removing one
+  // must not remove the other's digest. Both test manifests are then deleted.
+  const canary = plans[0], nonce = randomUUID().replaceAll("-","");
+  const keep = `unlink-check-${nonce}-keep`, remove = `build-${createHash("sha256").update(nonce).digest("hex").slice(0,40)}-amd64`;
+  const original = await placeholder(canary,keep);
+  await run(docker,["buildx","imagetools","create","--prefer-index=false","--tag",`${canary.image.repository}:${remove}`,digestReference(canary.image.repository,original)]);
+  await unlink(canary,remove,original);
+  if ((await canary.reader(keep)).digest!==original) throw new Error("验证失败：另一标签受到影响");
+  await eraseTemporary(canary,keep,original);
+  console.log("临时标签验证通过 · 单独删除标签不影响另一标签及原镜像 · 测试产物已清理。");
+  for (const plan of plans) for (const item of plan.removals) {
+    await unlink(plan,item.tag,item.original);
+    console.log(`旧别名已移除 · ${plan.image.repository}:${item.tag}`);
+  }
+  for (const plan of plans) {
+    await checkAliases(plan);
+    await run(docker,["buildx","imagetools","create","--prefer-index=false","--tag",`${plan.image.repository}:${version}`,digestReference(plan.image.repository,plan.image.digest)]);
+    await checkAliases(plan);
+  }
+  console.log("遗留别名已移除；正式镜像和发布附件保持不变。");
 }
 async function cleanupPackages(repository, apply) {
   const repo = await github(`repos/${repository}`);
@@ -151,8 +277,8 @@ async function cleanupPackages(repository, apply) {
       else {
         const config = (await reader(image.config.digest, { blob: true })).value;
         const labels = config.config?.Labels ?? {};
-        owned = labels["org.opencontainers.image.source"] === sourceUrl(repository) && labels["ai.agent-lab.desktop.engine"] === engine
-          && /^[a-f0-9]{40}$/.test(labels["org.opencontainers.image.revision"] ?? "");
+        owned = isUnlinkPlaceholder(config,repository) || (labels["org.opencontainers.image.source"] === sourceUrl(repository) && labels["ai.agent-lab.desktop.engine"] === engine
+          && /^[a-f0-9]{40}$/.test(labels["org.opencontainers.image.revision"] ?? ""));
       }
       if (owned) candidates.push(item);
     }
@@ -179,8 +305,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const repository = args.includes("--repository") ? value("--repository") : "SelfMeAI/agent-lab";
   if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/.test(repository)) throw new Error("仓库名称无效");
   (async () => {
-    if (!args.includes("--retag") && !args.includes("--cleanup")) throw new Error("需要 --retag 或 --cleanup；清理默认仅预览，--apply 才删除");
+    if (!args.includes("--retag") && !args.includes("--cleanup") && !args.includes("--remove-legacy")) throw new Error("需要 --retag、--cleanup 或 --remove-legacy；清理默认仅预览，--apply 才删除");
     if (args.includes("--retag")) await retagRelease(repository, value("--version"));
+    if (args.includes("--remove-legacy")) await removeLegacyAliases(repository,value("--version"),args.includes("--apply"));
     if (args.includes("--cleanup")) await cleanupPackages(repository, args.includes("--apply"));
   })().catch(error => { console.error(error.message); process.exitCode = 1; });
 }

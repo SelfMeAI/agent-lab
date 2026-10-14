@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { architectureTag, root } from "./release/manifest.mjs";
-import { aliasTargets, cleanupCandidates, protectedImageDigests } from "./release/registry.mjs";
+import { aliasTargets, cleanupCandidates, protectedImageDigests, unlinkDeletionTarget, isUnlinkPlaceholder } from "./release/registry.mjs";
 
 const digest = letter => `sha256:${letter.repeat(64)}`;
 const build = (letter, arch = "arm64") => `build-${letter.repeat(40)}-${arch}`;
@@ -56,6 +56,34 @@ test("nested indices and attestation references are retained; missing children a
 test("malformed package IDs, digests and tags cannot reach deletion", () => {
   for (const item of [{...version(1,"a",[]),id:0},{...version(1,"a",[]),id:"1"},{...version(1,"a",[]),name:"../other"},{id:1,name:digest("a"),metadata:{package_type:"container",container:{tags:null}}}])
     assert.throws(()=>cleanupCandidates([item],new Set()));
+});
+test("unlink deletes only the unique temporary version with exactly the chosen tag", () => {
+  const old = build("f"), temporary = version(2,"d",[old]);
+  assert.equal(unlinkDeletionTarget([temporary],old,digest("d"),new Set()).id,2);
+  assert.throws(()=>unlinkDeletionTarget([temporary],old,digest("d"),new Set([digest("d")])),/引用/);
+  assert.throws(()=>unlinkDeletionTarget([temporary,temporary],old,digest("d"),new Set()),/唯一/);
+  assert.throws(()=>unlinkDeletionTarget([version(2,"d",[old,"v0.1.0-arm64"])],old,digest("d"),new Set()),/其他标签/);
+  assert.throws(()=>unlinkDeletionTarget([version(2,"d",[])],old,digest("d"),new Set()));
+  assert.throws(()=>unlinkDeletionTarget([temporary],old,digest("c"),new Set()));
+});
+test("placeholder ownership requires our repository, marker, exact nonce and empty rootfs", () => {
+  const repo="SelfMeAI/agent-lab", nonce="a".repeat(32);
+  const config={config:{Labels:{"org.opencontainers.image.source":`https://github.com/${repo}`,"ai.agent-lab.maintenance":"tag-unlink","ai.agent-lab.unlink.nonce":nonce}},rootfs:{type:"layers",diff_ids:[]}};
+  assert.ok(isUnlinkPlaceholder(config,repo,nonce));
+  assert.ok(!isUnlinkPlaceholder(config,repo,"b".repeat(32)));
+  assert.ok(!isUnlinkPlaceholder(config,"other/repo",nonce));
+  assert.ok(!isUnlinkPlaceholder({...config,rootfs:{type:"layers",diff_ids:[digest("a")]}},repo,nonce));
+  assert.ok(!isUnlinkPlaceholder({...config,config:{Labels:{}}},repo,nonce));
+});
+test("moving an old name to a placeholder never makes a published child deletable", async () => {
+  const old=build("f");
+  const moved=[version(1,"a",["v0.1.0"]),version(2,"b",["v0.1.0-amd64"]),version(3,"c",["v0.1.0-arm64"]),version(4,"d",[old])];
+  const protectedSet=await protectedImageDigests(moved,async value=>value===digest("a")?index:leaf,[digest("a")]);
+  assert.equal(unlinkDeletionTarget(moved,old,digest("d"),protectedSet).id,4);
+  for(const letter of ["a","b","c"]) assert.throws(()=>unlinkDeletionTarget(moved,old,digest(letter),protectedSet));
+  const referenced=[...moved,version(5,"f",["custom-index"])];
+  const protectedAgain=await protectedImageDigests(referenced,async value=>value===digest("a")?index:value===digest("f")?{manifests:[{digest:digest("d")}]}:leaf);
+  assert.throws(()=>unlinkDeletionTarget(referenced,old,digest("d"),protectedAgain),/引用/);
 });
 test("release and maintenance share exclusion, and maintenance never rebuilds distributions", async () => {
   const workflow = await readFile(join(root,".github/workflows/image-maintenance.yml"),"utf8");

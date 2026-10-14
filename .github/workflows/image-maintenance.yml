@@ -12,6 +12,10 @@ on:
         description: 'Delete unreferenced verification images; preserve every release and its children'
         default: true
         type: boolean
+      remove_legacy_aliases:
+        description: 'Remove historical build aliases through independently verified temporary manifests'
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -49,3 +53,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/release/registry.mjs --cleanup --apply --repository "$GITHUB_REPOSITORY"
+      - name: Remove historical aliases without deleting release manifests
+        if: inputs.remove_legacy_aliases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node scripts/release/registry.mjs --remove-legacy --version "v$RELEASE_VERSION" --apply --repository "$GITHUB_REPOSITORY"
