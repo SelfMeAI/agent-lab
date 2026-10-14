@@ -19,6 +19,8 @@ test("fixed-source checkout verifies provenance and refuses changes without netw
     const commit = await run("git", ["rev-parse", "HEAD"], { cwd: directory, capture: true });
     const input = { root, directory, repository, commit, verifyOnly: true };
     assert.equal(await ensureCheckout(input), directory);
+    await ensureCheckout({ ...input, verifyOnly: false, platform: "win32" });
+    assert.equal(await run("git", ["config", "--local", "core.longpaths"], { cwd: directory, capture: true }), "true");
     await assert.rejects(ensureCheckout({ ...input, commit: "0".repeat(40) }), /固定提交/);
     await assert.rejects(ensureCheckout({ ...input, repository: "https://github.com/example/other.git" }), /来源/);
     await assert.rejects(ensureCheckout({ ...input, directory: join(root, "..", "outside") }), /项目目录/);
