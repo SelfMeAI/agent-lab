@@ -38,7 +38,9 @@ jobs:
         shell: pwsh
         env:
           AGENT_LAB_STEERING_INTEGRATION: '1'
+          ELECTRON_CACHE: .cache/electron
         run: |
+          node node_modules/electron/install.js
           $env:AGENT_LAB_STEERING_NODE_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'node_modules\electron\dist\electron.exe'
           if (-not (Test-Path -LiteralPath $env:AGENT_LAB_STEERING_NODE_EXECUTABLE)) { throw 'The bundled Electron Node executable was not restored' }
           npm run test --workspace '@agent-lab/desktop' -- packages/runtime/src/steering.integration.test.ts packages/runtime/src/user-questions.integration.test.ts -t dsh
