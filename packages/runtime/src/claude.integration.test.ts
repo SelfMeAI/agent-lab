@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { executableName } from "../../../runtimes/platform.mjs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { RunEvent } from "../../contracts/src/index";
@@ -37,7 +38,7 @@ describe("official Claude native runtime", () => {
       } catch (error) { errors.push(String(error)); res.writeHead(500); res.end('{"error":{"type":"api_error","message":"test failure"}}'); }
     });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const options = { executable: join(runtimeRoot, "claude/bin/claude"), homeDirectory: join(scratch, "home"), provider: async () => ({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, model: "claude-sonnet-4-6", apiKey: "sk-local-claude-check" }) };
+    const options = { executable: join(runtimeRoot, "claude/bin", executableName("claude")), homeDirectory: join(scratch, "home"), provider: async () => ({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, model: "claude-sonnet-4-6", apiKey: "sk-local-claude-check" }) };
     let adapter = new ClaudeAdapter(options);
     const observe = () => adapter.onEvent(event => { events.push(event); if (event.kind === "error") errors.push(event.text ?? "Claude error"); }); observe();
     const wait = async (predicate: () => boolean) => vi.waitFor(() => { expect(errors).toEqual([]); expect(predicate(), JSON.stringify(events.slice(-8))).toBe(true); }, { timeout: 15000 });
@@ -104,7 +105,7 @@ describe("official Claude native runtime", () => {
       else anthropic(res, undefined, JSON.stringify(body.messages).includes("CLAUDE_STEER_842") ? "补充已进入当前任务" : "没有收到补充");
     });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const adapter = new ClaudeAdapter({ executable: join(runtimeRoot, "claude/bin/claude"), homeDirectory: join(scratch, "home"), provider: async () => ({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, model: "claude-sonnet-4-6", apiKey: "sk-local-claude-steer" }) });
+    const adapter = new ClaudeAdapter({ executable: join(runtimeRoot, "claude/bin", executableName("claude")), homeDirectory: join(scratch, "home"), provider: async () => ({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, model: "claude-sonnet-4-6", apiKey: "sk-local-claude-steer" }) });
     adapter.onEvent(e => { events.push(e); if (e.kind === "error") errors.push(e.text ?? "Claude error"); if (e.kind === "approval" && e.approval) void adapter.respondApproval(e.approval.requestId, "allow_once"); });
     try {
       await adapter.start(workspace); const start = events.length; await adapter.send("先执行命令，再总结。");

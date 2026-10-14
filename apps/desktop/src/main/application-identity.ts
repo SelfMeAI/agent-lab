@@ -1,5 +1,5 @@
 import { lstatSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 
 export const applicationName = "Agent Lab";
 // These identifiers are exclusively for adopting an existing installation.
@@ -22,9 +22,7 @@ export function legacyApplicationRoot(root: string): boolean {
   return basename(root) === legacyApplicationName;
 }
 
-export function applicationIdentity(appData: string): { root: string; encryptionName: string } {
-  const current = join(appData, applicationName);
-  const legacy = join(appData, legacyApplicationName);
+export function applicationIdentity(appData: string, testAppData?: string): { root: string; encryptionName: string } {
   const directory = (path: string) => {
     try {
       const info = lstatSync(path);
@@ -35,6 +33,12 @@ export function applicationIdentity(appData: string): { root: string; encryption
       throw error;
     }
   };
+  // Release smoke tests must never discover or modify an existing user profile.
+  // This explicit opt-in is process-local, not a saved application preference.
+  if (testAppData !== undefined && (!isAbsolute(testAppData) || !directory(testAppData))) throw new Error("测试数据根目录必须是已创建的真实绝对目录");
+  const base = testAppData ?? appData;
+  const current = join(base, applicationName);
+  const legacy = join(base, legacyApplicationName);
   if (!directory(current) && directory(legacy)) return { root: legacy, encryptionName: legacyApplicationName };
   return { root: current, encryptionName: applicationName };
 }

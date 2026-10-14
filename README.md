@@ -4,7 +4,8 @@
   <p><strong>把智能体放到同一张实验台上。</strong></p>
   <p>本地 Harness · 自部署远端 Agent · 本地模型 · 决策实验</p>
   <p>
-    <a href="#快速开始">快速开始</a> ·
+    <a href="#下载安装包">下载安装包</a> ·
+    <a href="#快速开始">源码运行</a> ·
     <a href="#四个实验室">四个实验室</a> ·
     <a href="#服务端部署">服务端部署</a> ·
     <a href="#桌面打包">桌面打包</a> ·
@@ -18,7 +19,7 @@ Agent Lab 是一个面向智能体研发、能力验证与对照实验的 **Elec
 
 各实验室使用独立的运行时或服务，提供连接配置、会话、执行过程、审批和产物展示。工具、权限、上下文与扩展能力由各 Harness 的接入方式决定，适合通过实际任务观察它们的差异。
 
-**当前为研发预览项目。** macOS Apple Silicon 已完成本机运行和打包验证；macOS、Windows x64、Linux x64 的源码 CI 已通过。其他平台的安装包与实际使用仍需分别验证。分发包不附带 API Key、模型权重或 Docker 服务镜像。
+**当前为研发预览项目，发行采用 Pre-release 标记。** 已发布的平台与附件以 [GitHub Releases](https://github.com/SelfMeAI/agent-lab/releases) 为准；源码 CI、安装包原生自动验收和真实设备兼容性是不同的验证层级。安装包不附带 API Key、个人数据或模型权重；远端服务镜像通过公开 GHCR 单独提供。
 
 ## 四个实验室
 
@@ -63,6 +64,37 @@ OpenClaw 桌面终端与外部终端连接同一人工 Shell，智能体命令�
 JEV 是远端决策服务，四个实验用于观察候选选择、置信度、概率、耗时与决策结果，通过 API 接入，无需本机 Docker。
 
 象棋支持人类执红、自对弈、单步、自动/暂停、重开与合法着校验。**未配置 JEV 或 API 请求失败时，结果可能来自本地规则回退，界面会明确标记。** API 失败会停止自动对弈。
+
+## 下载安装包
+
+这条路径**不需要下载源码，也不需要安装 Node、Rust 或 Python**。
+
+1. 在 [Releases](https://github.com/SelfMeAI/agent-lab/releases) 下载对应系统与 CPU 的安装包，并按该版本 `SHA256SUMS.txt` 核对文件。不要混用不同版本的安装包与镜像准备脚本。
+2. macOS 使用 DMG 或 ZIP；Windows 使用 EXE；Linux 使用 AppImage，先赋予执行权限。当前包未做 macOS 签名/公证或 Windows 代码签名，系统可能提示来源无法验证；核对来源后按系统正常流程处理，不要全局关闭安全保护。
+3. 打开应用，在相应实验室设置自己的模型/API 连接。分发包内置六种本地 Harness 与 Ollama，不需要另外安装相应 CLI。Ollama 还需下载模型权重并满足模型的内存/显存要求；JEV 的真实决策需配置自己的服务连接。
+
+**只有 Remote Agent Lab 需要 Docker。** 先安装并启动 Docker Desktop（macOS/Windows）或 Docker Engine（Linux），使用 Linux 容器，Docker 26+；镜像支持 `amd64` 与 `arm64`。建议为 Docker 提供至少 8 GB 内存，并为两套浏览器环境和缓存预留数十 GB 磁盘空间。
+
+从**同一版本 Release** 下载 `prepare-remote.sh`（macOS/Linux）或 `prepare-remote.ps1`（Windows），终端切到下载目录后运行：
+
+```sh
+# macOS / Linux：准备两种远端服务
+sh prepare-remote.sh
+
+# 也可以只准备一种
+sh prepare-remote.sh openclaw
+```
+
+```powershell
+# Windows：仅对本次命令临时允许运行已核对的脚本
+powershell -NoProfile -ExecutionPolicy Bypass -File .\prepare-remote.ps1
+```
+
+脚本只要求 Docker，通过公开的固定 digest 拉取并验证镜像，再设置应用需要的本地标签；**无需 GitHub 登录，不会下载源码、编译服务、启动/删除容器、删除数据卷或更改网络配置**。下载中断后可重跑，Docker 复用已下载的层。
+
+准备完成后，进入 **Remote Agent Lab → 服务管理**，启动所需服务并配置自己的模型连接。桌面应用与镜像仍使用本机自部署的研发模式，不是直接暴露公网的多租户服务。
+
+每个 Release 附 `release-manifest.json`（源码 commit、安装包 SHA-256、镜像 digest）、校验表、准备脚本及桌面组件对应源码。只使用其他三个实验室时，可以不下载脚本/镜像、不安装 Docker。
 
 ## 快速开始
 
@@ -133,6 +165,8 @@ npm run verify:codex
 
 ## 服务端部署
 
+**安装包使用者**按上面的镜像准备步骤即可。以下用于从源码构建/修改服务，不是运行 Release 的必经步骤。
+
 ### 1. 构建固定源码镜像
 
 Mac/Windows 使用运行中的 Docker Desktop，Linux 可使用 Docker Engine，运行 **Linux 容器**。建议至少给 Docker 8 GB 内存；两套浏览器环境同时运行或构建时可能需要更多。
@@ -183,12 +217,14 @@ npm run package:linux
 npm run package:dir
 ```
 
-| 目标 | 默认分发格式 | 验证状态 |
+| 目标 | 默认分发格式 | 原生验收环境 |
 | --- | --- | --- |
-| macOS Apple Silicon | DMG + ZIP | 本机源码编译、打包和界面已验收 |
-| macOS Intel | DMG + ZIP | 原生构建配置/CI 已准备，待实机验收 |
-| Windows x64 | NSIS 安装程序 | 源码 CI 已通过，安装包与实机使用待验收 |
-| Linux x64 / glibc | AppImage | 源码 CI 已通过，安装包与实机使用待验收 |
+| macOS Apple Silicon | DMG + ZIP | `macos-15`，另有本机运行验收 |
+| macOS Intel | DMG + ZIP | `macos-15-intel` |
+| Windows x64 | NSIS 安装程序 | `windows-2022`；面向 Windows 10/11 x64 |
+| Linux x64 / glibc | AppImage | `ubuntu-24.04`；其他发行版未实机验收 |
+
+发布工作流只在选中的目标通过原生编译、实际窗口/IPC 启动、内置 Harness 加载和模拟模型交互回归后，才将其纳入 Release。**表格是构建/验收矩阵，不表示每个平台已经有可下载的成功产物**；实际支持范围以对应 Release 附件及清单为准。自动验收不能代替所有真实设备、操作系统版本或模型服务的兼容性测试。
 
 Windows/Linux ARM64 有运行时恢复路径，但不在当前默认发布矩阵内，不作为已经验收的平台承诺。
 
@@ -203,9 +239,17 @@ release/
 
 分发包包含对应平台的本地运行时，但不含个人配置、会话、模型权重或 Docker 服务镜像。应用图标由打包器生成对应平台格式。
 
-**当前包未配置 macOS 签名/公证和 Windows 代码签名，也没有自动更新或自动发布。** 系统可能提示来源无法验证。请先核对仓库与构建来源，再按系统正常流程判断是否允许运行；不要为运行本项目全局关闭系统安全保护。
+**当前包未配置 macOS 签名/公证和 Windows 代码签名，也没有自动更新。** 系统可能提示来源无法验证。请先核对仓库与构建来源，再按系统正常流程判断是否允许运行；不要为运行本项目全局关闭系统安全保护。
 
 自动源码检查见 [Source checks](https://github.com/SelfMeAI/agent-lab/actions/workflows/check.yml)；原生打包可手动触发 [Native desktop packages](https://github.com/SelfMeAI/agent-lab/actions/workflows/package.yml)，生成 CI 下载产物，不自动发布 GitHub Release。
+
+### 维护者发版
+
+提交代码与发版分开：普通 push/PR 只运行源码检查。[Release](https://github.com/SelfMeAI/agent-lab/actions/workflows/release.yml) **只能手动触发**，从选定源码 commit 原生构建安装包，并从锁定上游源码构建两种服务的 Linux amd64/arm64 镜像。
+
+先提交根目录与桌面 `package.json` 一致的版本号（及锁文件），再在 Actions → Release 输入同一版本号、选择桌面目标。默认创建草稿；勾选 `publish` 才在全部验证通过后公开 Pre-release。已经公开的版本不可覆盖，需要增加版本号。可用 `npm run release:plan` 本地核对固定来源与发布目标。
+
+首次 GHCR 容器包默认为 Private，需要在对应包设置里改为 **Public**；工作流会验证匿名拉取，不能公开下载的镜像不会进入 Release。不需要把个人 registry token 写进仓库，工作流仅使用 GitHub 的短期 `GITHUB_TOKEN`。首次设置后，后续版本沿用公开包。
 
 ## 架构与目录
 
@@ -234,7 +278,7 @@ services/remote-agent/
 runtimes/                    固定运行时清单、许可与接入加载器
 scripts/                     环境检查、恢复、编译、校验、打包与服务脚本
 assets/                      品牌、背景与 README 实机截图
-.github/workflows/           检查与原生打包 CI
+.github/workflows/           源码检查、原生打包与手动 Release
 .cache/ / .work/ / release/  缓存、临时验证与构建产物，不入 Git
 ```
 
@@ -327,7 +371,7 @@ AGENT_LAB_REMOTE_INTEGRATION=1 npm run test --workspace @agent-lab/desktop -- ap
 
 **桌面包能独自启动远端实验室吗？**
 
-分发包包含客户端，不包含服务镜像。当前需从源码仓库按“服务端部署”构建镜像，然后在应用中启动。远端任务在服务容器中执行，客户端通过 API 交互和观察。
+分发包包含客户端，不包含体积很大的 Docker 镜像。安装并启动 Docker，运行同版本 Release 的镜像准备脚本后，即可在应用中启动服务，不需要源码。远端任务在容器中执行，客户端通过 API 交互和观察。
 
 ## 许可证与致谢
 

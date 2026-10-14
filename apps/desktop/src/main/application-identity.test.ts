@@ -27,6 +27,15 @@ describe("application rename compatibility", () => {
     const base = fixture(); mkdirSync(join(base, legacyApplicationName)); mkdirSync(join(base, applicationName));
     expect(applicationIdentity(base).root).toBe(join(base, applicationName));
   });
+  it("isolates a release smoke test from all existing application data", () => {
+    const base = fixture(); mkdirSync(join(base, legacyApplicationName));
+    const testBase = join(base, "release-test"); mkdirSync(testBase);
+    expect(applicationIdentity(base, testBase)).toEqual({ root: join(testBase, applicationName), encryptionName: applicationName });
+    expect(() => applicationIdentity(base, "relative-test")).toThrow("真实绝对目录");
+    expect(() => applicationIdentity(base, join(base, "not-created"))).toThrow("真实绝对目录");
+    symlinkSync("release-test", join(base, "linked-test"));
+    expect(() => applicationIdentity(base, join(base, "linked-test"))).toThrow("真实目录");
+  });
   it("refuses symlinked or non-directory application profiles", () => {
     const base = fixture(); mkdirSync(join(base, "other"));
     symlinkSync("other", join(base, legacyApplicationName));

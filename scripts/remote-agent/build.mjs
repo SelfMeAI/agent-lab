@@ -19,16 +19,20 @@ export function buildArguments(definition, source, directory) {
   return args;
 }
 
-export function deploymentArguments(definition, source, directory) {
+export function deploymentArguments(definition, source, directory, labels = {}) {
   if (!definition.deployment) return undefined;
   if (definition.deployment.dockerfile !== "deployment.Dockerfile" || !/^agent-lab\/[a-z0-9-]+:[a-zA-Z0-9_.-]+$/.test(definition.deployment.image)) throw new Error("部署层构建定义无效");
-  return ["build", "--progress=plain", "--build-context", `document-preview=${join(projectRoot, "services/remote-agent/document-preview")}`, ...(definition.id === "openclaw" ? ["--build-context", `model-discovery=${join(projectRoot, "packages/remote-agent/src")}`] : []), "--file", join(directory, "deployment.Dockerfile"),
+  const metadata = Object.entries(labels).flatMap(([key, value]) => {
+    if (!/^org\.opencontainers\.image\.[a-z]+$/.test(key) || typeof value !== "string" || value.length > 512 || /[\r\n\0]/.test(value)) throw new Error("发布镜像元数据无效");
+    return ["--label", `${key}=${value}`];
+  });
+  return ["build", "--progress=plain", "--build-context", `project-licenses=${projectRoot}`, "--build-context", `document-preview=${join(projectRoot, "services/remote-agent/document-preview")}`, ...(definition.id === "openclaw" ? ["--build-context", `model-discovery=${join(projectRoot, "packages/remote-agent/src")}`] : []), "--file", join(directory, "deployment.Dockerfile"),
     "--tag", definition.deployment.image, "--build-arg", `SOURCE_IMAGE=${definition.build.image}`,
     "--label", `ai.agent-lab.desktop.engine=${definition.id}`, "--label", `ai.agent-lab.desktop.source.commit=${source.commit}`,
-    "--label", "ai.agent-lab.desktop.integration=1", directory];
+    "--label", "ai.agent-lab.desktop.integration=1", ...metadata, directory];
 }
 
-export async function buildMain(args, { checkDocker = requireDocker, checkout = ensureSource } = {}) {
+export async function buildMain(args, { checkDocker = requireDocker, checkout = ensureSource, labels = {} } = {}) {
   if (args.includes("--help")) { console.log("npm run remote:build -- <openhands|openclaw> [--plan]"); return; }
   const engine = args[0];
   const lock = await readLock(engine);
@@ -40,7 +44,7 @@ export async function buildMain(args, { checkDocker = requireDocker, checkout = 
   const docker = args.includes("--plan") ? undefined : await checkDocker();
   const directory = await checkout(engine, source);
   const build = buildArguments(definition, source, directory);
-  const deployment = deploymentArguments(definition, source, join(projectRoot, "services", "remote-agent", engine));
+  const deployment = deploymentArguments(definition, source, join(projectRoot, "services", "remote-agent", engine), labels);
   await access(build[build.indexOf("--file") + 1]);
   if (deployment) await access(deployment[deployment.indexOf("--file") + 1]);
   if (args.includes("--plan")) { console.log(JSON.stringify({ engine, commit: source.commit, commands: [build, ...(deployment ? [deployment] : [])].map(args => ({ command: "docker", args })) }, null, 2)); return; }

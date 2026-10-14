@@ -191,7 +191,10 @@ describe.skipIf(process.env.AGENT_LAB_REMOTE_INTEGRATION !== "1")("native source
           await tasks.claw.send(native.id, "STOP_TEST");
           await expect.poll(() => snapshot()?.items.find(item => item.approval)?.approval?.id, { timeout: 15_000 }).toBeTruthy();
           await tasks.claw.approve(native.id, snapshot()!.items.find(item => item.approval)!.approval!.id, "once");
-          await expect.poll(commandText, { timeout: 10_000 }).toContain("NATIVE_STOP_BEGIN");
+          await expect.poll(async () => (await tasks.claw.terminalAccess(native.id)).busy, { timeout: 10_000 }).toBe(true);
+          // The fixture's native yieldMs is 10s. Output cannot be required in
+          // that same 10s window: it arrives only after yield + event transport.
+          await expect.poll(commandText, { timeout: 20_000 }).toContain("NATIVE_STOP_BEGIN");
           await tasks.claw.control(native.id, "stop");
           await expect.poll(() => snapshot()?.task.status, { timeout: 10_000 }).toBe("paused");
           expect(commandText()).not.toContain("NATIVE_STOP_END");

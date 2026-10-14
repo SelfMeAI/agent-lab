@@ -163,7 +163,7 @@ export class RemoteAgentContainer {
     await this.command(["info", "--format", "{{.ServerVersion}}"]);
     const keys = await this.credentials();
     try { await this.checkImage(); }
-    catch { throw new Error(`尚未构建固定源码服务镜像，请运行 npm run remote:build -- ${this.engine}`); }
+    catch { throw new Error(`尚未准备服务镜像。请使用对应版本 Release 的镜像准备脚本；源码用户可运行 npm run remote:build -- ${this.engine}`); }
     await this.documentPreview.ensureNetwork();
     let previous = await this.inspect();
     if (previous) {

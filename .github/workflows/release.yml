@@ -1,0 +1,159 @@
+name: Release
+
+# Ordinary pushes only run check.yml. Versioned images/installers require this
+# explicit manual action; a public release is optional after all gates pass.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version already committed in both package.json files (without v)'
+        required: true
+        type: string
+        default: '0.1.0'
+      desktop_targets:
+        description: 'Native desktop packages to verify and include'
+        type: choice
+        options: [all, mac-arm64, mac-x64, win-x64, linux-x64]
+        default: all
+      publish:
+        description: 'Make the verified pre-release public (false creates a draft)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+concurrency:
+  group: agent-lab-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.plan.outputs.commit }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      desktop: ${{ steps.plan.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TARGETS: ${{ inputs.desktop_targets }}
+        run: node scripts/release/publish.mjs --preflight --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
+
+  desktop:
+    needs: plan
+    uses: ./.github/workflows/package.yml
+    with:
+      commit: ${{ needs.plan.outputs.commit }}
+      matrix: ${{ needs.plan.outputs.desktop }}
+
+  images:
+    needs: plan
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Office preview acceptance tools
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: npm ci --no-audit --no-fund
+      - run: npm run ensure:kimi
+      - run: npm run ensure:qwen
+      - run: npm run typecheck
+      - run: npm run test:scripts
+      - run: npm run test:remote
+      - name: Source-built images, fresh native integration, then registry push
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: node scripts/release/images.mjs --version "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY" --push
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: Remote-images-${{ matrix.arch }}
+          path: |
+            release/images-linux-${{ matrix.arch }}.json
+            release/*-desktop-component-source.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [plan, desktop, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      packages: write
+    env:
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+      RELEASE_TARGETS: ${{ inputs.desktop_targets }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: Desktop-*
+          merge-multiple: true
+          path: .work/release-artifacts
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: Remote-images-*
+          merge-multiple: true
+          path: .work/release-artifacts
+      - name: Assemble fixed multi-architecture manifests
+        run: node scripts/release/images.mjs --merge --directory .work/release-artifacts --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
+      - name: Require anonymous image access (first packages must be Public)
+        run: node scripts/release/assets.mjs --verify-public --directory .work/release-artifacts --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
+      - name: Check every receipt and assemble distribution-only files
+        run: node scripts/release/assets.mjs --directory .work/release-artifacts --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
+      - name: Upload verified release assets
+        env:
+          PUBLIC_RELEASE: ${{ inputs.publish }}
+        run: |
+          if [ "$PUBLIC_RELEASE" = true ]; then
+            node scripts/release/publish.mjs --publish --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
+          else
+            node scripts/release/publish.mjs --version "$RELEASE_VERSION" --targets "$RELEASE_TARGETS" --repository "$GITHUB_REPOSITORY"
+          fi

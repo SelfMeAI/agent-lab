@@ -75,6 +75,18 @@ LibreOffice, Chromium, Xfce, GNU utilities and other packages in the service
 images retain their own licenses. Container builds preserve their installed
 copyright/license files; desktop installers do not embed these images.
 
+Xfce4 Panel 4.18.2 — GPL-2.0-or-later
+https://archive.xfce.org/src/xfce/xfce4-panel/4.18/
+The OpenClaw deployment applies the narrow menu integration patch in
+services/remote-agent/openclaw/desktop/panel-menu.mjs. Its original COPYING,
+exact patched source archive, patch script and deployment build recipe are
+preserved in the image under /opt/agent-lab/desktop/sources (the COPYING file
+is also installed as /opt/agent-lab/desktop/LICENSE.xfce4-panel).
+The corresponding source is additionally distributed as the release's
+desktop-component-source archive. This component remains under its own GPL
+license, not Agent Lab's Apache license. Installed distribution packages keep
+their /usr/share/doc copyright/source information and applicable licenses.
+
 JEV
 ---
 Agent Lab's JEV experiments call an external TypeSafe decision API.

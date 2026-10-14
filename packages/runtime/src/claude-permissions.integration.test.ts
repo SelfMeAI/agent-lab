@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { executableName } from "../../../runtimes/platform.mjs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { RunEvent } from "../../contracts/src/index";
@@ -29,7 +30,7 @@ describe("restored Claude grants still respect native safety", () => {
     });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const records = new Map<string, unknown>();
-    const options = { executable: join(runtimeRoot, "claude/bin/claude"), homeDirectory: join(scratch, "home"), permissions: { get: (key: string) => records.get(key), set: (key: string, value: unknown) => { records.set(key, structuredClone(value)); } }, provider: async () => ({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, model: "claude-sonnet-4-6", apiKey: "sk-local-safety-check" }) };
+    const options = { executable: join(runtimeRoot, "claude/bin", executableName("claude")), homeDirectory: join(scratch, "home"), permissions: { get: (key: string) => records.get(key), set: (key: string, value: unknown) => { records.set(key, structuredClone(value)); } }, provider: async () => ({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, model: "claude-sonnet-4-6", apiKey: "sk-local-safety-check" }) };
     let adapter = new ClaudeAdapter(options);
     const observe = () => adapter.onEvent(event => {
       events.push(event); if (event.kind === "error") errors.push(event.text ?? "native error");

@@ -57,7 +57,7 @@ const shutdown = installAppShutdown(app,
   () => sessionRepository?.close(),
   (error) => console.error("停止本地运行时失败：", error));
 
-const identity = applicationIdentity(app.getPath("appData"));
+const identity = applicationIdentity(app.getPath("appData"), process.env.AGENT_LAB_TEST_APP_DATA);
 // Electron captures the macOS Keychain service before ready. Existing installs
 // retain that service; after ready all menus/windows use the current app name.
 app.setName(identity.encryptionName);

@@ -37,6 +37,8 @@
     "remote:build": "node scripts/remote-agent/build.mjs",
     "remote:probe": "node scripts/remote-agent/probe.mjs",
     "test:remote": "node --test scripts/remote-agent/*.test.mjs",
+    "release:plan": "node scripts/release/manifest.mjs",
+    "release:smoke": "node scripts/release/smoke-desktop.mjs",
     "package": "node scripts/package-desktop.mjs",
     "package:dir": "node scripts/package-desktop.mjs --dir",
     "package:mac": "node scripts/package-desktop.mjs --platform mac",
@@ -45,5 +47,8 @@
   },
   "engines": {
     "node": ">=22.19.0"
+  },
+  "devDependencies": {
+    "playwright": "1.64.0"
   }
 }

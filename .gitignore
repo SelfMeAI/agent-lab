@@ -11,7 +11,7 @@ services/remote-agent/*/upstream/
 .cache/
 .work/
 out/
-release/
+/release/
 dist/
 coverage/
 output/playwright/

@@ -11,6 +11,12 @@ RUN curl --fail --location --retry 2 --max-time 120 https://archive.xfce.org/src
     && tar -xjf panel.tar.bz2
 COPY desktop/panel-menu.mjs /panel-source/panel-menu.mjs
 RUN node panel-menu.mjs /panel-source/xfce4-panel-4.18.2
+# Preserve the exact modified source before compilation, with its license and
+# the recipe/patch. Binary image recipients can extract these without Git.
+RUN mkdir /panel-distribution \
+    && tar -cjf /panel-distribution/xfce4-panel-4.18.2-agent-lab.tar.bz2 -C /panel-source xfce4-panel-4.18.2
+COPY deployment.Dockerfile /panel-distribution/deployment.Dockerfile
+COPY desktop/panel-menu.mjs /panel-distribution/panel-menu.mjs
 WORKDIR /panel-source/xfce4-panel-4.18.2
 RUN ./configure --prefix=/usr --libdir=/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) --disable-debug --disable-gtk-doc --disable-introspection --disable-vala \
     && make -j2 && make DESTDIR=/panel-root install
@@ -34,6 +40,8 @@ COPY --from=model-discovery /transport/endpoint.ts /opt/agent-lab/plugin/native/
 COPY bootstrap /opt/agent-lab/bootstrap
 COPY --from=document-preview /office-preview.mjs /opt/document-preview/office-preview.mjs
 COPY desktop /opt/agent-lab/desktop
+COPY --from=project-licenses /LICENSE /NOTICE /THIRD_PARTY_NOTICES.txt /opt/agent-lab/licenses/
+COPY --from=panel-build /panel-distribution /opt/agent-lab/desktop/sources
 COPY --from=panel-build /panel-root/usr/bin/xfce4-panel /usr/bin/xfce4-panel
 COPY --from=panel-build /panel-root/usr/lib/ /usr/lib/
 COPY --from=panel-build /panel-source/xfce4-panel-4.18.2/COPYING /opt/agent-lab/desktop/LICENSE.xfce4-panel

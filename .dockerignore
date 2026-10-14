@@ -1,0 +1,6 @@
+# The project root is used only as the named license build context. Upstream
+# sources and deployment layers have their own, separate build contexts.
+**
+!LICENSE
+!NOTICE
+!THIRD_PARTY_NOTICES.txt
