@@ -113,7 +113,7 @@ describe("real harness human-question round trips (Pi uses Agent Lab's SDK custo
       if (id === "codex") expect(events.some(event => event.title === "Codex 提示" && event.text?.startsWith("Under-development features enabled:"))).toBe(false);
     } finally {
       await adapter.stop(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
-      await rm(scratch, { recursive: true, force: true });
+      await rm(scratch, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   }, 45000);
 });

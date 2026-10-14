@@ -62,8 +62,13 @@ describe("real bundled harnesses: mid-turn steering", () => {
     const events: RunEvent[] = [];
     let steered = false;
     let steeringCall: Promise<void> | undefined;
+    const diagnostics = () => JSON.stringify({
+      events: events.map(e => ({ kind: e.kind, phase: e.phase, text: e.text?.slice(0, 160), title: e.title, delivery: e.deliveryState })),
+      shellSchemas: (requests[0]?.tools ?? []).map((t: Obj) => t.function ?? t).filter((t: Obj) => /bash|shell|exec|execute.*command/i.test(t.name)),
+      toolFeedback: (requests.at(-1)?.messages ?? requests.at(-1)?.input ?? []).filter((m: Obj) => m.role === "tool" || m.type === "function_call_output"),
+    });
     const runEnded = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`Run timeout; ${JSON.stringify(events.map(e => ({ kind: e.kind, phase: e.phase, text: e.text?.slice(0, 160), title: e.title, delivery: e.deliveryState })))}`)), 25000);
+      const timer = setTimeout(() => reject(new Error(`Run timeout; ${diagnostics()}`)), 25000);
       adapter.onEvent((event) => {
         events.push(event);
         if (!steered && (event.kind === "tool" || event.kind === "approval")) {
@@ -80,6 +85,7 @@ describe("real bundled harnesses: mid-turn steering", () => {
           if (option) void adapter.respondApproval(event.approval.requestId, option.optionId).catch(reject);
         }
         if (steered && event.phase === "ready") { completed = true; clearTimeout(timer); resolve(); }
+        if (!steered && event.phase === "ready" && event.runId !== "session") { clearTimeout(timer); reject(new Error(`Tool boundary was not reached; ${diagnostics()}`)); }
         if (event.kind === "error") { clearTimeout(timer); reject(new Error(event.text)); }
       });
     });
@@ -109,7 +115,7 @@ describe("real bundled harnesses: mid-turn steering", () => {
       await adapter.stop();
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      await rm(scratch, { recursive: true, force: true });
+      await rm(scratch, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   }, 35000);
 });

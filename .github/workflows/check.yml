@@ -33,6 +33,15 @@ jobs:
       - run: npm test
       - run: npm run test:scripts
       - run: npm run test:remote
+      - name: Windows native DSH ACP tool and steering round trips
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          AGENT_LAB_STEERING_INTEGRATION: '1'
+        run: |
+          $env:AGENT_LAB_STEERING_NODE_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'node_modules\electron\dist\electron.exe'
+          if (-not (Test-Path -LiteralPath $env:AGENT_LAB_STEERING_NODE_EXECUTABLE)) { throw 'The bundled Electron Node executable was not restored' }
+          npm run test --workspace '@agent-lab/desktop' -- packages/runtime/src/steering.integration.test.ts packages/runtime/src/user-questions.integration.test.ts -t dsh
       - run: npm run build
       - run: npm run check:source
 
