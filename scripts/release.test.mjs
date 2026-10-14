@@ -8,7 +8,7 @@ import { releaseIdentity, releasePlan, root, digestReference, validateImageRecei
 import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, verifyReleaseAssetSize, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
 import { verifyCodexSource } from "./release/codex-source.mjs";
-import { distributionLayout } from "./release/smoke-desktop.mjs";
+import { distributionLayout, installWindowsDistribution } from "./release/smoke-desktop.mjs";
 
 const execute = promisify(execFile);
 const commit = "a".repeat(40), digest = `sha256:${"b".repeat(64)}`;
@@ -104,6 +104,22 @@ test("desktop Chinese fallback is pinned, bundled offline, and retains its licen
   const styles = await readFile(join(root, "apps/desktop/src/renderer/styles.css"), "utf8");
   assert.ok(styles.includes('"Noto Sans SC Variable", monospace'));
   assert.ok(styles.includes('"Noto Sans SC Variable", sans-serif'));
+});
+test("Windows acceptance waits for a real installer and rejects missing payloads or failed installs", async () => {
+  await mkdir(join(root, ".work"), { recursive: true });
+  const directory = await mkdtemp(join(root, ".work/release-installer-test-"));
+  const installed = join(directory, "installed");
+  try {
+    await installWindowsDistribution("installer-fixture.exe", installed, async (command, args, options) => {
+      assert.equal(command, "installer-fixture.exe");
+      assert.deepEqual(args, ["/S", `/D=${installed}`]);
+      assert.equal(options.timeout, 900_000);
+      await mkdir(installed); await writeFile(join(installed, "Agent Lab.exe"), "test-only-payload");
+    });
+    await rm(installed, { recursive: true });
+    await assert.rejects(installWindowsDistribution("installer-fixture.exe", installed, async () => {}), /ENOENT/);
+    await assert.rejects(installWindowsDistribution("installer-fixture.exe", installed, async () => { throw Error("installer failed"); }), /installer failed/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 test("public image checks do not use user auth and reject private/mismatched/incomplete manifests", async () => {
   const calls = [], token = "anonymous-fixture";

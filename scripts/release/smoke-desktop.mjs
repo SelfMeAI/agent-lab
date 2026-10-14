@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { _electron as electron } from "playwright";
@@ -7,6 +7,34 @@ import { releasePlan, root } from "./manifest.mjs";
 import { run, runNpm } from "../lib/process.mjs";
 import { writeJsonAtomic } from "../lib/artifacts.mjs";
 import { executableName, ollamaExecutableRelativePath } from "../../runtimes/platform.mjs";
+import { verifyReleaseAssetSize } from "./assets.mjs";
+
+// A multi-GB NSIS payload can take longer than three minutes to unpack under
+// hosted Windows antivirus. Keep a bounded wait and observable file progress;
+// never treat a timeout or an absent installed executable as a passing check.
+export async function installWindowsDistribution(installer, directory, execute = run) {
+  const progress = async () => {
+    const paths = await readdir(directory, { recursive: true }).catch(error => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    });
+    const payload = await Promise.all(["Agent Lab.exe", "resources/app.asar"].map(async path => {
+      try { return { file: path, bytes: (await stat(join(directory, path))).size }; }
+      catch (error) { if (error.code === "ENOENT") return { file: path, bytes: 0 }; throw error; }
+    }));
+    console.log(`Windows 安装进度：${paths.length} 个路径 · ${JSON.stringify(payload)}`);
+  };
+  const heartbeat = setInterval(() => { void progress().catch(error => console.error(`安装进度检查：${error.message}`)); }, 30_000);
+  heartbeat.unref();
+  try {
+    await execute(installer, ["/S", `/D=${directory}`], { timeout: 900_000 });
+    await access(join(directory, "Agent Lab.exe"));
+    await progress();
+  } catch (error) {
+    await progress().catch(() => {});
+    throw error;
+  } finally { clearInterval(heartbeat); }
+}
 
 export function packagedLayout(platform = process.platform, arch = process.arch) {
   const suffix = arch === "x64" ? "" : `-${arch}`;
@@ -44,7 +72,7 @@ async function extractDistribution(plan, target) {
     // This is extraction, not permission escalation or a production default.
     await run(archive("AppImage"), ["--appimage-extract"], { cwd: directory, capture: true, maxBuffer: 20_000_000, timeout: 180_000 });
   } else {
-    await run(archive("exe"), ["/S", `/D=${join(directory, "installed")}`], { timeout: 180_000 });
+    await installWindowsDistribution(archive("exe"), join(directory, "installed"));
   }
   return { directory, layout: distributionLayout(directory) };
 }
@@ -53,7 +81,7 @@ export async function smokeDesktop(args = []) {
   const plan = await releasePlan();
   const target = plan.desktop.find(target => target.id === packagedLayout().target);
   if (!target) throw new Error("此原生平台不在发布矩阵中");
-  for (const extension of target.extensions) await access(join(root, "release", `Agent-Lab-${plan.version}-${target.id}.${extension}`));
+  for (const extension of target.extensions) await verifyReleaseAssetSize(join(root, "release", `Agent-Lab-${plan.version}-${target.id}.${extension}`));
   await mkdir(join(root, ".work"), { recursive: true });
   const installation = await extractDistribution(plan, target), layout = installation.layout;
   await access(layout.executable); await access(layout.node);
