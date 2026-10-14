@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, delimiter } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
-import { releaseIdentity, releasePlan, root, digestReference, validateImageReceipt, desktopTargets } from "./release/manifest.mjs";
+import { releaseIdentity, releasePlan, releaseStage, root, digestReference, validateImageReceipt, desktopTargets } from "./release/manifest.mjs";
+import { releaseStatusFlags } from "./release/publish.mjs";
 import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, verifyReleaseAssetSize, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
 import { verifyCodexSource } from "./release/codex-source.mjs";
@@ -32,6 +33,17 @@ test("real release plan agrees with both client image locks and the office previ
   const actual = await releasePlan(); assert.equal(actual.version, JSON.parse(await readFile(join(root, "package.json"), "utf8")).version);
   assert.match(actual.images.openclaw.localTag, /-lab33$/); assert.match(actual.images.openhands.localTag, /-lab10$/);
   assert.match(actual.documentPreview, /@sha256:[a-f0-9]{64}$/);
+});
+test("normal releases become Latest only when published; suffixed versions remain prereleases", () => {
+  assert.deepEqual(releaseStage(plan), { prerelease: false, latest: true });
+  assert.deepEqual(releaseStatusFlags(plan), ["--prerelease=false"]);
+  assert.deepEqual(releaseStatusFlags(plan, true), ["--prerelease=false", "--draft=false", "--latest=true"]);
+  for (const suffix of ["alpha.1", "beta.2", "rc.1"]) {
+    const preview = { ...plan, version: `0.2.0-${suffix}`, tag: `v0.2.0-${suffix}` };
+    assert.deepEqual(releaseStatusFlags(preview, true), ["--prerelease=true", "--draft=false", "--latest=false"]);
+    assert.ok(releaseNotes(preview).includes("预发布版本"));
+  }
+  assert.throws(() => releaseStage({version:"latest"}), /无效/);
 });
 test("image receipts cannot silently substitute a different source, architecture or local alias", () => {
   const receipt = { schemaVersion: 1, version: plan.version, commit, arch: "arm64", verified: true, images: imageList.images };
@@ -151,7 +163,8 @@ test("public image checks do not use user auth and reject private/mismatched/inc
 });
 test("release notes make prerequisites/platform limits and source-free steps explicit", () => {
   const notes = releaseNotes(plan);
-  for (const text of ["无需源码", "Docker", "API Key", "模型权重", "prepare-remote.sh", "prepare-remote.ps1", "Pre-release", "未签名", "FUSE 2", "--appimage-extract-and-run", commit.slice(0, 12)]) assert.ok(notes.includes(text), text);
+  for (const text of ["无需源码", "Docker", "API Key", "模型权重", "prepare-remote.sh", "prepare-remote.ps1", "公开发行版本", "未签名", "FUSE 2", "--appimage-extract-and-run", commit.slice(0, 12)]) assert.ok(notes.includes(text), text);
+  assert.doesNotMatch(notes, /首批发行使用 Pre-release/);
   assert.doesNotMatch(notes, /\$\{plan\./);
 });
 

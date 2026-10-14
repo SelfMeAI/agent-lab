@@ -15,6 +15,11 @@ export const imageTargets = [
   { os: "ubuntu-24.04", arch: "amd64" },
   { os: "ubuntu-24.04-arm", arch: "arm64" },
 ];
+export function releaseStage(plan) {
+  if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+(?:[.-][a-zA-Z0-9]+)*)?$/.test(plan.version ?? "")) throw new Error("发布版本号无效");
+  const prerelease = plan.version.includes("-");
+  return { prerelease, latest: !prerelease };
+}
 export function architectureTag(plan, arch) {
   if (!/^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+(?:[.-][a-zA-Z0-9]+)*)?$/.test(plan.tag ?? "") || !imageTargets.some(target => target.arch === arch))
     throw new Error("镜像版本或架构标签无效");

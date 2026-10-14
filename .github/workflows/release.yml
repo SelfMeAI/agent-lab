@@ -16,7 +16,7 @@ on:
         options: [all, mac-arm64, mac-x64, win-x64, linux-x64]
         default: all
       publish:
-        description: 'Make the verified pre-release public (false creates a draft)'
+        description: 'Publish verified Release (normal versions become Latest; false creates a draft)'
         type: boolean
         default: false
 

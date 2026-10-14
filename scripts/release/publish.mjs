@@ -1,10 +1,15 @@
 import { appendFile, readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { releasePlan, root } from "./manifest.mjs";
+import { releasePlan, releaseStage, root } from "./manifest.mjs";
 import { readJson, sha256 } from "../lib/artifacts.mjs";
 import { run } from "../lib/process.mjs";
 import { verifyReleaseAssetSize } from "./assets.mjs";
+
+export function releaseStatusFlags(plan, publish = false) {
+  const stage = releaseStage(plan);
+  return [`--prerelease=${stage.prerelease}`, ...(publish ? ["--draft=false", `--latest=${stage.latest}`] : [])];
+}
 
 async function githubJson(plan, path) {
   try { return JSON.parse(await run("gh", ["api", `repos/${plan.repository}/${path}`], { capture: true })); }
@@ -49,12 +54,12 @@ export async function publishRelease(plan, directory, publish = false) {
     const unexpected = existing.assets?.filter(asset => !names.includes(asset.name)) ?? [];
     if (unexpected.length) throw new Error("草稿中有非本流程管理的附件，未删除或覆盖，请先核对");
     await run("gh", ["release", "upload", plan.tag, "--repo", plan.repository, "--clobber", ...paths], { timeout: 1_800_000 });
-    await run("gh", ["release", "edit", plan.tag, "--repo", plan.repository, "--notes-file", join(directory, "RELEASE.md"), "--prerelease"]);
+    await run("gh", ["release", "edit", plan.tag, "--repo", plan.repository, "--notes-file", join(directory, "RELEASE.md"), ...releaseStatusFlags(plan)]);
   } else {
     await run("gh", ["release", "create", plan.tag, "--repo", plan.repository, "--target", plan.commit, "--title", `Agent Lab ${plan.version}`,
-      "--notes-file", join(directory, "RELEASE.md"), "--draft", "--prerelease", ...paths], { timeout: 1_800_000 });
+      "--notes-file", join(directory, "RELEASE.md"), "--draft", ...releaseStatusFlags(plan), ...paths], { timeout: 1_800_000 });
   }
-  if (publish) await run("gh", ["release", "edit", plan.tag, "--repo", plan.repository, "--draft=false", "--prerelease", "--latest=false"]);
+  if (publish) await run("gh", ["release", "edit", plan.tag, "--repo", plan.repository, ...releaseStatusFlags(plan, true)]);
   console.log(`${publish ? "已公开发布" : "已创建发版草稿"} · https://github.com/${plan.repository}/releases/tag/${plan.tag}`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -19,7 +19,7 @@ Agent Lab 是一个面向智能体研发、能力验证与对照实验的 **Elec
 
 各实验室使用独立的运行时或服务，提供连接配置、会话、执行过程、审批和产物展示。工具、权限、上下文与扩展能力由各 Harness 的接入方式决定，适合通过实际任务观察它们的差异。
 
-**当前为研发预览项目，发行采用 Pre-release 标记。** 已发布的平台与附件以 [GitHub Releases](https://github.com/SelfMeAI/agent-lab/releases) 为准；源码 CI、安装包原生自动验收和真实设备兼容性是不同的验证层级。安装包不附带 API Key、个人数据或模型权重；远端服务镜像通过公开 GHCR 单独提供。
+**这是面向智能体研发与能力验证的实验平台。** 普通版本采用 Release 发布，带 `-alpha`、`-beta`、`-rc` 等后缀的版本标记为 Pre-release。已发布的平台与附件以 [GitHub Releases](https://github.com/SelfMeAI/agent-lab/releases) 为准；源码 CI、安装包原生自动验收和真实设备兼容性是不同的验证层级。安装包不附带 API Key、个人数据或模型权重；远端服务镜像通过公开 GHCR 单独提供。
 
 ## 四个实验室
 
@@ -253,7 +253,7 @@ release/
 
 提交代码与发版分开：普通 push/PR 只运行源码检查。[Release](https://github.com/SelfMeAI/agent-lab/actions/workflows/release.yml) **只能手动触发**，从选定源码 commit 原生构建安装包，并从锁定上游源码构建两种服务的 Linux amd64/arm64 镜像。
 
-先提交根目录与桌面 `package.json` 一致的版本号（及锁文件），再在 Actions → Release 输入同一版本号、选择桌面目标。默认创建草稿；勾选 `publish` 才在全部验证通过后公开 Pre-release。已经公开的版本不可覆盖，需要增加版本号。可用 `npm run release:plan` 本地核对固定来源与发布目标。
+先提交根目录与桌面 `package.json` 一致的版本号（及锁文件），再在 Actions → Release 输入同一版本号、选择桌面目标。默认创建草稿；勾选 `publish` 才在全部验证通过后公开发布。普通版本标记为 Latest；带预发布后缀的版本标记为 Pre-release，不成为 Latest。已经公开的版本不能覆盖安装包或镜像，需要增加版本号。可用 `npm run release:plan` 本地核对固定来源与发布目标。
 
 首次 GHCR 容器包默认为 Private，需要在对应包设置里改为 **Public**；工作流会验证匿名拉取，不能公开下载的镜像不会进入 Release。不需要把个人 registry token 写进仓库，工作流仅使用 GitHub 的短期 `GITHUB_TOKEN`。首次设置后，后续版本沿用公开包。
 
