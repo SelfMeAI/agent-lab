@@ -75,7 +75,15 @@ jobs:
           package-manager-cache: false
       - name: Linux native build tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libcap-dev zstd xvfb dbus-x11 libgtk-3-0t64 libnss3 libgbm1 libasound2t64
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libcap-dev bubblewrap apparmor-profiles apparmor-utils zstd xvfb dbus-x11 libgtk-3-0t64 libnss3 libgbm1 libasound2t64
+      - name: Verify the Linux native command sandbox without disabling AppArmor
+        if: runner.os == 'Linux'
+        run: |
+          if sudo aa-status --enabled; then
+            sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+            sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+          fi
+          bwrap --unshare-user --unshare-net --ro-bind / / /bin/true
       - name: Windows MSVC environment
         if: runner.os == 'Windows'
         shell: pwsh

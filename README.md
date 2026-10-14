@@ -75,6 +75,8 @@ JEV 是远端决策服务，四个实验用于观察候选选择、置信度、�
 
 **Linux 桌面前提**：AppImage 需要可用的 FUSE 2（Ubuntu 24.04 的库包名为 `libfuse2t64`）；没有 FUSE 时可用 `./Agent-Lab-0.1.0-linux-x64.AppImage --appimage-extract-and-run`。具体说明见 [AppImage 官方 FUSE 指南](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)。Electron 沙箱还依赖系统允许的用户命名空间；遵循发行版的安全配置，不要为运行应用全局关闭 AppArmor 或沙箱。保存连接 Key 需要桌面会话中可用的 Secret Service/KWallet。
 
+Linux/WSL2 使用 Codex 时，先安装发行版的 `bubblewrap`（Ubuntu/Debian：`sudo apt install bubblewrap`）。Ubuntu 24.04 如限制用户命名空间，按 [OpenAI 官方沙箱前提](https://learn.chatgpt.com/docs/sandboxing#prerequisites) 加载对应的 bwrap AppArmor 配置，不需要关闭整个系统的保护。
+
 **只有 Remote Agent Lab 需要 Docker。** 先安装并启动 Docker Desktop（macOS/Windows）或 Docker Engine（Linux），使用 Linux 容器，Docker 26+；镜像支持 `amd64` 与 `arm64`。建议为 Docker 提供至少 8 GB 内存，并为两套浏览器环境和缓存预留数十 GB 磁盘空间。
 
 从**同一版本 Release** 下载 `prepare-remote.sh`（macOS/Linux）或 `prepare-remote.ps1`（Windows），终端切到下载目录后运行：

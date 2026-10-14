@@ -43,6 +43,9 @@ test("Linux native builds retain bwrap and check libcap before compiling", async
   assert.match(doctor, /\["--modversion", "libcap"\]/);
   assert.match(readme, /apt-get install[^\n]*\blibcap-dev\b/);
   assert.doesNotMatch(workflow, /CODEX_SKIP_BWRAP_BUILD/);
+  assert.match(workflow, /apt-get install[^\n]*\bbubblewrap\b/);
+  assert.match(workflow, /bwrap --unshare-user --unshare-net --ro-bind/);
+  assert.doesNotMatch(workflow, /apparmor_restrict_unprivileged_userns\s*=\s*0/);
 });
 
 test("source CI restores the real Kimi and Qwen fixtures before running their tests", async () => {
