@@ -140,7 +140,8 @@ export function isUnlinkPlaceholder(config, repository, nonce = config.config?.L
   const labels = config.config?.Labels ?? {};
   return /^[a-f0-9]{32}$/.test(nonce ?? "") && labels["org.opencontainers.image.source"] === sourceUrl(repository)
     && labels["ai.agent-lab.maintenance"] === "tag-unlink" && labels["ai.agent-lab.unlink.nonce"] === nonce
-    && config.rootfs?.type === "layers" && Array.isArray(config.rootfs.diff_ids) && config.rootfs.diff_ids.length === 0;
+    // Docker's empty-image config serializes diff_ids as null; OCI uses [].
+    && config.rootfs?.type === "layers" && (config.rootfs.diff_ids === null || (Array.isArray(config.rootfs.diff_ids) && config.rootfs.diff_ids.length === 0));
 }
 // The normal GHCR DELETE endpoint deletes a whole manifest, not just its tag.
 // Move only the explicitly selected old name to an owned, empty manifest first.
@@ -232,6 +233,19 @@ async function removeLegacyAliases(repository, version, apply) {
       throw error;
     }
   };
+  // Recover a test-only keep tag left by a previous failed canary. The exact
+  // marker/nonce/empty config and full reference veto are still mandatory.
+  for (const plan of plans) {
+    const versions = (await github(`${plan.endpoint}/versions?per_page=100&state=active`,{pages:true})).flat();
+    for (const item of versions) {
+      const tags = validateVersion(item);
+      if (tags.length!==1 || !/^unlink-check-[a-f0-9]{32}-keep$/.test(tags[0])) continue;
+      const image = (await plan.reader(item.name)).value;
+      if (image.manifests || image.layers?.length!==0) continue;
+      const config = (await plan.reader(image.config.digest,{blob:true})).value;
+      if (isUnlinkPlaceholder(config,repository)) await eraseTemporary(plan,tags[0],item.name);
+    }
+  }
   // Live canary: two disposable names share one empty manifest. Removing one
   // must not remove the other's digest. Both test manifests are then deleted.
   const canary = plans[0], nonce = randomUUID().replaceAll("-","");

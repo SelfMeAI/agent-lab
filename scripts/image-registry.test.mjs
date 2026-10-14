@@ -70,6 +70,8 @@ test("placeholder ownership requires our repository, marker, exact nonce and emp
   const repo="SelfMeAI/agent-lab", nonce="a".repeat(32);
   const config={config:{Labels:{"org.opencontainers.image.source":`https://github.com/${repo}`,"ai.agent-lab.maintenance":"tag-unlink","ai.agent-lab.unlink.nonce":nonce}},rootfs:{type:"layers",diff_ids:[]}};
   assert.ok(isUnlinkPlaceholder(config,repo,nonce));
+  assert.ok(isUnlinkPlaceholder({...config,rootfs:{type:"layers",diff_ids:null}},repo,nonce));
+  assert.ok(!isUnlinkPlaceholder({...config,rootfs:{type:"layers"}},repo,nonce));
   assert.ok(!isUnlinkPlaceholder(config,repo,"b".repeat(32)));
   assert.ok(!isUnlinkPlaceholder(config,"other/repo",nonce));
   assert.ok(!isUnlinkPlaceholder({...config,rootfs:{type:"layers",diff_ids:[digest("a")]}},repo,nonce));
