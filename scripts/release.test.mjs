@@ -5,7 +5,7 @@ import { join, delimiter } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 import { releaseIdentity, releasePlan, root, digestReference, validateImageReceipt, desktopTargets } from "./release/manifest.mjs";
-import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, releaseNotes } from "./release/assets.mjs";
+import { renderPreparation, verifyDesktopReceipt, verifyPublicImages, verifyReleaseAssetSize, releaseNotes } from "./release/assets.mjs";
 import { verifyImage } from "./release/images.mjs";
 import { verifyCodexSource } from "./release/codex-source.mjs";
 import { distributionLayout } from "./release/smoke-desktop.mjs";
@@ -70,6 +70,17 @@ test("desktop receipts require real package startup and all native harness check
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: ["compiled"] }));
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, checks: receipt.checks.filter(check => check !== "distribution-payload") }));
   assert.throws(() => verifyDesktopReceipt(plan, target, { ...receipt, files: ["../secret.json"] }));
+});
+test("Release asset limits reject oversized files without trimming bundled capabilities", async () => {
+  const metadata = (size, regular = true) => async () => ({ size, isFile: () => regular });
+  assert.equal((await verifyReleaseAssetSize("fixture.AppImage", metadata(2 ** 31 - 1))).size, 2 ** 31 - 1);
+  for (const size of [2 ** 31, 2 ** 31 + 1, -1, NaN])
+    await assert.rejects(verifyReleaseAssetSize("fixture.AppImage", metadata(size)), /小于 2 GiB/);
+  await assert.rejects(verifyReleaseAssetSize("fixture.AppImage", metadata(1024, false)), /常规文件/);
+  const builder = await readFile(join(root, "apps/desktop/electron-builder.yml"), "utf8");
+  assert.match(builder, /^appImage:\r?\n  compression: xz$/m);
+  const publisher = await readFile(join(root, "scripts/release/publish.mjs"), "utf8");
+  assert.ok(publisher.indexOf("await verifyReleaseAssetSize") < publisher.indexOf("await sha256"));
 });
 
 test("distribution verification uses extracted/installed payloads, not the original build directory", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { copyFile, mkdir, open, readFile, stat, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { releasePlan, root, digestReference, imageTargets } from "./manifest.mjs";
 import { readJson, sha256, writeJsonAtomic } from "../lib/artifacts.mjs";
@@ -30,8 +30,16 @@ export function verifyDesktopReceipt(plan, target, receipt) {
   assert.deepEqual(receipt.files, names, "安装包文件记录不匹配");
   return names;
 }
+// GitHub Release accepts only individual files smaller than 2 GiB. Check
+// before hashing/uploading large installers, without dropping runtime payloads.
+export async function verifyReleaseAssetSize(path, fileStat = stat) {
+  const info = await fileStat(path);
+  if (!info.isFile() || !Number.isSafeInteger(info.size) || info.size < 0 || info.size >= 2 ** 31)
+    throw new Error(`Release 附件必须是小于 2 GiB 的常规文件：${basename(path)}`);
+  return info;
+}
 async function checkInstaller(path, extension) {
-  const info = await stat(path);
+  const info = await verifyReleaseAssetSize(path);
   if (!info.isFile() || info.size < 1024) throw new Error("安装包为空或不是常规文件");
   const file = await open(path, "r");
   try {

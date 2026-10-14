@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { releasePlan, root } from "./manifest.mjs";
 import { readJson, sha256 } from "../lib/artifacts.mjs";
 import { run } from "../lib/process.mjs";
+import { verifyReleaseAssetSize } from "./assets.mjs";
 
 async function githubJson(plan, path) {
   try { return JSON.parse(await run("gh", ["api", `repos/${plan.repository}/${path}`], { capture: true })); }
@@ -36,6 +37,7 @@ export async function publishRelease(plan, directory, publish = false) {
   for (const line of sums) {
     const match = line.match(/^([a-f0-9]{64})  ([a-zA-Z0-9_.-]+)$/);
     if (!match || names.includes(match[2])) throw new Error("发布附件校验表无效");
+    await verifyReleaseAssetSize(join(directory, match[2]));
     if (await sha256(join(directory, match[2])) !== match[1]) throw new Error(`附件 SHA-256 不匹配：${match[2]}`);
     names.push(match[2]);
   }

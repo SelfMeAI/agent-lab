@@ -82,3 +82,5 @@ linux:
   executableName: agent-lab
   target:
     - AppImage
+appImage:
+  compression: xz
